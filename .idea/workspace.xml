@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="0383d4e5-60ae-44d1-96fd-ae0c142be82b" name="Default Changelist" comment="" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ProjectId" id="1WNjpnYDbFmRAiurtDyIOKIbza3" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showExcludedFiles" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">
+    <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
+    <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
+  </component>
+  <component name="RunManager" selected="Python.plotting">
+    <configuration name="3Dnp_array_modification" type="PythonConfigurationType" factoryName="Python" temporary="true">
+      <module name="Network_Structure_Via_Info_Diffusion" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="$USER_HOME$/anaconda3/envs/EchoChambers/bin/python" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/3Dnp_array_modification.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="plotter" type="PythonConfigurationType" factoryName="Python" temporary="true">
+      <module name="Network_Structure_Via_Info_Diffusion" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/plotter.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="plotting" type="PythonConfigurationType" factoryName="Python" temporary="true">
+      <module name="Network_Structure_Via_Info_Diffusion" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/plotting.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Python.plotting" />
+        <item itemvalue="Python.plotter" />
+        <item itemvalue="Python.3Dnp_array_modification" />
+      </list>
+    </recent_temporary>
+  </component>
+  <component name="ServiceViewManager">
+    <option name="viewStates">
+      <list>
+        <serviceView>
+          <treeState>
+            <expand />
+            <select />
+          </treeState>
+        </serviceView>
+      </list>
+    </option>
+  </component>
+  <component name="SvnConfiguration">
+    <configuration />
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="0383d4e5-60ae-44d1-96fd-ae0c142be82b" name="Default Changelist" comment="" />
+      <created>1578997131379</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1578997131379</updated>
+    </task>
+    <servers />
+  </component>
+  <component name="WindowStateProjectService">
+    <state x="320" y="162" width="629" height="810" key="#3Dnp_array_modification" timestamp="1578997197568">
+      <screen x="0" y="56" width="1280" height="1024" />
+    </state>
+    <state x="320" y="162" width="629" height="810" key="#3Dnp_array_modification/1280.0.1920.1080/0.56.1280.1024@0.56.1280.1024" timestamp="1578997197568" />
+    <state x="98" y="226" key="#com.intellij.execution.impl.EditConfigurationsDialog" timestamp="1578997181473">
+      <screen x="0" y="56" width="1280" height="1024" />
+    </state>
+    <state x="98" y="226" key="#com.intellij.execution.impl.EditConfigurationsDialog/1280.0.1920.1080/0.56.1280.1024@0.56.1280.1024" timestamp="1578997181473" />
+    <state width="1257" height="245" key="GridCell.Tab.0.bottom" timestamp="1579005315871">
+      <screen x="0" y="56" width="1280" height="1024" />
+    </state>
+    <state width="1257" height="245" key="GridCell.Tab.0.bottom/1280.0.1920.1080/0.56.1280.1024@0.56.1280.1024" timestamp="1579005315871" />
+    <state width="1257" height="245" key="GridCell.Tab.0.center" timestamp="1579005315870">
+      <screen x="0" y="56" width="1280" height="1024" />
+    </state>
+    <state width="1257" height="245" key="GridCell.Tab.0.center/1280.0.1920.1080/0.56.1280.1024@0.56.1280.1024" timestamp="1579005315870" />
+    <state width="1257" height="245" key="GridCell.Tab.0.left" timestamp="1579005315870">
+      <screen x="0" y="56" width="1280" height="1024" />
+    </state>
+    <state width="1257" height="245" key="GridCell.Tab.0.left/1280.0.1920.1080/0.56.1280.1024@0.56.1280.1024" timestamp="1579005315870" />
+    <state width="1257" height="245" key="GridCell.Tab.0.right" timestamp="1579005315871">
+      <screen x="0" y="56" width="1280" height="1024" />
+    </state>
+    <state width="1257" height="245" key="GridCell.Tab.0.right/1280.0.1920.1080/0.56.1280.1024@0.56.1280.1024" timestamp="1579005315871" />
+    <state x="129" y="203" key="SettingsEditor" timestamp="1578997280478">
+      <screen x="0" y="56" width="1280" height="1024" />
+    </state>
+    <state x="129" y="203" key="SettingsEditor/1280.0.1920.1080/0.56.1280.1024@0.56.1280.1024" timestamp="1578997280478" />
+    <state x="294" y="395" key="com.intellij.ide.util.TipDialog" timestamp="1578997138057">
+      <screen x="0" y="56" width="1280" height="1024" />
+    </state>
+    <state x="294" y="395" key="com.intellij.ide.util.TipDialog/1280.0.1920.1080/0.56.1280.1024@0.56.1280.1024" timestamp="1578997138057" />
+  </component>
+</project>
