@@ -1,7 +1,4 @@
-import numpy as np
 import graph
-import log_eff_dis_graph
-import sum_eff_dis_graph
 import plotter
 
 
@@ -13,8 +10,8 @@ value_per_nugget = 0.05
 examined_node = 1
 rounding = 3
 
-G = sum_eff_dis_graph.SumEffDisGraph(num_nodes, eff_dist_scaler=0.001)
-# G = log_eff_dis_graph.LogEffDisGraph(num_nodes)
+# G = graph.SumEffDisGraph(num_nodes, eff_dist_scaler=0.001)
+G = graph.LogEffDisGraph(num_nodes)
 # G.sparse_random_edge_init(outgoing_edges_per_node)
 G.uniform_random_edge_init()
 G.run(num_runs, verbose=True)

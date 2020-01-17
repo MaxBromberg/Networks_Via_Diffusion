@@ -1,4 +1,9 @@
 .DS_Store
  *.pyc
 __pycache__/
-*.idea
+
+#ignore IDE (Pycharm) files
+.idea/
+
+#ignore all logs
+*.log
