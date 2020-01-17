@@ -1,5 +1,7 @@
 import numpy as np
-import clustering_model
+import graph
+import log_eff_dis_graph
+import sum_eff_dis_graph
 import plotter
 
 
@@ -11,15 +13,16 @@ value_per_nugget = 0.05
 examined_node = 1
 rounding = 3
 
-G = clustering_model.Graph(num_nodes, value_per_nugget=value_per_nugget)
+G = sum_eff_dis_graph.SumEffDisGraph(num_nodes, eff_dist_scaler=0.001)
+# G = log_eff_dis_graph.LogEffDisGraph(num_nodes)
 # G.sparse_random_edge_init(outgoing_edges_per_node)
 G.uniform_random_edge_init()
 G.run(num_runs, verbose=True)
 
-# plotter.plot_node_edges(G, examined_node, num_nodes, num_runs, value_per_nugget, show=False, save_fig=False)
-# plotter.plot_node_value_over_time(G, examined_node, value_per_nugget, show=False, save_fig=True)
+plotter.plot_node_edges(G, examined_node, num_nodes, num_runs, value_per_nugget, show=True, save_fig=False)
+plotter.plot_node_value_over_time(G, examined_node, value_per_nugget, show=True, save_fig=False)
 plotter.plot_edge_stds(G, examined_node, num_nodes, value_per_nugget, show=True, all_nodes=False, save_fig=False)
-# plotter.plot_network(G, value_per_nugget, save_fig=False)
+plotter.plot_network(G, value_per_nugget, show=True, save_fig=False)
 
 """
 iterations = 5
