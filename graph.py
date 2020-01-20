@@ -40,12 +40,10 @@ class Graph:
 
     def seed_info_random(self):
         self.starting_nodes_with_info = []  # resets starting nodes such that new seed_info call will not conflict
-        total_nuggets = 0
-        while total_nuggets < self.num_nuggets:  # keep?
+        while not self.starting_nodes_with_info:
             seeded_node = int(np.random.rand(1)*self.num_nodes)
             self.nodes[-1][seeded_node] += self.nugget_value
             self.starting_nodes_with_info.append(seeded_node)
-            total_nuggets += 1
 
     def seed_info_by_diversity_of_connections(self):
         """
@@ -144,11 +142,14 @@ class LogEffDisGraph(Graph):
         while list(set(self.next_nodes) - set(self.invalid_nodes)):
             self.propagate()
 
-    def run(self, num_runs, verbose=False):
+    def run(self, num_runs, random_seeding=False, verbose=False):
         # removed edge initialization, so it may be customized before call
         self.A = np.vstack((self.A, [self.A[-1]]))  # so that initial values (before initial update) are preserved
         for i in range(0, num_runs):
-            self.seed_info_by_diversity_of_connections()
+            if random_seeding:
+                self.seed_info_random()
+            else:
+                self.seed_info_by_diversity_of_connections()
             self.propagate_info_through_network()
             self.update_edges()
             # so the next values may be overwritten, we start with 0 node values.
@@ -182,7 +183,7 @@ class SumEffDisGraph(Graph):
         # -1 as we measure edges via i and i + 1, and we don't want i+1 to go out of range of node_path(s).
         edge_paths = [[nx_G[node_paths[e][i]][node_paths[e][i + 1]]['weight'] for i in num_edges_in_path[e]] for e in range(len(num_edges_in_path))]
         # yields list of lists of edge values for each node's shortest path to the source
-        eff_dists = [sum([1/edge for edge in path])/(pow((len(num_edges_in_path)+1), self.alpha)) for path in edge_paths]
+        eff_dists = [sum([1/edge for edge in path])/(pow((len(path)), self.alpha)) for path in edge_paths]
         eff_dists.insert(source, min(eff_dists)/source_reward_scaler)
         # source reward should be greatest of all, eff_dist ~ 0. Thus the variable scaling
         return [eff_dist*self.eff_dist_scaler for eff_dist in eff_dists]
@@ -192,11 +193,14 @@ class SumEffDisGraph(Graph):
         # This inversion of every element could be prevented via initial calculation being inverted, but then eff_dist
         # is inverted. In this subclass's case, there should never be more than one node starting with info (per run)
 
-    def run(self, num_runs, verbose=False):
+    def run(self, num_runs, random_seeding=False, verbose=False):
         # removed edge initialization, so it may be customized before call
         self.A = np.vstack((self.A, [self.A[-1]]))  # so that initial values (before initial update) are preserved
         for i in range(0, num_runs):
-            self.seed_info_by_diversity_of_connections()
+            if random_seeding:
+                self.seed_info_random()
+            else:
+                self.seed_info_by_diversity_of_connections()
             self.weight_nodes_with_eff_distances()
             self.update_edges()
             # so the next values may be overwritten, we start with 0 node values.
