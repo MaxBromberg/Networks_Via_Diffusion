@@ -209,3 +209,5 @@ class SumEffDisGraph(Graph):
             if verbose:
                 if int(i % num_runs) % int(num_runs / 17) == 0:
                     print(f'{(i / num_runs) * 100:.1f}%-ish done')
+
+

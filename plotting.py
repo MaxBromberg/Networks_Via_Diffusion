@@ -4,7 +4,7 @@ import numpy as np
 
 
 num_nodes = 10
-num_runs = 300
+num_runs = 500
 outgoing_edges_per_node = 5 
 value_per_nugget = 0.05
 
@@ -15,7 +15,7 @@ G = graph.SumEffDisGraph(num_nodes, alpha=1)
 # G = graph.LogEffDisGraph(num_nodes)
 # G.sparse_random_edge_init(outgoing_edges_per_node)
 G.uniform_random_edge_init()
-G.run(num_runs, verbose=True)
+G.run(num_runs, random_seeding=True, verbose=True)
 
 plotter.plot_node_edges(G, examined_node, num_nodes, num_runs, value_per_nugget, show=True, save_fig=False)
 plotter.plot_node_value_over_time(G, examined_node, value_per_nugget, show=True, save_fig=False)
@@ -40,8 +40,9 @@ for i in range(0, iterations):
 """
 
 print(f'Initial Adjacency Matrix (rounded to {rounding} places): \n{np.round(G.A[0], rounding)}')
+print(f'Final ({G.A.shape[0]-2}th) Adjacency Matrix (rounded to {rounding} places): \n{np.round(G.A[-1], rounding)}')
 print(f'Difference of start and end adjacency matrices:\n{np.round(G.A[0] - G.A[-1], rounding)}')
 print(f'Difference of start and end node values:\n{np.round(G.nodes[0] - G.nodes[-1], rounding)}')
 print(f'G.A[:, :, {examined_node}].shape: {G.A[:, :, examined_node].shape}, G.nodes.shape: {G.nodes.shape}')
 
-print(np.round(G.evaluate_effective_distances(examined_node), rounding))
+print(f'Effective distances to node {examined_node}: {np.round(G.evaluate_effective_distances(examined_node), rounding)}')

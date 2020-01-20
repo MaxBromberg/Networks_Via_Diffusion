@@ -3,7 +3,12 @@
 __pycache__/
 
 #ignore IDE (Pycharm) files
-.idea/
+.idea
+*.xml
+*.iml
 
 #ignore all logs
 *.log
+
+#ignore jupyter notebook checkpoints
+.ipynb_checkpoints
