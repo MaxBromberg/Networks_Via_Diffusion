@@ -205,7 +205,7 @@ class SumEffDisGraph(Graph):
         eff_dists = [sum([1/edge for edge in path])/(pow((len(path)), self.alpha)) for path in edge_paths]
         eff_dists.insert(source, min(eff_dists) / source_reward_scalar)
         # source reward should be greatest of all, eff_dist ~ 0. Thus the variable scaling
-        return [eff_dist*self.eff_dist_scaler for eff_dist in eff_dists]
+        return eff_dists
 
     def weight_nodes_with_eff_distances(self):
         self.nodes[-1] = np.array([1/el for el in self.evaluate_effective_distances(self.starting_nodes_with_info[-1])])

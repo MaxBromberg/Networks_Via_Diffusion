@@ -3,6 +3,31 @@ from matplotlib import pyplot as plt
 import networkx as nx
 
 
+def plot_ave_node_values(graph, value_per_nugget, as_efficiency=None, show=True, save_fig=False):
+    fig = plt.figure(figsize=(10, 4))
+    if as_efficiency:
+        if hasattr(graph, 'alpha'):  #
+            print('No efficiency metric for shortest path (sum eff distance) methodology implemented')
+            # plt.plot(graph.nodes[:].sum(axis=1) / (graph.nodes.shape[1] * value_per_nugget))
+            # plt.title(f'Sum Node values as % of total, {value_per_nugget} nugget value')
+            # plt.xlabel('Time step')
+            # plt.ylabel(f'Information diffused')
+        else:
+            plt.plot(graph.nodes[:].sum(axis=1) / (graph.nodes.shape[1] * value_per_nugget))
+            plt.title(f'Sum Node values as % of possible, {value_per_nugget} nugget value')
+            plt.xlabel('Time step')
+            plt.ylabel(f'Information diffused')
+    else:
+        plt.plot(graph.nodes[:].mean(axis=1))
+        plt.title(f'Average node values, {value_per_nugget} nugget value')
+        plt.xlabel('Time step')
+        plt.ylabel(f'Average node values')
+    if save_fig:
+        plt.savefig(f'Ave_Node_Values {graph.nodes.shape[0]} runs.png')
+    if show:
+        plt.show()
+
+
 def plot_node_edges(graph, node, num_nodes, num_runs, value_per_nugget, show=True, save_fig=False):
     fig = plt.figure(figsize=(10, 4))
     plt.plot(graph.A[:, :, node])
@@ -15,12 +40,18 @@ def plot_node_edges(graph, node, num_nodes, num_runs, value_per_nugget, show=Tru
         plt.show()
 
 
-def plot_node_value_over_time(graph, node, value_per_nugget, show=True, save_fig=False):
+def plot_node_values(graph, value_per_nugget, node='all', show=True, save_fig=False):
     fig = plt.figure(figsize=(10, 4))
-    plt.plot(graph.nodes[:, node])
-    plt.title(f'{node}\'th Node\'s values, {value_per_nugget} nugget value, default parameters')
-    plt.xlabel('Time step')
-    plt.ylabel(f'{node}th node\'s values')  # reveals it generally gets all the information!
+    if node == 'all':
+        plt.plot(graph.nodes)
+        plt.title(f'All nodes\' values, {value_per_nugget} nugget value, default parameters')
+        plt.xlabel('Time step')
+        plt.ylabel(f'Nodes values')  # reveals it generally gets all the information!
+    else:
+        plt.plot(graph.nodes[:, node])
+        plt.title(f'{node}\'th Node\'s values, {value_per_nugget} nugget value, default parameters')
+        plt.xlabel('Time step')
+        plt.ylabel(f'{node}th node\'s values')  # reveals it generally gets all the information!
     if save_fig:
         plt.savefig(f'{node} node_values with {value_per_nugget} seed_val {graph.nodes.shape[0]} runs.png')
     if show:
