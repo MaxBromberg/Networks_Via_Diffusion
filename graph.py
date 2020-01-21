@@ -9,16 +9,20 @@ random.seed(42)
 class Graph:
     starting_nodes_with_info = []  # holds the starting nodes for each run, reset after every run
 
-    def __init__(self, num_nodes,  beta=1, value_per_nugget=1):
+    def __init__(self, num_nodes,  beta=None, value_per_nugget=1, gamma=None, q=None):
         """
         Initialization; the 'extra' dimensionality (i.e. 1 for nodes, A) are there to dynamically store their history
         via use of vstack later on.
         """
-        self.beta = beta
+        self.beta = beta  # Determines how much the seeding is weighted towards diversely connected nodes
+        # (The None default leads to an explicitly random seeding (and thus faster) run)
         self.num_nodes = num_nodes
         self.nugget_value = value_per_nugget
-        self.nodes = np.zeros((1, num_nodes))
-        self.A = np.zeros((1, self.num_nodes, self.num_nodes))
+        self.gamma = gamma  # Determines punishment for connecting to the same node, as default strategy for both
+        # random and diverse connection weighted seeding would otherwise be to connect all nodes to one other
+        self.q = q  # exp{-gamma*[(sum_j w_ij)-q*N]} => for 0<q(<1) nodes are incentivized to strengthen outgoing edges
+        self.nodes = np.zeros((1, num_nodes))  # node values (and history of via the first dimension)
+        self.A = np.zeros((1, self.num_nodes, self.num_nodes))  # Adjacency matrix (and history of)
 
     def sparse_random_edge_init(self, nonzero_edges_per_node=1):
         """
@@ -33,7 +37,7 @@ class Graph:
 
     def uniform_random_edge_init(self):
         """Most general case, fills Adjacency matrix with uniform random values and normalizes them"""
-        self.A = np.random.rand(1, self.num_nodes, self.num_nodes)  # creates n x n adjacency matrix filled with rand(0,1)
+        self.A = np.random.rand(1, self.num_nodes, self.num_nodes)  # creates 1 x n x n adjacency matrix filled with rand(0,1)
         for node in range(0, self.num_nodes):
             self.A[-1][node][node] = 0  # eliminates looping edges (i.e. no edge refers to itself)
             self.A[-1][node] /= self.A[-1][node].sum()  # normalizes each node's total weights to 1
@@ -62,6 +66,23 @@ class Graph:
                 self.nodes[-1][test_node] += self.nugget_value
                 self.starting_nodes_with_info.append(test_node)
 
+    def reweight_edges_with_clustering(self):
+        outgoing_weight_sums = [weights.sum() for weights in self.A[-1]]  # sums adjacency matrix rows (outgoing edges)
+        for node in range(0, self.nodes[-1].size):
+            for edge in range(0, self.A[-1][node].size):
+                if self.q:
+                    self.A[-1][node][edge] += self.nodes[-1][node] * self.A[-1][node][edge] * np.exp(
+                        -(self.gamma * outgoing_weight_sums[node] - (self.q * self.nodes.shape[0])))
+                else:
+                    self.A[-1][node][edge] += self.nodes[-1][node] * self.A[-1][node][edge] * np.exp(
+                        -(self.gamma * outgoing_weight_sums[node]))
+
+    def reweight_edges_without_clustering(self):
+        for node in range(0, self.nodes[-1].size):
+            for edge in range(0, self.A[-1][node].size):
+                self.A[-1][node][edge] += self.nodes[-1][node] * self.A[-1][node][edge]
+            # We normalize along the outgoing edges (columns) so that we do not simply reset the rows (as with rows)
+
     def update_edges(self):
         """
         Due to having exclusively forward propagation, we may use the node values directly to determine their effect on
@@ -70,11 +91,10 @@ class Graph:
         The normalization is where the conservation of edge weight applies,
          negatively effecting those not reinforced.
         """
-        for node in range(0, self.nodes[-1].size):
-            for edge in range(0, self.A[-1][node].size):
-                self.A[-1][node][edge] += self.nodes[-1][node] * self.A[-1][node][edge]
-                # THIS IS A CONSTANT SCALING! OF COURSE THE RESULTING NORMALIZATION WILL YIELD THE SAME RESULTS!
-                # We normalize along the outgoing edges (columns) so that we do not simply reset the rows
+        if self.gamma:
+            self.reweight_edges_with_clustering()
+        else:
+            self.reweight_edges_without_clustering()
         for node in range(0, self.A[-1][0].size):
             incoming_edge_sum = self.A[-1][:, node].sum()
             if incoming_edge_sum > 0:
@@ -87,7 +107,7 @@ class LogEffDisGraph(Graph):
     next_nodes = []  # lists nodes which are sufficiently connected to be visited next propagation step
     # starting_nodes_with_info = []  # holds the starting nodes for each run, reset after every run
 
-    def __init__(self, num_nodes, beta=1, nuggets_per_timestep=1, value_per_nugget=1, lower_info_cutoff=0.1,
+    def __init__(self, num_nodes, beta=None, value_per_nugget=1, gamma=None, q=None, nuggets_per_timestep=1, lower_info_cutoff=0.1,
                  upper_info_cutoff=None):
         """
         Initialization; the 'extra' dimensionality (i.e. 1 for nodes, A) are there to dynamically store their history
@@ -101,7 +121,7 @@ class LogEffDisGraph(Graph):
         self.lower_cutoff = (lower_info_cutoff * value_per_nugget) / num_nodes
         # This kind of normalization is advisable so that parameters may be shifted independently
         assert self.upper_cutoff > self.lower_cutoff
-        super().__init__(num_nodes, beta, value_per_nugget)
+        super().__init__(num_nodes, beta, value_per_nugget, gamma, q)
 
     def node_propagation(self, index):
         """
@@ -142,14 +162,14 @@ class LogEffDisGraph(Graph):
         while list(set(self.next_nodes) - set(self.invalid_nodes)):
             self.propagate()
 
-    def run(self, num_runs, random_seeding=False, verbose=False):
+    def run(self, num_runs, verbose=False):
         # removed edge initialization, so it may be customized before call
         self.A = np.vstack((self.A, [self.A[-1]]))  # so that initial values (before initial update) are preserved
         for i in range(0, num_runs):
-            if random_seeding:
-                self.seed_info_random()
-            else:
+            if self.beta:
                 self.seed_info_by_diversity_of_connections()
+            else:
+                self.seed_info_random()
             self.propagate_info_through_network()
             self.update_edges()
             # so the next values may be overwritten, we start with 0 node values.
@@ -162,14 +182,13 @@ class LogEffDisGraph(Graph):
 
 class SumEffDisGraph(Graph):
 
-    def __init__(self, num_nodes,  beta=1, value_per_nugget=1, alpha=1, eff_dist_scaler=1):
+    def __init__(self, num_nodes,  beta=None, value_per_nugget=1, gamma=None, q=None, alpha=1):
         # here value_per_nugget acts to slow or speed the effective distance, to allow for more detailed investigation
         # of progression, as all reweighting is due to intermediary edge values. #DOESN'T RESCALE! POURQUE?
-        self.eff_dist_scaler = eff_dist_scaler
         self.alpha = alpha
-        super().__init__(num_nodes,  beta, value_per_nugget)
+        super().__init__(num_nodes,  beta, value_per_nugget, gamma, q)
 
-    def evaluate_effective_distances(self, source, source_reward_scaler=1.2):
+    def evaluate_effective_distances(self, source, source_reward_scalar=1.2):
         """
         returns array of effective distances to each node (from source) according to
         eff_dis = ((# edges)^\alpha)/sum_weights
@@ -184,7 +203,7 @@ class SumEffDisGraph(Graph):
         edge_paths = [[nx_G[node_paths[e][i]][node_paths[e][i + 1]]['weight'] for i in num_edges_in_path[e]] for e in range(len(num_edges_in_path))]
         # yields list of lists of edge values for each node's shortest path to the source
         eff_dists = [sum([1/edge for edge in path])/(pow((len(path)), self.alpha)) for path in edge_paths]
-        eff_dists.insert(source, min(eff_dists)/source_reward_scaler)
+        eff_dists.insert(source, min(eff_dists) / source_reward_scalar)
         # source reward should be greatest of all, eff_dist ~ 0. Thus the variable scaling
         return [eff_dist*self.eff_dist_scaler for eff_dist in eff_dists]
 
@@ -193,14 +212,14 @@ class SumEffDisGraph(Graph):
         # This inversion of every element could be prevented via initial calculation being inverted, but then eff_dist
         # is inverted. In this subclass's case, there should never be more than one node starting with info (per run)
 
-    def run(self, num_runs, random_seeding=False, verbose=False):
+    def run(self, num_runs, verbose=False):
         # removed edge initialization, so it may be customized before call
         self.A = np.vstack((self.A, [self.A[-1]]))  # so that initial values (before initial update) are preserved
         for i in range(0, num_runs):
-            if random_seeding:
-                self.seed_info_random()
-            else:
+            if self.beta:
                 self.seed_info_by_diversity_of_connections()
+            else:
+                self.seed_info_random()
             self.weight_nodes_with_eff_distances()
             self.update_edges()
             # so the next values may be overwritten, we start with 0 node values.
