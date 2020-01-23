@@ -175,6 +175,9 @@ class LogEffDisGraph(Graph):
             # so the next values may be overwritten, we start with 0 node values.
             self.nodes = np.vstack((self.nodes, np.zeros((1, self.num_nodes))))
             self.A = np.vstack((self.A, [self.A[-1]]))
+            if i == num_runs-1:
+                self.A = np.delete(self.A, -1, axis=0)
+                self.nodes = self.nodes[:-1]
             if verbose:
                 if int(i % num_runs) % int(num_runs/17) == 0:
                     print(f'{(i/num_runs)*100:.1f}%-ish done')
@@ -190,6 +193,9 @@ class SumEffDisGraph(Graph):
 
     def evaluate_effective_distances(self, source, source_reward_scalar=1.2):
         """
+        EDIT: This does not account for the shortest path according to the effective distance metric, only according
+         to the weights! (i.e. the division by (# num connections)^alpha is not considered in shortest path)
+
         returns array of effective distances to each node (from source) according to
         eff_dis = ((# edges)^\alpha)/sum_weights
         """
@@ -208,6 +214,8 @@ class SumEffDisGraph(Graph):
         return eff_dists
 
     def weight_nodes_with_eff_distances(self):
+        # eff_dists = np.array([1/el for el in self.evaluate_effective_distances(self.starting_nodes_with_info[-1])])
+        # self.nodes[-1] = [eff_dist/sum(eff_dists) for eff_dist in eff_dists]  # normalize to allow for compatible efficiency metric
         self.nodes[-1] = np.array([1/el for el in self.evaluate_effective_distances(self.starting_nodes_with_info[-1])])
         # This inversion of every element could be prevented via initial calculation being inverted, but then eff_dist
         # is inverted. In this subclass's case, there should never be more than one node starting with info (per run)
@@ -225,6 +233,9 @@ class SumEffDisGraph(Graph):
             # so the next values may be overwritten, we start with 0 node values.
             self.nodes = np.vstack((self.nodes, np.zeros((1, self.num_nodes))))
             self.A = np.vstack((self.A, [self.A[-1]]))
+            if i == num_runs-1:
+                self.A = np.delete(self.A, -1, axis=0)
+                self.nodes = self.nodes[:-1]
             if verbose:
                 if int(i % num_runs) % int(num_runs / 17) == 0:
                     print(f'{(i / num_runs) * 100:.1f}%-ish done')
