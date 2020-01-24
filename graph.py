@@ -2,6 +2,7 @@ import numpy as np
 import random
 import utility_funcs
 import networkx as nx
+import effective_distance as ed
 np.random.seed(42)
 random.seed(42)
 
@@ -100,6 +101,18 @@ class Graph:
             if incoming_edge_sum > 0:
                 self.A[-1][:, node] /= incoming_edge_sum  # normalizes each node's total INCOMING weights to 1
             # For sparse networks, there will likely be some columns (outgoing edges) which sum to zero.
+
+    def get_eff_dist(self, multiple_path=False, shortest_path=False, dominant_path=False, random_walk_distance=False, source=None, target=None, parameter=1, saveto=""):
+        if multiple_path:
+            return ed.EffectiveDistances(np_array=self.A[-1]).get_multiple_path_distance(source=None, target=None, parameter=1, saveto="")
+        if shortest_path:
+            return ed.EffectiveDistances(np_array=self.A[-1]).get_shortest_path_distance(source=None, target=None, parameter=1, saveto="")
+        if dominant_path:
+            return ed.EffectiveDistances(np_array=self.A[-1]).get_dominant_path_distance(source=None, target=None, parameter=1, saveto="")
+        if random_walk_distance:
+            return ed.EffectiveDistances(np_array=self.A[-1]).get_random_walk_distance(source=None, target=None, parameter=1, saveto="")
+        else:
+            print(f'No path type chosen in get_eff_dist call. Set multiple_path, shortest_path, dominant_path or random_walk_path=True')
 
 
 class LogEffDisGraph(Graph):

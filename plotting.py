@@ -17,6 +17,8 @@ G = graph.LogEffDisGraph(num_nodes, value_per_nugget=value_per_nugget, beta=None
 G.uniform_random_edge_init()
 G.run(num_runs, verbose=True)
 
+print(f'Effective Distance \n {G.get_eff_dist(dominant_path=True), 2}')  # Just to show eff_distance library
+
 # plotter.plot_node_edges(G, examined_node, num_nodes, num_runs, value_per_nugget, show=True, save_fig=False)
 # plotter.plot_node_values(G, value_per_nugget, node=1)
 # plotter.plot_ave_node_values(G, value_per_nugget, save_fig=True)
