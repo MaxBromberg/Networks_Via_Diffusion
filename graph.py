@@ -102,15 +102,17 @@ class Graph:
                 self.A[-1][:, node] /= incoming_edge_sum  # normalizes each node's total INCOMING weights to 1
             # For sparse networks, there will likely be some columns (outgoing edges) which sum to zero.
 
-    def get_eff_dist(self, multiple_path=False, shortest_path=False, dominant_path=False, random_walk_distance=False, source=None, target=None, parameter=1, saveto=""):
+    def get_eff_dist(self, adjacency_matrix=None, multiple_path=False, shortest_path=False, dominant_path=False, random_walk_distance=False, source=None, target=None, parameter=1, saveto=""):
+        if adjacency_matrix is None:
+            adjacency_matrix = self.A[-1]
         if multiple_path:
-            return ed.EffectiveDistances(np_array=self.A[-1]).get_multiple_path_distance(source=None, target=None, parameter=1, saveto="")
+            return ed.EffectiveDistances(np_array=adjacency_matrix).get_multiple_path_distance(source=source, target=target, parameter=parameter, saveto=saveto)
         if shortest_path:
-            return ed.EffectiveDistances(np_array=self.A[-1]).get_shortest_path_distance(source=None, target=None, parameter=1, saveto="")
+            return ed.EffectiveDistances(np_array=adjacency_matrix).get_shortest_path_distance(source=source, target=target, parameter=parameter, saveto=saveto)
         if dominant_path:
-            return ed.EffectiveDistances(np_array=self.A[-1]).get_dominant_path_distance(source=None, target=None, parameter=1, saveto="")
+            return ed.EffectiveDistances(np_array=adjacency_matrix).get_dominant_path_distance(source=source, target=target, parameter=parameter, saveto=saveto)
         if random_walk_distance:
-            return ed.EffectiveDistances(np_array=self.A[-1]).get_random_walk_distance(source=None, target=None, parameter=1, saveto="")
+            return ed.EffectiveDistances(np_array=adjacency_matrix).get_random_walk_distance(source=source, target=target, parameter=parameter, saveto=saveto)
         else:
             print(f'No path type chosen in get_eff_dist call. Set multiple_path, shortest_path, dominant_path or random_walk_path=True')
 
@@ -196,7 +198,7 @@ class LogEffDisGraph(Graph):
                     print(f'{(i/num_runs)*100:.1f}%-ish done')
 
 
-class SumEffDisGraph(Graph):
+class SumEffDisGraph_old_version(Graph):
 
     def __init__(self, num_nodes,  beta=None, value_per_nugget=1, gamma=None, q=None, alpha=1):
         # here value_per_nugget acts to slow or speed the effective distance, to allow for more detailed investigation
@@ -254,3 +256,52 @@ class SumEffDisGraph(Graph):
                     print(f'{(i / num_runs) * 100:.1f}%-ish done')
 
 
+class SumEffDisGraph(Graph):
+
+    def __init__(self, num_nodes,  beta=None, value_per_nugget=1, gamma=None, q=None, alpha=1):
+        # here value_per_nugget acts to slow or speed the effective distance, to allow for more detailed investigation
+        # of progression, as all reweighting is due to intermediary edge values. #DOESN'T RESCALE! POURQUE?
+        self.alpha = alpha
+        super().__init__(num_nodes,  beta, value_per_nugget, gamma, q)
+
+    def evaluate_effective_distances(self, source, timestep=None, source_reward_scalar=1.2):
+        """
+        returns array of effective distances to each node (from source) according to
+        eff_dis = ((# edges)^\alpha)/sum_weights
+        """
+        # Need to change get_eff_dist algo itself, alas, to implement for alpha != 1
+        if timestep is None:
+            timestep = self.A[-1]
+        else:
+            timestep = self.A[timestep]
+        eff_dists = self.get_eff_dist(adjacency_matrix=timestep, multiple_path=True, source=source)
+        eff_dists = [1/el for el in eff_dists[eff_dists != 0]]
+        eff_dists = np.insert(eff_dists, source, min(eff_dists)/source_reward_scalar)
+        return eff_dists
+
+    def weight_nodes_with_eff_distances(self):
+        # normalize to allow for compatible efficiency metric
+        eff_dists = np.array(self.evaluate_effective_distances(self.starting_nodes_with_info[-1]))
+        self.nodes[-1] = [1/el for el in eff_dists]
+        # This inversion of every element could be prevented via initial calculation being inverted, but then eff_dist
+        # is inverted. In this subclass's case, there should never be more than one node starting with info (per run)
+
+    def run(self, num_runs, verbose=False):
+        # removed edge initialization, so it may be customized before call
+        self.A = np.vstack((self.A, [self.A[-1]]))  # so that initial values (before initial update) are preserved
+        for i in range(0, num_runs):
+            if self.beta:
+                self.seed_info_by_diversity_of_connections()
+            else:
+                self.seed_info_random()
+            self.weight_nodes_with_eff_distances()
+            self.update_edges()
+            # so the next values may be overwritten, we start with 0 node values.
+            self.nodes = np.vstack((self.nodes, np.zeros((1, self.num_nodes))))
+            self.A = np.vstack((self.A, [self.A[-1]]))
+            if i == num_runs-1:
+                self.A = np.delete(self.A, -1, axis=0)
+                self.nodes = self.nodes[:-1]
+            if verbose:
+                if int(i % num_runs) % int(num_runs / 17) == 0:
+                    print(f'{(i / num_runs) * 100:.1f}%-ish done')

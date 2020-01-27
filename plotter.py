@@ -121,7 +121,7 @@ def plot_single_network(graph, timestep, directed=True, show=True, save_fig=Fals
 def plot_network(graph, value_per_nugget, directed=True, show=True, save_fig=False):
     fig = plt.figure(figsize=(12, 6))
     count = 1
-    for timestep in [0, int(graph.nodes.shape[0]/3), int(graph.nodes.shape[0]*(2/3)), (graph.nodes.shape[0]-1)]:
+    for timestep in [0, int(graph.nodes.shape[0]/3), int(graph.nodes.shape[0]*(2/3)), (graph.nodes.shape[0])]:
         if directed:
             nx_G = nx.to_directed(nx.from_numpy_matrix(np.array(graph.A[timestep])))
             incoming_edge_sum = graph.A[timestep].sum(axis=1)
