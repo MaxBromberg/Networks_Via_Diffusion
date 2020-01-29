@@ -8,7 +8,7 @@ random.seed(42)
 
 
 class Graph:
-    starting_nodes_with_info = []  # holds the starting nodes for each run, reset after every run
+    starting_node = None
 
     def __init__(self, num_nodes,  beta=None, value_per_nugget=1, gamma=None, q=None):
         """
@@ -24,6 +24,7 @@ class Graph:
         self.q = q  # exp{-gamma*[(sum_j w_ij)-q*N]} => for 0<q(<1) nodes are incentivized to strengthen outgoing edges
         self.nodes = np.zeros((1, num_nodes))  # node values (and history of via the first dimension)
         self.A = np.zeros((1, self.num_nodes, self.num_nodes))  # Adjacency matrix (and history of)
+        self.starting_node_history = []  # holds the starting nodes for each run, reset after every run.
 
     def sparse_random_edge_init(self, nonzero_edges_per_node=1):
         """
@@ -44,14 +45,16 @@ class Graph:
             self.A[-1][node] /= self.A[-1][node].sum()  # normalizes each node's total weights to 1
 
     def seed_info_random(self):
-        self.starting_nodes_with_info = []  # resets starting nodes such that new seed_info call will not conflict
-        while not self.starting_nodes_with_info:
+        self.starting_node = None  # resets starting nodes such that new seed_info call will not conflict
+        while not self.starting_node:
             seeded_node = int(np.random.rand(1)*self.num_nodes)
             self.nodes[-1][seeded_node] += self.nugget_value
-            self.starting_nodes_with_info.append(seeded_node)
+            self.starting_node = seeded_node
+            self.starting_node_history.append(seeded_node)
 
     def seed_info_constant_source(self, constant_source_node):
-        self.starting_nodes_with_info = [constant_source_node]
+        self.starting_node = constant_source_node
+        self.starting_node_history.append(constant_source_node)
 
     def seed_info_by_diversity_of_connections(self):
         """
@@ -59,16 +62,16 @@ class Graph:
         then uses this to distribute 'nuggets' of information (via canonical ensemble of standard deviation).
         Potentially variance would be faster (no sqrt) and better, changing the effect of connectedness.
         """
-        self.starting_nodes_with_info = []  # resets starting nodes such that new seed_info call will not conflict
+        self.starting_node = None  # resets starting nodes such that new seed_info call will not conflict
         exp_stds = []
         for node_edges in self.A[-1][:]:
             exp_stds.append(np.exp(-self.beta * node_edges.std()))  # sum of e^(\beta \sigma_i) for i \in node[weights]
         std_partition = sum(exp_stds)
-        test_node = np.random.randint(0, self.nodes[-1].size)
-        while not self.starting_nodes_with_info:
-            if random.uniform(0, std_partition) < exp_stds[test_node]/std_partition:
-                self.nodes[-1][test_node] += self.nugget_value
-                self.starting_nodes_with_info.append(test_node)
+        seeded_node = np.random.randint(0, self.nodes[-1].size)
+        if random.uniform(0, std_partition) < exp_stds[seeded_node]/std_partition:
+            self.nodes[-1][seeded_node] += self.nugget_value
+            self.starting_node = seeded_node
+            self.starting_node_history.append(seeded_node)
 
     def reweight_edges_with_clustering(self):
         outgoing_weight_sums = [weights.sum() for weights in self.A[-1]]  # sums adjacency matrix rows (outgoing edges)
@@ -177,15 +180,12 @@ class LogEffDisGraph(Graph):
         """
         self.next_nodes = []
         self.invalid_nodes = []
-        assert self.starting_nodes_with_info != []
-        for starting_node in self.starting_nodes_with_info:
-            self.node_propagation(starting_node)
-            # potentially need edge renormalization here between nugget delivery
+        assert self.starting_node is not None, 'No node seeded for propagation'
+        self.node_propagation(self.starting_node)
         while list(set(self.next_nodes) - set(self.invalid_nodes)):
             self.propagate()
 
     def run(self, num_runs, verbose=False):
-        # removed edge initialization, so it may be customized before call
         self.A = np.vstack((self.A, [self.A[-1]]))  # so that initial values (before initial update) are preserved
         for i in range(0, num_runs):
             if self.beta:
@@ -208,7 +208,7 @@ class LogEffDisGraph(Graph):
 class SumEffDisGraph(Graph):
 
     def __init__(self, num_nodes,  beta=None, nuggets_per_run=1, value_per_nugget=1, gamma=None, q=None, alpha=1):
-        self.alpha = alpha
+        self.alpha = alpha  # Presently not used
         self.nuggets_per_run = nuggets_per_run
         assert type(nuggets_per_run) is int, 'The number of info nuggets per turn must be an interger >= 0'
         super().__init__(num_nodes,  beta, value_per_nugget, gamma, q)
@@ -231,7 +231,7 @@ class SumEffDisGraph(Graph):
     def add_inv_eff_distances_to_node_values(self, source_reward_scalar):
         # normalize to allow for compatible efficiency metric?
         # (Could lead to paths less than one, which would be problematic if the intended distance metric was used)
-        eff_dists = np.array(self.evaluate_effective_distances(self.starting_nodes_with_info[-1], source_reward_scalar=source_reward_scalar))
+        eff_dists = np.array(self.evaluate_effective_distances(self.starting_node, source_reward_scalar=source_reward_scalar))
         self.nodes[-1] = [1/el for el in eff_dists]
         # This inversion of every element could be prevented via initial calculation being inverted, but then eff_dist
         # is inverted. In this subclass's case, there should never be more than one node starting with info (per run)

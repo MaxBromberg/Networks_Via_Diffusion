@@ -1,6 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
-import networkx as nx
+import networkx as nx  # Used for network plots
+import imageio  # Used for making gifs of the network plots
 
 
 def plot_ave_node_values(graph, value_per_nugget, as_efficiency=None, show=True, save_fig=False):
@@ -109,11 +110,11 @@ def plot_adjacency_matrix_as_heatmap(graph, timestep=-1, show=True, save_fig=Fal
 
 def plot_weight_histogram(graph, num_bins=False, timestep=-1, show=True, save_fig=False):
     edges = (graph.A[timestep]).flatten()
+    fig = plt.figure(figsize=(10, 10))
     if num_bins:
         plt.hist(edges, bins=num_bins)
     else:
         plt.hist(edges)  # bins = auto, as per np.histogram
-    fig = plt.figure(figsize=(10, 10))
     plt.title(f"Weight histogram for all edges timestep: {timestep} ")
     if save_fig:
         plt.savefig(f'Weight histogram with {num_bins} bins.png')
@@ -123,11 +124,11 @@ def plot_weight_histogram(graph, num_bins=False, timestep=-1, show=True, save_fi
 
 def plot_effective_distance_histogram(eff_dists, num_bins=False, timestep=-1, show=True, save_fig=False):
     eff_dists = eff_dists.flatten()
+    fig = plt.figure(figsize=(10, 10))
     if num_bins:
         plt.hist(eff_dists, bins=num_bins)
     else:
         plt.hist(eff_dists)  # bins = auto, as per np.histogram
-    fig = plt.figure(figsize=(10, 10))
     plt.title(f"Effective distance histogram for all to all paths timestep: {timestep} ")
     if save_fig:
         plt.savefig(f'Effective distance histogram at step {timestep}.png')
@@ -135,79 +136,100 @@ def plot_effective_distance_histogram(eff_dists, num_bins=False, timestep=-1, sh
         plt.show()
 
 
-def plot_single_network(graph, timestep, directed=True, node_size_scaling=200, show=True, save_fig=False):
+def plot_single_network(graph, timestep, directed=True, node_size_scaling=200, show=True, save_fig=False, title=None):
     fig = plt.figure(figsize=(10, 10))
     assert show or save_fig, 'Graph will be neither shown nor saved'
     if directed:
         nx_G = nx.to_directed(nx.from_numpy_matrix(np.array(graph.A[timestep])))
-        incoming_edge_sum = graph.A[timestep].sum(axis=1)
     else:
         nx_G = nx.from_numpy_matrix(np.array(graph.A[timestep]))
-        incoming_edge_sum = graph.A[timestep].sum(axis=1)
-    # nx_G = nx.convert_matrix.from_numpy_matrix(np.array(graph.A[timestep]), create_using=nx.Digraph)
-    # This should be better, but nx.Digraph is not recognized?
+    incoming_edge_sum = graph.A[timestep].sum(axis=1)
+    node_colors = ['grey' for node in nx_G]
+    node_colors[graph.starting_node_history[timestep]] = 'red'
     incoming_edge_sum = [node_size_scaling * node / sum(incoming_edge_sum) for node in incoming_edge_sum]
-    pos = nx.spring_layout(nx_G, k=0.5, scale=0.5, weight='weight')
+    pos = nx.spring_layout(nx_G.reverse(copy=True), k=0.5, scale=0.5, weight='weight')
     weights = [nx_G[u][v]['weight'] * 1.5 for u, v in nx_G.edges()]
-    nx.draw_networkx_edges(nx_G, pos, nodelist=['0'], alpha=0.8, width=weights)
+    nx.draw_networkx_edges(nx_G, pos, nodelist=['0'], alpha=0.8, width=weights, arrowsize=4,
+                           connectionstyle='arc3, rad=0.2')
     edge_colors = range(2, nx_G.number_of_edges() + 2)
-    node_colors = range(2, nx_G.number_of_nodes() + 2)
+    node_colors = ['grey' for node in nx_G]
+    node_colors[graph.starting_node_history[timestep]] = 'red'
     print(f'weights: {np.round(np.array(weights), 2)}')
     nx.draw_networkx_nodes(nx_G, pos,
                            arrowstyle='->',
                            edge_color=edge_colors,
                            node_size=incoming_edge_sum,
-                           node_color='grey',
+                           node_color=node_colors,
                            # node_color=node_colors,
                            widths=weights,
                            cmap=plt.get_cmap('viridis'))
-    plt.title(f"timestep: {timestep} Nodes size propto incoming edge weights")
+    plt.title(f"timestep: {timestep} Nodes size proportional to incoming edge weights")
     if save_fig:
         plt.savefig(f'Network Structure(s) after {graph.nodes.shape[0]} runs.png')
+    if save_fig and title:
+        pass  # fill for use in gif maker
     if show:
         plt.show()
 
 
-def plot_network(graph, value_per_nugget, directed=True, node_size_scaling=200, nodes_sized_by_eff_distance=False, show=True, save_fig=False):
+def plot_network(graph, value_per_nugget, directed=True, node_size_scaling=200, nodes_sized_by_eff_distance=False,
+                 show=True, save_fig=False):
     fig = plt.figure(figsize=(12, 6))
     assert show or save_fig, 'Graph will be neither shown nor saved'
     count = 1
-    for timestep in [0, int(graph.nodes.shape[0]/3), int(graph.nodes.shape[0]*(2/3)), (graph.nodes.shape[0])]:
+    timesteps = [0, int(graph.nodes.shape[0] / 3), int(graph.nodes.shape[0] * (2 / 3)), (graph.nodes.shape[0])]
+    for timestep in timesteps:
         if directed:
             nx_G = nx.to_directed(nx.from_numpy_matrix(np.array(graph.A[timestep])))
-            incoming_edge_sum = graph.A[timestep].sum(axis=1)
             if count == 1:
                 pos = nx.spring_layout(nx_G, k=0.5, scale=0.5, weight='weight')
+                # pos = nx.spring_layout(nx_G.reverse(copy=True), k=0.5, scale=0.5, weight='weight')
+                # Transposing is likely the intended effect, and more readily done
         else:
             nx_G = nx.from_numpy_matrix(np.array(graph.A[timestep]))
-            incoming_edge_sum = graph.A[timestep].sum(axis=1)
             if count == 1:
                 pos = nx.spring_layout(nx_G, k=0.5, scale=5.0, weight='weight')
+                # pos = nx.spring_layout(nx_G.reverse(copy=True), k=0.5, scale=0.5, weight='weight')
+                # Transposing is likely the intended effect
+        incoming_edge_sum = graph.A[timestep].sum(axis=1)
         plt.subplot(1, 4, count)
         count += 1
         weights = [nx_G[u][v]['weight'] * 1.5 for u, v in nx_G.edges()]
         # colors=[G.node[n]['color'] for n in G.node()]
-        incoming_edge_sum = [(node_size_scaling*node/sum(incoming_edge_sum)) for node in incoming_edge_sum]
-        nx.draw_networkx_edges(nx_G, pos, nodelist=['0'], alpha=0.8, width=weights)
+        incoming_edge_sum = [(node_size_scaling * node / sum(incoming_edge_sum)) for node in incoming_edge_sum]
         edge_colors = range(2, nx_G.number_of_edges() + 2)
+        node_colors = ['grey'] * graph.nodes.shape[1]
+        node_colors[graph.starting_node_history[timestep]] = 'red'
+        nx.draw_networkx_edges(nx_G, pos, nodelist=['0'], alpha=0.8, width=weights, arrowsize=4, connectionstyle='arc3, rad=0.2')
+        # not sure reversal does anything in this context... (could just transpose?)
+        # nx.draw_networkx_edges(nx_G.reverse(copy=True), pos, nodelist=['0'], alpha=0.8, width=weights, arrowsize=4,
+        #                        connectionstyle='arc3, rad=0.2')
         nx.draw_networkx_nodes(nx_G, pos,
                                arrowstyle='->',
                                edge_color=edge_colors,
                                node_size=incoming_edge_sum,
-                               node_color='grey',
+                               node_color=node_colors,
                                widths=weights,
                                cmap=plt.get_cmap('viridis'))
-        plt.title("timestep: {0}, nodes sized by incoming edge sum".format(timestep))
+        plt.title("timestep: {0}".format(timestep))
         if nodes_sized_by_eff_distance:
             nx.draw_networkx_nodes(nx_G, pos,
                                    arrowstyle='->',
                                    edge_color=edge_colors,
                                    node_size=graph.nodes,
-                                   node_color='grey',
+                                   node_color=node_colors,
                                    widths=weights,
                                    cmap=plt.get_cmap('viridis'))
-        plt.title("timestep: {0}, nodes sized by effective distance".format(timestep))
+        plt.title("timestep: {0}".format(timestep))
     if save_fig:
         plt.savefig(f'Network Structure(s) for {value_per_nugget} nugget value, {graph.nodes.shape[0]} runs.png')
     if show:
         plt.show()
+
+# def gif_of_network_evolution(graph, )
+#     images = []
+#     for filename in filenames:
+#         images.append(imageio.imread(filename))
+#     imageio.mimsave('/path/to/movie.gif', images)
+# https://stackoverflow.com/questions/753190/programmatically-generate-video-or-animated-gif-in-python
+# http://superfluoussextant.com/making-gifs-with-python.html
