@@ -53,9 +53,9 @@ class EffectiveDistances:
     		np_adjacency_matrix: np.array of shape(Nnodes, Nnodes,)
     		Adjacency matrix to be converted to graph
 
-    	Returns: 
+    	Returns
     	--------
-    		Nothing; passes converted NetworkX graph to internal self.graph 
+    	    NetworkX graph with nodes labeled by indicy and directed weights given as per the np adjacency matrix
     	"""
         # self.graph = to_directed(from_numpy_matrix(np.array(np_adjacency_matrix)))
         graph = convert_matrix.from_numpy_matrix(np.array(np_adjacency_matrix), create_using=DiGraph)

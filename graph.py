@@ -50,6 +50,9 @@ class Graph:
             self.nodes[-1][seeded_node] += self.nugget_value
             self.starting_nodes_with_info.append(seeded_node)
 
+    def seed_info_constant_source(self, constant_source_node):
+        self.starting_nodes_with_info = [constant_source_node]
+
     def seed_info_by_diversity_of_connections(self):
         """
         Computes standard deviation as a (negatively correlated) metric for diversity of connection between nodes,
@@ -103,6 +106,10 @@ class Graph:
             # For sparse networks, there will likely be some columns (outgoing edges) which sum to zero.
 
     def get_eff_dist(self, adjacency_matrix=None, multiple_path=False, shortest_path=False, dominant_path=False, random_walk_distance=False, source=None, target=None, parameter=1, saveto=""):
+        """
+        Returns effective distance based on the effective distance library built by Andreas Koher. Random walk
+        estimations require row normalized adjacency matrix values.
+        """
         if adjacency_matrix is None:
             adjacency_matrix = self.A[-1]
         if multiple_path:
@@ -198,73 +205,15 @@ class LogEffDisGraph(Graph):
                     print(f'{(i/num_runs)*100:.1f}%-ish done')
 
 
-class SumEffDisGraph_old_version(Graph):
-
-    def __init__(self, num_nodes,  beta=None, value_per_nugget=1, gamma=None, q=None, alpha=1):
-        # here value_per_nugget acts to slow or speed the effective distance, to allow for more detailed investigation
-        # of progression, as all reweighting is due to intermediary edge values. #DOESN'T RESCALE! POURQUE?
-        self.alpha = alpha
-        super().__init__(num_nodes,  beta, value_per_nugget, gamma, q)
-
-    def evaluate_effective_distances(self, source, source_reward_scalar=1.2):
-        """
-        EDIT: This does not account for the shortest path according to the effective distance metric, only according
-         to the weights! (i.e. the division by (# num connections)^alpha is not considered in shortest path)
-
-        returns array of effective distances to each node (from source) according to
-        eff_dis = ((# edges)^\alpha)/sum_weights
-        """
-        nx_G = nx.from_numpy_array(utility_funcs.return_one_over_2d_matrix(np.round(self.A[-1], 3)))
-        # to use the networkx efficient shortest path algorithm, we first invert the edges so that
-        # shortest path == most highly weighted, as we intend to depict via our network
-        node_paths = [nx.algorithms.shortest_paths.weighted.dijkstra_path(nx_G, source, node, weight='weight') for node in list(nx_G.nodes) if node != source]
-        # We eliminate the source term, and will add it back later with appropriate reward at the end.
-        num_edges_in_path = [[i for i in range(len(path)-1)] for path in node_paths]
-        # -1 as we measure edges via i and i + 1, and we don't want i+1 to go out of range of node_path(s).
-        edge_paths = [[nx_G[node_paths[e][i]][node_paths[e][i + 1]]['weight'] for i in num_edges_in_path[e]] for e in range(len(num_edges_in_path))]
-        # yields list of lists of edge values for each node's shortest path to the source
-        eff_dists = [sum([1/edge for edge in path])/(pow((len(path)), self.alpha)) for path in edge_paths]
-        eff_dists.insert(source, min(eff_dists) / source_reward_scalar)
-        # source reward should be greatest of all, eff_dist ~ 0. Thus the variable scaling
-        return eff_dists
-
-    def weight_nodes_with_eff_distances(self):
-        # eff_dists = np.array([1/el for el in self.evaluate_effective_distances(self.starting_nodes_with_info[-1])])
-        # self.nodes[-1] = [eff_dist/sum(eff_dists) for eff_dist in eff_dists]  # normalize to allow for compatible efficiency metric
-        self.nodes[-1] = np.array([1/el for el in self.evaluate_effective_distances(self.starting_nodes_with_info[-1])])
-        # This inversion of every element could be prevented via initial calculation being inverted, but then eff_dist
-        # is inverted. In this subclass's case, there should never be more than one node starting with info (per run)
-
-    def run(self, num_runs, verbose=False):
-        # removed edge initialization, so it may be customized before call
-        self.A = np.vstack((self.A, [self.A[-1]]))  # so that initial values (before initial update) are preserved
-        for i in range(0, num_runs):
-            if self.beta:
-                self.seed_info_by_diversity_of_connections()
-            else:
-                self.seed_info_random()
-            self.weight_nodes_with_eff_distances()
-            self.update_edges()
-            # so the next values may be overwritten, we start with 0 node values.
-            self.nodes = np.vstack((self.nodes, np.zeros((1, self.num_nodes))))
-            self.A = np.vstack((self.A, [self.A[-1]]))
-            if i == num_runs-1:
-                self.A = np.delete(self.A, -1, axis=0)
-                self.nodes = self.nodes[:-1]
-            if verbose:
-                if int(i % num_runs) % int(num_runs / 17) == 0:
-                    print(f'{(i / num_runs) * 100:.1f}%-ish done')
-
-
 class SumEffDisGraph(Graph):
 
-    def __init__(self, num_nodes,  beta=None, value_per_nugget=1, gamma=None, q=None, alpha=1):
-        # here value_per_nugget acts to slow or speed the effective distance, to allow for more detailed investigation
-        # of progression, as all reweighting is due to intermediary edge values. #DOESN'T RESCALE! POURQUE?
+    def __init__(self, num_nodes,  beta=None, nuggets_per_run=1, value_per_nugget=1, gamma=None, q=None, alpha=1):
         self.alpha = alpha
+        self.nuggets_per_run = nuggets_per_run
+        assert type(nuggets_per_run) is int, 'The number of info nuggets per turn must be an interger >= 0'
         super().__init__(num_nodes,  beta, value_per_nugget, gamma, q)
 
-    def evaluate_effective_distances(self, source, timestep=None, source_reward_scalar=1.2):
+    def evaluate_effective_distances(self, source, source_reward_scalar, parameter=1, timestep=None):
         """
         returns array of effective distances to each node (from source) according to
         eff_dis = ((# edges)^\alpha)/sum_weights
@@ -274,27 +223,38 @@ class SumEffDisGraph(Graph):
             timestep = self.A[-1]
         else:
             timestep = self.A[timestep]
-        eff_dists = self.get_eff_dist(adjacency_matrix=timestep, multiple_path=True, source=source)
+        eff_dists = self.get_eff_dist(adjacency_matrix=timestep, multiple_path=True, source=source, parameter=parameter)
         eff_dists = [1/el for el in eff_dists[eff_dists != 0]]
         eff_dists = np.insert(eff_dists, source, min(eff_dists)/source_reward_scalar)
         return eff_dists
 
-    def weight_nodes_with_eff_distances(self):
-        # normalize to allow for compatible efficiency metric
-        eff_dists = np.array(self.evaluate_effective_distances(self.starting_nodes_with_info[-1]))
+    def add_inv_eff_distances_to_node_values(self, source_reward_scalar):
+        # normalize to allow for compatible efficiency metric?
+        # (Could lead to paths less than one, which would be problematic if the intended distance metric was used)
+        eff_dists = np.array(self.evaluate_effective_distances(self.starting_nodes_with_info[-1], source_reward_scalar=source_reward_scalar))
         self.nodes[-1] = [1/el for el in eff_dists]
         # This inversion of every element could be prevented via initial calculation being inverted, but then eff_dist
         # is inverted. In this subclass's case, there should never be more than one node starting with info (per run)
 
-    def run(self, num_runs, verbose=False):
+    def seed_info_conditional(self, constant_source_node):
+        if self.beta:
+            self.seed_info_by_diversity_of_connections()
+        elif constant_source_node:
+            self.seed_info_constant_source(constant_source_node)
+        else:
+            self.seed_info_random()
+
+    def run(self, num_runs, source_reward_scalar=1.6, constant_source_node=None, verbose=False):
         # removed edge initialization, so it may be customized before call
         self.A = np.vstack((self.A, [self.A[-1]]))  # so that initial values (before initial update) are preserved
         for i in range(0, num_runs):
-            if self.beta:
-                self.seed_info_by_diversity_of_connections()
-            else:
-                self.seed_info_random()
-            self.weight_nodes_with_eff_distances()
+            if self.nuggets_per_run > 1:
+                for seeding_step in range(0, self.nuggets_per_run-1):
+                    # minus one as the last seeding will be performed in the following code (avoids extra conditional)
+                    self.seed_info_conditional(constant_source_node)
+                    self.add_inv_eff_distances_to_node_values(source_reward_scalar)
+            self.seed_info_conditional(constant_source_node)
+            self.add_inv_eff_distances_to_node_values(source_reward_scalar)
             self.update_edges()
             # so the next values may be overwritten, we start with 0 node values.
             self.nodes = np.vstack((self.nodes, np.zeros((1, self.num_nodes))))

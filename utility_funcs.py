@@ -8,3 +8,7 @@ def return_one_over_2d_matrix(matrix):
             if quasi_inverted_matrix[i][j] != 0:
                 quasi_inverted_matrix[i][j] = 1/matrix[i][j]
     return quasi_inverted_matrix
+
+
+def count(iterable):
+    return sum(1 for _ in iterable)
