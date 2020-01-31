@@ -207,10 +207,8 @@ class LogEffDisGraph(Graph):
 
 class SumEffDisGraph(Graph):
 
-    def __init__(self, num_nodes,  beta=None, nuggets_per_run=1, value_per_nugget=1, gamma=None, q=None, alpha=1):
+    def __init__(self, num_nodes,  beta=None, value_per_nugget=1, gamma=None, q=None, alpha=1):
         self.alpha = alpha  # Presently not used
-        self.nuggets_per_run = nuggets_per_run
-        assert type(nuggets_per_run) is int, 'The number of info nuggets per turn must be an interger >= 0'
         super().__init__(num_nodes,  beta, value_per_nugget, gamma, q)
 
     def evaluate_effective_distances(self, source, source_reward_scalar, parameter=1, timestep=None):
@@ -239,7 +237,7 @@ class SumEffDisGraph(Graph):
     def seed_info_conditional(self, constant_source_node):
         if self.beta:
             self.seed_info_by_diversity_of_connections()
-        elif constant_source_node:
+        elif constant_source_node or constant_source_node == 0:
             self.seed_info_constant_source(constant_source_node)
         else:
             self.seed_info_random()
@@ -248,11 +246,6 @@ class SumEffDisGraph(Graph):
         # removed edge initialization, so it may be customized before call
         self.A = np.vstack((self.A, [self.A[-1]]))  # so that initial values (before initial update) are preserved
         for i in range(0, num_runs):
-            if self.nuggets_per_run > 1:
-                for seeding_step in range(0, self.nuggets_per_run-1):
-                    # minus one as the last seeding will be performed in the following code (avoids extra conditional)
-                    self.seed_info_conditional(constant_source_node)
-                    self.add_inv_eff_distances_to_node_values(source_reward_scalar)
             self.seed_info_conditional(constant_source_node)
             self.add_inv_eff_distances_to_node_values(source_reward_scalar)
             self.update_edges()

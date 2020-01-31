@@ -10,5 +10,5 @@ def return_one_over_2d_matrix(matrix):
     return quasi_inverted_matrix
 
 
-def count(iterable):
-    return sum(1 for _ in iterable)
+def count(iterable, val):
+    return sum(1 for _ in iterable if _ == val)
