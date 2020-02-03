@@ -12,3 +12,7 @@ __pycache__/
 
 #ignore jupyter notebook checkpoints
 .ipynb_checkpoints
+
+
+#ignore network animation folder 
+.network_animation

@@ -10,12 +10,12 @@ value_per_nugget = 0.05
 examined_node = 2
 rounding = 3
 
-G = graph.SumEffDisGraph(num_nodes, alpha=1, gamma=None, q=0.2)
+G = graph.SumEffDisGraph(num_nodes, alpha=1, beta=1, gamma=None, q=0.2)
 # G = graph.LogEffDisGraph(num_nodes, value_per_nugget=value_per_nugget, beta=None)
 # G.sparse_random_edge_init(outgoing_edges_per_node)
 G.uniform_random_edge_init()
 G.run(num_runs)
-
+# G.write_graph_as_xml()
 # plotter.plot_weight_histogram(G, num_bins=100, show=True)
 # plotter.plot_effective_distance_histogram(G.get_eff_dist(multiple_path=True), num_bins=100)
 # plotter.plot_adjacency_matrix_as_heatmap(G, show=True)
@@ -30,6 +30,7 @@ G.run(num_runs)
 # plotter.plot_network(G, value_per_nugget, nodes_sized_by_eff_distance=True)
 
 plotter.gif_of_network_evolution(G, num_runs_per_fig=10, gif_duration_in_sec=10, source_weighting=True, verbose=True)
+
 
 """
 iterations = 5

@@ -67,11 +67,12 @@ class Graph:
         for node_edges in self.A[-1][:]:
             exp_stds.append(np.exp(-self.beta * node_edges.std()))  # sum of e^(\beta \sigma_i) for i \in node[weights]
         std_partition = sum(exp_stds)
-        seeded_node = np.random.randint(0, self.nodes[-1].size)
-        if random.uniform(0, std_partition) < exp_stds[seeded_node]/std_partition:
-            self.nodes[-1][seeded_node] += self.nugget_value
-            self.starting_node = seeded_node
-            self.starting_node_history.append(seeded_node)
+        while self.starting_node is None:
+            seeded_node = np.random.randint(0, self.nodes[-1].size)
+            if random.uniform(0, std_partition) < exp_stds[seeded_node]/std_partition:
+                self.nodes[-1][seeded_node] += self.nugget_value
+                self.starting_node = seeded_node
+                self.starting_node_history.append(seeded_node)
 
     def reweight_edges_with_clustering(self):
         outgoing_weight_sums = [weights.sum() for weights in self.A[-1]]  # sums adjacency matrix rows (outgoing edges)
@@ -125,6 +126,12 @@ class Graph:
             return ed.EffectiveDistances(np_array=adjacency_matrix).get_random_walk_distance(source=source, target=target, parameter=parameter, saveto=saveto)
         else:
             print(f'No path type chosen in get_eff_dist call. Set multiple_path, shortest_path, dominant_path or random_walk_path=True')
+
+    def write_graph_as_xml(self, timestep=-1, path=None):
+        if path is None:
+            path = f"graph_at_{timestep}.graphml"
+        nx_G = nx.to_directed(nx.from_numpy_matrix(np.array(self.A[timestep]), create_using=nx.DiGraph))
+        nx.write_graphml_lxml(nx_G, path)
 
 
 class LogEffDisGraph(Graph):
