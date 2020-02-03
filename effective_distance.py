@@ -224,7 +224,7 @@ class EffectiveDistances:
 
         if parameter != 1:
             for n, m, data in self.graph.edges(data=True):
-                data['effective_distance'] = parameter - log(data['transition_rate'])
+                data['effective_distance'] = parameter - log(data['weight'])
 
         if source or target:
             DPED_dic = shortest_path_length(self.graph, source=source, target=target, weight="effective_distance")
@@ -237,7 +237,7 @@ class EffectiveDistances:
         elif (source is None) != (target is None):
             DPED = array(DPED_dic.values())
         else:
-            DPED = DPED_dic
+            DPED = array(DPED_dic.values())
         if saveto is not "":
             save(saveto, DPED)
         else:
@@ -286,13 +286,14 @@ class EffectiveDistances:
         assert isinstance(saveto, str)
         assert self.graph != None, "Load graph first."
 
-        P = adjacency_matrix(self.graph, weight="transition_rate").tocsc()
-        assert np.all(np.isclose(P.sum(axis=1), 1, rtol=1e-15)), "The transition matrix has to be row normalized"
+        P = adjacency_matrix(self.graph, weight="weight").tocsc()
+        assert np.all(np.isclose(P.sum(axis=1), 1, rtol=1e-13)), "The transition matrix has to be row normalized"
 
         one = eye(self.nodes, format="csc")
         Z = inv(one - P * np.exp(-parameter))
         D = diags(1. / Z.diagonal(), format="csc")
-        RWED = -np.log(Z.dot(D).toarray())
+        RWED = Z.dot(D).toarray()
+        print(RWED.mean())		
 
         if source is not None:
             if target is not None:
@@ -309,7 +310,7 @@ class EffectiveDistances:
 
     ###############################################################################
 
-    def get_multiple_path_distance(self, source=None, target=None, parameter=1, cutoff=0, saveto="", verbose=False):
+    def get_multiple_path_distance(self, source=None, target=None, parameter=1, cutoff=3, saveto="", verbose=False):
         """
         Compute the multiple path effective distance:
         Gautreau, A, Barrat, A. and Barthelemy, M., Global disease spread:
@@ -371,7 +372,7 @@ class EffectiveDistances:
             for t in targets:
                 if s != t:
                     shortest = len(shortest_path(self.graph, source=s, target=t, weight=None)) - 1
-                    paths = all_simple_paths(self.graph, source=s, target=t, cutoff=shortest + cutoff)
+                    paths = all_simple_paths(self.graph, source=s, target=t) #, cutoff=shortest + cutoff)
                     psum = 0
                     for path in paths:
                         n = len(path) - 1

@@ -65,30 +65,30 @@ def plot_node_values(graph, value_per_nugget, node='all', show=True, save_fig=Fa
         plt.show()
 
 
-def plot_edge_stds(graph, node, num_nodes, value_per_nugget, show=True, all_nodes=False, save_fig=False):
+def plot_edge_sum(graph, node, num_nodes, value_per_nugget, show=True, all_nodes=False, save_fig=False):
     assert show or save_fig, 'Graph will be neither shown nor saved'
     edge_std_for_all_nodes = np.zeros((num_nodes, graph.A[:, 0, 0].size))
     for Node in range(0, graph.A[0][-1].size):  # evaluates standard deviations, Node capitalized to distinguish scope
-        edge_std_for_all_nodes[Node] = np.std(graph.A[:, Node], axis=1)
+        edge_std_for_all_nodes[Node] = np.sum(graph.A[:, Node], axis=1)
         # edge_std_for_all_nodes[Node] = [edge_values.std() for edge_values in graph.A[:, Node][:]]  # less efficient?
     if all_nodes:
         fig = plt.figure(figsize=(10, 4))
         plt.plot(edge_std_for_all_nodes.T)
-        plt.title(f'standard deviations, {graph.nodes.shape[0]} runs, {value_per_nugget} nugget value')
+        plt.title(f'out-degree, {graph.nodes.shape[0]} runs, {value_per_nugget} nugget value')
         plt.xlabel('Time step')
-        plt.ylabel(f'std of all node edges')
+        plt.ylabel(f'out-degree')
         if save_fig:
-            plt.savefig(f'std_of_all_node_edges with {value_per_nugget} seed_val {graph.nodes.shape[0]} runs.png')
+            plt.savefig(f'out-degree with {value_per_nugget} seed_val {graph.nodes.shape[0]} runs.png')
         if show:
             plt.show()
     else:
         fig = plt.figure(figsize=(10, 4))
         plt.plot(edge_std_for_all_nodes[node, :])
-        plt.title(f'standard deviations, {graph.nodes.shape[0]} runs, {value_per_nugget} nugget value')
+        plt.title(f'out-degree, {graph.nodes.shape[0]} runs, {value_per_nugget} nugget value')
         plt.xlabel('Time steps')
-        plt.ylabel(f'std of {node}th node\'s edges')
+        plt.ylabel(f'out-degree of {node}th node\'s edges')
         if save_fig:
-            plt.savefig(f'std_of_node_{node}_edges with {value_per_nugget} seed_val {graph.nodes.shape[0]} runs.png')
+            plt.savefig(f'out-degree with {value_per_nugget} seed_val {graph.nodes.shape[0]} runs.png')
         if show:
             plt.show()
 
@@ -139,11 +139,11 @@ def plot_effective_distance_histogram(eff_dists, num_bins=False, timestep=-1, sh
         plt.show()
 
 
-def plot_single_network(graph, timestep, directed=True, node_size_scaling=200, source_weighting=False, position=None, show=True, save_fig=False, title=None):
+def plot_single_network(graph, timestep, directed=True, node_size_scaling=500, source_weighting=False, position=None, show=True, save_fig=False, title=None):
     fig = plt.figure(figsize=(10, 10))
     assert show or save_fig, 'Graph will be neither shown nor saved'
     if directed:
-        nx_G = nx.to_directed(nx.from_numpy_matrix(np.array(graph.A[timestep]), create_using=nx.DiGraph))
+        nx_G = nx.to_directed(nx.from_numpy_matrix(np.array(graph.A[timestep].transpose()), create_using=nx.DiGraph))
     else:
         nx_G = nx.from_numpy_matrix(np.array(graph.A[timestep]))
 
@@ -160,6 +160,8 @@ def plot_single_network(graph, timestep, directed=True, node_size_scaling=200, s
     node_colors[graph.starting_node_history[timestep-1]] = 'red'
     incoming_edge_sum = graph.A[timestep].sum(axis=1)
     incoming_edge_sum = [node_size_scaling * node / sum(incoming_edge_sum) for node in incoming_edge_sum]
+    eff_dists = graph.distance_history[timestep-1]
+    eff_dists = [node_size_scaling * node / sum(eff_dists) for node in eff_dists]
     if source_weighting:  # sizes nodes proportional to the number of times they've been a source
         source_weight = [graph.starting_node_history.count(node) for node in range(graph.nodes.shape[1])]
         source_weight = [node_size_scaling*(weight/sum(source_weight)) for weight in source_weight]
@@ -173,10 +175,11 @@ def plot_single_network(graph, timestep, directed=True, node_size_scaling=200, s
                                cmap=plt.get_cmap('viridis'))
         plt.title(f"Nodes size proportional to number of times they've been the source [timestep: {timestep}]")
     else:
+        nx.draw_networkx_labels(nx_G, pos)
         nx.draw_networkx_nodes(nx_G, pos,
                                arrowstyle='->',
                                edge_color=edge_colors,
-                               node_size=incoming_edge_sum,
+                               node_size=eff_dists,
                                node_color=node_colors,
                                # node_color=node_colors,
                                widths=weights,
@@ -219,7 +222,8 @@ def plot_network(graph, value_per_nugget, directed=True, node_size_scaling=200, 
         incoming_edge_sum = [(node_size_scaling * node / sum(incoming_edge_sum)) for node in incoming_edge_sum]
         edge_colors = range(2, nx_G.number_of_edges() + 2)
         node_colors = ['grey'] * graph.nodes.shape[1]
-        node_colors[graph.starting_node_history[timestep]] = 'red'
+        #node_colors[graph.starting_node_history[timestep]] = 'red'
+        #print(node_colors)
         nx.draw_networkx_edges(nx_G, pos, nodelist=['0'], alpha=0.8, width=weights, arrowsize=4, connectionstyle='arc3, rad=0.2')
         # not sure reversal does anything in this context... (could just transpose?)
         # nx.draw_networkx_edges(nx_G.reverse(copy=True), pos, nodelist=['0'], alpha=0.8, width=weights, arrowsize=4,

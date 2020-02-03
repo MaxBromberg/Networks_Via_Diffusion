@@ -2,13 +2,13 @@ import graph
 import plotter
 import numpy as np
 
-num_nodes = 15
-num_runs = 1000
+num_nodes = 20
+num_runs = 300
 outgoing_edges_per_node = 1
 value_per_nugget = 0.05
 
 examined_node = 2
-rounding = 3
+rounding = 10
 
 G = graph.SumEffDisGraph(num_nodes, alpha=1, gamma=None, q=0.2)
 # G = graph.LogEffDisGraph(num_nodes, value_per_nugget=value_per_nugget, beta=None)
@@ -24,12 +24,12 @@ G.run(num_runs)
 # plotter.plot_ave_node_values(G, value_per_nugget)
 # plotter.plot_ave_node_values(G, value_per_nugget, as_efficiency=True)
 # plotter.plot_node_value_over_time(G, examined_node, value_per_nugget, show=True, save_fig=False)
-# plotter.plot_edge_stds(G, examined_node, num_nodes, value_per_nugget, show=True, all_nodes=True, save_fig=False)
-# plotter.plot_network(G, value_per_nugget, show=True, save_fig=False)
+plotter.plot_edge_sum(G, examined_node, num_nodes, value_per_nugget, show=True, all_nodes=True, save_fig=False)
+plotter.plot_network(G, value_per_nugget, show=True, save_fig=False)
 # plotter.plot_single_network(G, num_runs, source_weighting=True)
 # plotter.plot_network(G, value_per_nugget, nodes_sized_by_eff_distance=True)
 
-plotter.gif_of_network_evolution(G, num_runs_per_fig=10, gif_duration_in_sec=10, source_weighting=True, verbose=True)
+plotter.gif_of_network_evolution(G, num_runs_per_fig=1, gif_duration_in_sec=10, source_weighting=False, verbose=True)
 
 """
 iterations = 5
