@@ -293,7 +293,7 @@ class EffectiveDistances:
         Z = inv(one - P * np.exp(-parameter))
         D = diags(1. / Z.diagonal(), format="csc")
         RWED = Z.dot(D).toarray()
-        print(RWED.mean())		
+        full_average = RWED.mean()
 
         if source is not None:
             if target is not None:
@@ -306,7 +306,7 @@ class EffectiveDistances:
         if saveto is not "":
             save(saveto, RWED)
 
-        return RWED
+        return RWED, full_average
 
     ###############################################################################
 

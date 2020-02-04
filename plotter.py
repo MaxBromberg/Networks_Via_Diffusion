@@ -1,7 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
 import networkx as nx  # Used for network plots
-
+import natsort
 import imageio  # Used for making gifs of the network plots
 import os  # Used for putting the gifs somewhere
 from pathlib import Path  # used for file path compatibility between operating systems
@@ -44,6 +44,10 @@ def plot_node_edges(graph, node, num_nodes, num_runs, value_per_nugget, show=Tru
         plt.savefig(f'edge values of {node} node with {value_per_nugget} seed_val {graph.nodes.shape[0]} runs.png')
     if show:
         plt.show()
+
+def plot_global_eff_dist(graph):
+    plt.plot(graph.global_dist_history)
+    plt.show()
 
 
 def plot_node_values(graph, value_per_nugget, node='all', show=True, save_fig=False):
@@ -184,7 +188,7 @@ def plot_single_network(graph, timestep, directed=True, node_size_scaling=500, s
                                # node_color=node_colors,
                                widths=weights,
                                cmap=plt.get_cmap('viridis'))
-        plt.title(f"Nodes size proportional to incoming edge weights [timestep: {timestep}]")
+        plt.title(f"Nodes size proportional to random walk distance to source [timestep: {timestep}]")
     if title:
         plt.savefig(f'{title}.png')
         plt.close(fig)
@@ -298,7 +302,8 @@ def gif_of_network_evolution(graph, node_size_scaling=200, source_weighting=Fals
         writer = imageio.get_writer(f'{Path(vid_path, file_title)}.mp4', fps=(graph.A.shape[0] / gif_duration_in_sec))
 
     images = []
-    for filename in os.listdir(fig_path):
+    print(natsort.natsorted(os.listdir(fig_path)))
+    for filename in natsort.natsorted(os.listdir(fig_path)):
         if filename.endswith(".png"):
             images.append(imageio.imread(Path(fig_path, filename)))
             writer.append_data(imageio.imread(Path(fig_path, filename)))

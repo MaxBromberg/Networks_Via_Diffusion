@@ -26,6 +26,7 @@ class Graph:
         self.A = np.zeros((1, self.num_nodes, self.num_nodes))  # Adjacency matrix (and history of)
         self.starting_node_history = []  # holds the starting nodes for each run, reset after every run.
         self.distance_history = []
+        self.global_dist_history = []
 
     def sparse_random_edge_init(self, nonzero_edges_per_node=1):
         """
@@ -85,13 +86,17 @@ class Graph:
                     self.A[-1][node][edge] += self.nodes[-1][node] * self.A[-1][node][edge] * np.exp(
                         -(self.gamma * outgoing_weight_sums[node]))
 
-    def reweight_edges_without_clustering(self):
+    def reweight_edges_without_clustering(self, enforcement_factor):
         for node in range(0, self.nodes[-1].size):
+            # strategy = take-the-best
+            info_score = [] 
             for edge in range(0, self.A[-1][node].size):
-                self.A[-1][node][edge] += self.A[-1][node][edge]*(self.nodes[-1][node]/sum(self.nodes[-1]))
+                info_score.append(self.A[-1][edge][node]*(self.nodes[-1][edge]/sum(self.nodes[-1])))                
+
+            self.A[-1][info_score.index(max(info_score))][node] += enforcement_factor #self.A[-1][edge][node]*(self.nodes[-1][edge]/sum(self.nodes[-1]))
             # We normalize along the outgoing edges (columns) so that we do not simply reset the rows (as with rows)
 
-    def update_edges(self):
+    def update_edges(self, enforcement_factor):
         """
         Due to having exclusively forward propagation, we may use the node values directly to determine their effect on
          the node they were connected to. Even though this computational mechanic is the opposite of the
@@ -102,7 +107,7 @@ class Graph:
         if self.gamma:
             self.reweight_edges_with_clustering()
         else:
-            self.reweight_edges_without_clustering()
+            self.reweight_edges_without_clustering(enforcement_factor)
         for node in range(0, self.A[-1][0].size):
             incoming_edge_sum = self.A[-1][:, node].sum()
             if incoming_edge_sum > 0:
@@ -218,7 +223,7 @@ class SumEffDisGraph(Graph):
         self.alpha = alpha  # Presently not used
         super().__init__(num_nodes,  beta, value_per_nugget, gamma, q)
 
-    def evaluate_effective_distances(self, source, source_reward_scalar, parameter=1, timestep=None):
+    def evaluate_effective_distances(self, source, exp_decay_param, source_reward_scalar, parameter=1, timestep=None):
         """
         returns array of effective distances to each node (from source) according to
         eff_dis = ((# edges)^\alpha)/sum_weights
@@ -235,22 +240,22 @@ class SumEffDisGraph(Graph):
             normalization_factors.append(outgoing_edge_sum)
             if outgoing_edge_sum > 0:
                 timestep[node, :] /= outgoing_edge_sum  
-        eff_dists = self.get_eff_dist(adjacency_matrix=timestep, random_walk_distance=True, source=source, parameter=0.7)
+        eff_dists, global_average = self.get_eff_dist(adjacency_matrix=timestep, random_walk_distance=True, source=source, parameter=exp_decay_param)
         #re-normlizing
         for node in range(0, timestep.shape[1]):
             if normalization_factors[node] > 0:
                 timestep[node, :] *= normalization_factors[node]  
         #eff_dists = [el if el != 1. else max(eff_dists[eff_dists != 1.])*1.3 for el in eff_dists]
         #eff_dists = np.insert(eff_dists, source, min(eff_dists)/source_reward_scalar)
-        print(eff_dists)
+        self.global_dist_history.append(global_average)
         self.starting_node_history.append(source)
         self.distance_history.append(eff_dists)
         return eff_dists
 
-    def add_inv_eff_distances_to_node_values(self, source_reward_scalar):
+    def add_inv_eff_distances_to_node_values(self, source_reward_scalar, exp_decay_param):
         # normalize to allow for compatible efficiency metric?
         # (Could lead to paths less than one, which would be problematic if the intended distance metric was used)
-        eff_dists = np.array(self.evaluate_effective_distances(self.starting_node, source_reward_scalar=source_reward_scalar))
+        eff_dists = np.array(self.evaluate_effective_distances(self.starting_node, exp_decay_param, source_reward_scalar=source_reward_scalar))
         self.nodes[-1] = [el for el in eff_dists]
         # This inversion of every element could be prevented via initial calculation being inverted, but then eff_dist
         # is inverted. In this subclass's case, there should never be more than one node starting with info (per run)
@@ -263,14 +268,14 @@ class SumEffDisGraph(Graph):
         else:
             self.seed_info_random()
 
-    def run(self, num_runs, source_reward_scalar=1.6, constant_source_node=None, verbose=False):
+    def run(self, num_runs, enforcement_factor, exp_decay_param, interval, source_reward_scalar=1.6, constant_source_node=None, verbose=False):
         # removed edge initialization, so it may be customized before call
         self.A = np.vstack((self.A, [self.A[-1]]))  # so that initial values (before initial update) are preserved
         for i in range(0, num_runs):
             self.seed_info_conditional(constant_source_node)
-            self.add_inv_eff_distances_to_node_values(source_reward_scalar)
-            if i %1 == 0:
-                self.update_edges()
+            self.add_inv_eff_distances_to_node_values(source_reward_scalar, exp_decay_param)
+            if i %interval == 0:
+                self.update_edges(enforcement_factor)
             # so the next values may be overwritten, we start with 0 node values.
             self.nodes = np.vstack((self.nodes, np.zeros((1, self.num_nodes))))
             self.A = np.vstack((self.A, [self.A[-1]]))
