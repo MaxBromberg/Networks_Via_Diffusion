@@ -86,17 +86,17 @@ class Graph:
                     self.A[-1][node][edge] += self.nodes[-1][node] * self.A[-1][node][edge] * np.exp(
                         -(self.gamma * outgoing_weight_sums[node]))
 
-    def reweight_edges_without_clustering(self, enforcement_factor):
+    def reweight_edges_without_clustering(self, enforcement_factor, edge_weighting):
         for node in range(0, self.nodes[-1].size):
             # strategy = take-the-best
             info_score = [] 
             for edge in range(0, self.A[-1][node].size):
-                info_score.append(self.A[-1][edge][node]*(self.nodes[-1][edge]/sum(self.nodes[-1])))                
-
-            self.A[-1][info_score.index(max(info_score))][node] += enforcement_factor #self.A[-1][edge][node]*(self.nodes[-1][edge]/sum(self.nodes[-1]))
+                info_score.append((self.A[-1][edge][node])**edge_weighting*(self.nodes[-1][edge]/sum(self.nodes[-1])))              
+            if self.nodes[-1][edge]-self.nodes[-1][node] > 0:
+                self.A[-1][info_score.index(max(info_score))][node] += enforcement_factor #self.A[-1][edge][node]*(self.nodes[-1][edge]/sum(self.nodes[-1]))
             # We normalize along the outgoing edges (columns) so that we do not simply reset the rows (as with rows)
 
-    def update_edges(self, enforcement_factor):
+    def update_edges(self, enforcement_factor, edge_weighting):
         """
         Due to having exclusively forward propagation, we may use the node values directly to determine their effect on
          the node they were connected to. Even though this computational mechanic is the opposite of the
@@ -107,7 +107,7 @@ class Graph:
         if self.gamma:
             self.reweight_edges_with_clustering()
         else:
-            self.reweight_edges_without_clustering(enforcement_factor)
+            self.reweight_edges_without_clustering(enforcement_factor, edge_weighting)
         for node in range(0, self.A[-1][0].size):
             incoming_edge_sum = self.A[-1][:, node].sum()
             if incoming_edge_sum > 0:
@@ -268,14 +268,14 @@ class SumEffDisGraph(Graph):
         else:
             self.seed_info_random()
 
-    def run(self, num_runs, enforcement_factor, exp_decay_param, interval, source_reward_scalar=1.6, constant_source_node=None, verbose=False):
+    def run(self, num_runs, enforcement_factor, exp_decay_param, edge_weighting, interval, source_reward_scalar=1.6, constant_source_node=None, verbose=False):
         # removed edge initialization, so it may be customized before call
         self.A = np.vstack((self.A, [self.A[-1]]))  # so that initial values (before initial update) are preserved
         for i in range(0, num_runs):
             self.seed_info_conditional(constant_source_node)
             self.add_inv_eff_distances_to_node_values(source_reward_scalar, exp_decay_param)
             if i %interval == 0:
-                self.update_edges(enforcement_factor)
+                self.update_edges(enforcement_factor, edge_weighting)
             # so the next values may be overwritten, we start with 0 node values.
             self.nodes = np.vstack((self.nodes, np.zeros((1, self.num_nodes))))
             self.A = np.vstack((self.A, [self.A[-1]]))

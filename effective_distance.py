@@ -372,7 +372,7 @@ class EffectiveDistances:
             for t in targets:
                 if s != t:
                     shortest = len(shortest_path(self.graph, source=s, target=t, weight=None)) - 1
-                    paths = all_simple_paths(self.graph, source=s, target=t) #, cutoff=shortest + cutoff)
+                    paths = all_simple_paths(self.graph, source=s, target=t, cutoff=shortest + cutoff)
                     psum = 0
                     for path in paths:
                         n = len(path) - 1
@@ -399,7 +399,7 @@ class EffectiveDistances:
         if saveto is not "":
             save(saveto, MPED)
         else:
-            return MPED
+            return MPED, MPED.mean()
 
     ###############################################################################
 

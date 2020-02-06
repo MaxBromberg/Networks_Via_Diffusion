@@ -2,27 +2,28 @@ import graph
 import plotter
 import numpy as np
 
-num_nodes = 20
-num_runs = 30
-outgoing_edges_per_node = 5
+num_nodes = 10
+num_runs = 200
+outgoing_edges_per_node = int(num_nodes/3)
 value_per_nugget = 0.05
 
 examined_node = 2
 rounding = 10
 
-enforcement_factor = 0.5
-exp_decay_param = 1.0
+enforcement_factor = 0.05
+exp_decay_param = 0.1001
 updating_edges_interval = 1
+edge_weighting = .4
 
 G = graph.SumEffDisGraph(num_nodes, alpha=1, gamma=None, q=0.2)
 # G = graph.LogEffDisGraph(num_nodes, value_per_nugget=value_per_nugget, beta=None)
-#G.sparse_random_edge_init(outgoing_edges_per_node)
-G.uniform_random_edge_init()
-G.run(num_runs, enforcement_factor, exp_decay_param, updating_edges_interval)
+G.sparse_random_edge_init(outgoing_edges_per_node)
+#G.uniform_random_edge_init()
+G.run(num_runs, enforcement_factor, exp_decay_param,edge_weighting, updating_edges_interval)
 
-# plotter.plot_weight_histogram(G, num_bins=100, show=True)
+plotter.plot_weight_histogram(G, num_bins=100, show=True)
 # plotter.plot_effective_distance_histogram(G.get_eff_dist(multiple_path=True), num_bins=100)
-# plotter.plot_adjacency_matrix_as_heatmap(G, show=True)
+plotter.plot_adjacency_matrix_as_heatmap(G, show=True)
 # plotter.plot_node_edges(G, examined_node, num_nodes, num_runs, value_per_nugget, show=True, save_fig=False)
 # plotter.plot_node_values(G, value_per_nugget, node=1)
 # plotter.plot_ave_node_values(G, value_per_nugget)
