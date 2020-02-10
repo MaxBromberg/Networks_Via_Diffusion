@@ -46,6 +46,14 @@ def plot_node_edges(graph, node, num_nodes, num_runs, value_per_nugget, show=Tru
         plt.show()
 
 
+def plot_global_eff_dist(graph):
+    plt.plot(graph.global_eff_dist_history)
+    plt.title(f'Total Effective Distance history')
+    plt.xlabel('Time step')
+    plt.ylabel(f'Total Effective distance')
+    plt.show()
+
+
 def plot_node_values(graph, value_per_nugget, node='all', show=True, save_fig=False):
     assert show or save_fig, 'Graph will be neither shown nor saved'
     fig = plt.figure(figsize=(10, 4))
@@ -63,6 +71,35 @@ def plot_node_values(graph, value_per_nugget, node='all', show=True, save_fig=Fa
         plt.savefig(f'{node} node_values with {value_per_nugget} seed_val {graph.nodes.shape[0]} runs.png')
     if show:
         plt.show()
+
+
+def plot_edge_sum(graph, node=None, incoming_edges=False, show=True, save_fig=False):
+    # incoming edge sum only relevant if they are not normalized
+    assert show or save_fig, 'Graph will be neither shown nor saved'
+    edge_sums = graph.A.sum(axis=2)  # returns sums of rows for every timestep
+    fig = plt.figure(figsize=(10, 4))
+    if incoming_edges:
+        edge_sums = graph.A.sum(axis=1)  # returns sums of columns for every timestep
+    if node or node == 0:
+        plt.plot(edge_sums[:, node])
+        if incoming_edges:
+            plt.plot(edge_sums[node, :])
+        plt.title(f'sum of node {node} edges')
+        plt.xlabel('Time steps')
+        plt.ylabel(f'Sum of {node}th node\'s edges')
+        if save_fig:
+            plt.savefig(f'sum of node {node} edges.png')
+        if show:
+            plt.show()
+    else:
+        plt.plot(edge_sums)
+        plt.title(f'Sum of every node edges')
+        plt.xlabel('Time steps')
+        plt.ylabel(f'Sum of every nodes\' edges')
+        if save_fig:
+            plt.savefig(f'sum of every node edges.png')
+        if show:
+            plt.show()
 
 
 def plot_edge_stds(graph, node, num_nodes, value_per_nugget, show=True, all_nodes=False, save_fig=False):

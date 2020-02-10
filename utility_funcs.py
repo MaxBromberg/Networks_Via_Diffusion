@@ -1,5 +1,7 @@
 import numpy as np
 
+rounding = 3
+
 
 def return_one_over_2d_matrix(matrix):
     quasi_inverted_matrix = np.array(matrix, float)
@@ -12,3 +14,8 @@ def return_one_over_2d_matrix(matrix):
 
 def count(iterable, val):
     return sum(1 for _ in iterable if _ == val)
+
+
+# just for debugging
+def rounded_print(num):
+    print(np.round(num, rounding))

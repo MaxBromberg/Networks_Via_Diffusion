@@ -286,7 +286,11 @@ class EffectiveDistances:
         assert isinstance(saveto, str)
         assert self.graph != None, "Load graph first."
 
-        P = adjacency_matrix(self.graph, weight="transition_rate").tocsc()
+        if hasattr(self.graph, "transition_rate"):
+            P = adjacency_matrix(self.graph, weight="transition_rate").tocsc()
+        else:
+            P = adjacency_matrix(self.graph, weight="weight").tocsc()
+
         assert np.all(np.isclose(P.sum(axis=1), 1, rtol=1e-15)), "The transition matrix has to be row normalized"
 
         one = eye(self.nodes, format="csc")
