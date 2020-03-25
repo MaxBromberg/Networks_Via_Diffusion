@@ -5,6 +5,7 @@ import networkx as nx  # Used for network plots
 import imageio  # Used for making gifs of the network plots
 import os  # Used for putting the gifs somewhere
 from pathlib import Path  # used for file path compatibility between operating systems
+from scipy import optimize
 
 
 def plot_ave_node_values(graph, value_per_nugget, as_efficiency=None, show=True, save_fig=False):
@@ -46,11 +47,32 @@ def plot_node_edges(graph, node, num_nodes, num_runs, value_per_nugget, show=Tru
         plt.show()
 
 
-def plot_global_eff_dist(graph):
+def plot_global_eff_dist(graph, fit=False):
+    fig = plt.figure(figsize=(12, 6))
     plt.plot(graph.global_eff_dist_history)
     plt.title(f'Total Effective Distance history')
     plt.xlabel('Time step')
     plt.ylabel(f'Total Effective distance')
+    if fit:
+        x = np.array(range(len(graph.global_eff_dist_history)))
+        y = graph.global_eff_dist_history
+        if fit == 'log':
+            # log_fit = np.polyfit(np.log(x), y, 1, w=np.sqrt(y))
+            # plt.plot(x, np.exp(log_fit[1])*np.exp(log_fit[0]*x))
+            # a, b = optimize.curve_fit(lambda t, a, b: a * np.exp(b * t), x, y, p0=(1, 0.5))
+            # plt.plot(x, a[0] * np.exp(a[1] * x))
+            print("Logarithmic/exponential fitting encounters inf/NaN errors in regression :(")
+        if fit == 'linear':
+            linear_fit = np.polyfit(x, y, 1, w=np.sqrt(y))
+            plt.plot(x, linear_fit[0]*x + linear_fit[1])
+        if fit == 'average':
+            ave_range = int(len(y)/20)
+            assert ave_range % 2 == 0, 'Average range must be even (lest, for this algorithm)'
+            half_range = int((ave_range/2))
+            averaging_fit = [np.mean(y[index-half_range:index+half_range]) for index in x[half_range:-half_range]]
+            # averaging_fit = np.insert(averaging_fit, 0, y[:half_range])
+            # averaging_fit = np.insert(averaging_fit, averaging_fit.shape[0], y[-half_range:])
+            plt.plot(averaging_fit)
     plt.show()
 
 
@@ -155,7 +177,10 @@ def plot_weight_histogram(graph, num_bins=False, timestep=-1, show=True, save_fi
         plt.hist(edges, bins=num_bins)
     else:
         plt.hist(edges)  # bins = auto, as per np.histogram
-    plt.title(f"Weight histogram for all edges timestep: {timestep} ")
+    if timestep == -1:
+        plt.title(f"Weight histogram for all edges final timestep ({graph.A.shape[0]-1})")
+    else:
+        plt.title(f"Weight histogram for all edges timestep: {timestep} ")
     if save_fig:
         plt.savefig(f'Weight histogram with {num_bins} bins.png')
     if show:
@@ -169,7 +194,10 @@ def plot_effective_distance_histogram(eff_dists, num_bins=False, timestep=-1, sh
         plt.hist(eff_dists, bins=num_bins)
     else:
         plt.hist(eff_dists)  # bins = auto, as per np.histogram
-    plt.title(f"Effective distance histogram for all to all paths timestep: {timestep} ")
+    if timestep == -1:
+        plt.title(f"Effective distance histogram for all to all edges final timestep")
+    else:
+        plt.title(f"Effective distance histogram for all to all paths timestep: {timestep} ")
     if save_fig:
         plt.savefig(f'Effective distance histogram at step {timestep}.png')
     if show:

@@ -10,7 +10,7 @@ random.seed(42)
 class Graph:
     starting_node = None
 
-    def __init__(self, num_nodes, value_per_nugget=1, edge_weighting_factor=None, enforcement_factor=0.1, beta=None, gamma=None, q=None):
+    def __init__(self, num_nodes, value_per_nugget=1, edge_weighting_exp=None, take_the_best_reward_rate=None, rate_of_edge_adaptation=None, beta=None, gamma=None, q=None):
         """
         Initialization; the 'extra' dimensionality (i.e. 1 for nodes, A) are there to dynamically store their history
         via use of vstack later on. To minimize variables, many features are activated by specifying their relevant
@@ -23,8 +23,10 @@ class Graph:
         self.gamma = gamma  # Determines punishment for connecting to the same node, as default strategy for both
         # random and diverse connection weighted seeding would otherwise be to connect all nodes to one other
         self.q = q  # exp{-gamma*[(sum_j w_ij)-q*N]} => for 0<q(<1) nodes are incentivized to strengthen outgoing edges
-        self.edge_weighting_exp = edge_weighting_factor
-        self.enforcement_factor = enforcement_factor
+        self.edge_weighting_exp = edge_weighting_exp  # determines exponential suppression of rate of adaptation in
+        # info scores for both reweight_edges_via_info_score and reweight_edges_via_info_score
+        self.take_the_best_reward_rate = take_the_best_reward_rate  # change in edge weight in take_the_best
+        self.rate_of_edge_adaptation = rate_of_edge_adaptation  # rescaling of all rewards in reweight_edges_via_info_score
         self.nodes = np.zeros((1, num_nodes))  # node values (and history of via the first dimension)
         self.A = np.zeros((1, self.num_nodes, self.num_nodes))  # Adjacency matrix (and history of)
         self.starting_node_history = []  # holds the starting nodes for each run, reset after every run.
@@ -58,6 +60,7 @@ class Graph:
             self.starting_node_history.append(seeded_node)
 
     def seed_info_constant_source(self, constant_source_node):
+        assert isinstance(constant_source_node, int) & constant_source_node >= 0 & constant_source_node <= self.num_nodes, f'Please chose constant source node to be in range of num_nodes, i.e. in (0, {self.num_nodes})'
         self.starting_node = constant_source_node
         self.starting_node_history.append(constant_source_node)
 
@@ -97,23 +100,33 @@ class Graph:
             # We normalize along the outgoing edges (columns) so that we do not simply reset the rows (as with rows)
 
     def reweight_edges_via_take_the_best(self):
+        node_sum = self.nodes[-1].sum()
         for from_node in range(0, self.nodes[-1].size):
-            node_sum = self.nodes[-1].sum()
-            info_score = [self.A[-1][node_index][from_node]**(self.edge_weighting_exp*(self.nodes[-1][node_index]/node_sum)) for node_index in range(self.nodes.shape[1])]
-            self.A[-1][info_score.index(max(info_score))][from_node] += self.enforcement_factor  # Not sure this shouldn't be proportional
+            info_score = [pow(self.A[-1][node_index][from_node], (self.edge_weighting_exp*(self.nodes[-1][node_index]/node_sum))) for node_index in range(self.nodes.shape[1])]
+            # returns all edges directed to from node reweighted by raising each edge to value proportional the node's value as a fraction of the total
+            self.A[-1][info_score.index(max(info_score))][from_node] += self.take_the_best_reward_rate  # Not sure this shouldn't be proportional
+            # rewards the edge which lead to the greatest info score with a constant (the take_the_best_reward_rate factor)
+
+    def reweight_edges_via_info_score(self):
+        node_sum = self.nodes[-1].sum()
+        for from_node in range(0, self.nodes[-1].size):
+            info_score = [pow(self.A[-1][node_index][from_node], (self.edge_weighting_exp*(self.nodes[-1][node_index]/node_sum))) for node_index in range(self.nodes.shape[1])]
+            self.A[-1][:][from_node] += self.rate_of_edge_adaptation*info_score
 
     def update_edges(self):
         """
         Due to having exclusively forward propagation, we may use the node values directly to determine their effect on
          the node they were connected to. Even though this computational mechanic is the opposite of the
          conceptualization, it should yield the same results.
-        The normalization is where the conservation of edge weight applies,
+        The normalization (along incoming edges) is where the conservation of edge weight applies,
          negatively effecting those not reinforced.
         """
-        if self.gamma:
-            self.reweight_edges_with_clustering()
-        elif self.edge_weighting_exp:
+        if self.take_the_best_reward_rate:
             self.reweight_edges_via_take_the_best()
+        elif self.rate_of_edge_adaptation:
+            self.reweight_edges_via_info_score()
+        elif self.gamma:
+            self.reweight_edges_with_clustering()
         else:
             self.reweight_edges_without_clustering()
         for node in range(0, self.A[-1][0].size):
@@ -122,7 +135,7 @@ class Graph:
                 self.A[-1][:, node] /= incoming_edge_sum  # normalizes each node's total INCOMING weights to 1
             # For sparse networks, there will likely be some columns (outgoing edges) which sum to zero.
 
-    def get_eff_dist(self, adjacency_matrix=None, multiple_path=False, shortest_path=False, dominant_path=False, random_walk_distance=False, source=None, target=None, parameter=1, saveto=""):
+    def get_eff_dist(self, adjacency_matrix=None, multiple_path=False, shortest_path=False, dominant_path=False, random_walk=False, source=None, target=None, parameter=1, saveto=""):
         """
         Returns effective distance based on the effective distance library built by Andreas Koher. Random walk
         estimations require row normalized adjacency matrix values.
@@ -135,16 +148,141 @@ class Graph:
             return ed.EffectiveDistances(np_array=adjacency_matrix).get_shortest_path_distance(source=source, target=target, parameter=parameter, saveto=saveto)
         if dominant_path:
             return ed.EffectiveDistances(np_array=adjacency_matrix).get_dominant_path_distance(source=source, target=target, parameter=parameter, saveto=saveto)
-        if random_walk_distance:
+        if random_walk:
             return ed.EffectiveDistances(np_array=adjacency_matrix).get_random_walk_distance(source=source, target=target, parameter=parameter, saveto=saveto)
         else:
-            print(f'No path type chosen in get_eff_dist call. Set multiple_path, shortest_path, dominant_path or random_walk_path=True')
+            print('No path type chosen in get_eff_dist call. Set multiple_path, shortest_path, dominant_path or random_walk=True')
 
     def write_graph_as_xml(self, timestep=-1, path=None):
         if path is None:
             path = f"graph_at_{timestep}.graphml"
         nx_G = nx.to_directed(nx.from_numpy_matrix(np.array(self.A[timestep]), create_using=nx.DiGraph))
         nx.write_graphml(nx_G, path)
+
+
+class EffDisGraph(Graph):
+
+    def __init__(self, num_nodes,  value_per_nugget=1, exp_edge_weighting=1, take_the_best_reward_rate=None, rate_of_edge_adaptation=None, beta=None, gamma=None, q=None):
+        """
+        Here initialization seems unnecessary to be independent of the graph superclass, but may yet be useful in future applications.
+        Presently defaults to take_the_best
+        :param num_nodes: Number of Nodes in network. Remains constant
+        :param value_per_nugget: floating point giving info per nugget. As all edge weights are normalized in
+        reweighing process, this should not effect anything in present implementation (thus set to 1 by default)
+        :param exp_edge_weighting: Used in the exponential reweighing of edges via take_the_best and info_score reweighing
+        Suggested range (0,1]
+        :param take_the_best_reward_rate: Determines if take_the_best is used, and the amount added each node's best edge.
+        Suggested range is around 0.01.
+        :param rate_of_edge_adaptation: Determines if reweight_edges_via_info_score is used, rate of adaptation.
+        Suggested range is around 0.01.
+        :param beta: Determines if info is seeded by diversity of connexions, how much (exponential factor, \in (0,1) )
+        :param gamma: Determines if edges are reweighed with a tendency to cluster
+        :param q: Determines the fraction of the nodes each edge is incentivized to connect to.
+        """
+        super().__init__(num_nodes, value_per_nugget, exp_edge_weighting, take_the_best_reward_rate, rate_of_edge_adaptation, beta, gamma, q)
+
+    def evaluate_effective_distances(self, source, source_reward, multiple_path_eff_dist, parameter=1, timestep=-1):
+        """
+        Defaults to random walker effective distance metric unless given multiple_path_eff_dist=True
+        returns array of effective distances to each node (from source) according to effective dist library´methods
+        TODO: eff_dis = ((# edges)^\alpha)/sum_weights
+        """
+        if multiple_path_eff_dist:
+            eff_dists = self.get_eff_dist(adjacency_matrix=self.A[timestep], multiple_path=True, source=source,
+                                          parameter=parameter)
+        else:
+            # pre-normalize
+            # normed_A = [self.A[timestep][node, :]/self.A[timestep].sum(axis=1) for node in range(self.nodes.shape[1]) if node != 0]
+            normalization_factors = self.A[timestep].sum(axis=1)
+            normalized_A = np.where(normalization_factors != 0, self.A[timestep] / normalization_factors[:, np.newaxis], 0)
+            # normalized_A = np.array([self.A[timestep][node, :]/normalization_factors[node] for node in range(self.A[timestep].shape[0])])
+            # Here parameter is the exp_decay_parameter for the random walk effective distance
+            eff_dists = self.get_eff_dist(adjacency_matrix=normalized_A, random_walk_distance=True,
+                                                          source=source, parameter=parameter)
+            # re-normalizing not needed, as self.A was not changed; only eff_distances can be scaled in desired
+        assert np.isclose(eff_dists[source], 0, rtol=1e-10), "Source has nonzero effective distance"
+        eff_dists = np.delete(eff_dists, source)  # awkward deletion/insertion to ensure min search of remaining eff_distances
+        eff_dists = np.insert(eff_dists, source, min(eff_dists)/source_reward)
+        self.global_eff_dist_history.append(eff_dists.mean())
+        self.eff_dist_history.append(eff_dists)
+        # print(f'Eff Distances: {np.round(eff_dists, 3)}  Source (Val): {source} ({np.round(eff_dists[source], 3)})')
+        return eff_dists
+
+    def add_inv_eff_distances_to_node_values(self, exp_decay_param, source_reward, multiple_path=False):
+        # TODO: resolve if the product of subzero terms in the exponential during evaluation of MPED counteracts inverse, what is the proper form with the random Effective distance metric and implement a conditional if necessary.
+        # self.nodes[-1] = [1/val for val in np.array(self.evaluate_effective_distances(self.starting_node, parameter=exp_decay_param, source_reward=source_reward, multiple_path_eff_dist=multiple_path))]
+        self.nodes[-1] = np.array(self.evaluate_effective_distances(self.starting_node, parameter=exp_decay_param, source_reward=source_reward, multiple_path_eff_dist=multiple_path))
+
+    def seed_info_conditional(self, constant_source_node):
+        if self.beta:
+            self.seed_info_by_diversity_of_connections()
+        elif isinstance(constant_source_node, bool) & constant_source_node:
+            self.seed_info_constant_source(0)   # Just to ensure seeding if set == True, it'll work without setting the constant seed to be a specific node
+        elif constant_source_node or constant_source_node == 0:
+            self.seed_info_constant_source(constant_source_node)
+        else:
+            self.seed_info_random()
+
+    def run(self, num_runs, update_interval=1, exp_decay_param=0.4, source_reward=1.6, constant_source_node=None, multiple_path=False, verbose=False, ):
+        """
+        :param num_runs: Constant natural number, number of runs.
+        :param update_interval: Number of seed steps per run (times information is seeded and diffused before reweighing edges)
+        :param exp_decay_param: determines exponential suppression of higher order paths for both RWED and MPED
+        :param source_reward: Determines how much the source node is scaled, recommended values \in (1,2)
+        :param constant_source_node: Sets seed node to be a given node (the integer given).  True defaults to 0th node.
+        :param multiple_path: if True, uses multiple path effective distance algorithm. Otherwise, defaults to random walker effective distance algorithm
+        :param verbose: if True, details approximate completion percentage and run parameters, methods.
+        :return: Returns nothing, updates graph values. Use plotter library to evaluate and graph observables
+        """
+        # Verbose functions:
+        def print_run_percentage(index, runs, fraction_intervals):
+            assert runs > fraction_intervals, "Too few runs, set verbose to False"
+            if int(index % runs) % int(runs / fraction_intervals) == 0:
+                print(f'{(index / runs) * 100:.1f}%-ish done')
+
+        def print_run_methods():
+            print(f'Parameter and Method Details:\nRan {num_runs} runs with {update_interval} seed steps per run, and sources were rewarded by a {source_reward} scaling')
+            if isinstance(constant_source_node, bool) & constant_source_node:
+                print(f'All information was seeded to the 0th node.')
+            elif isinstance(constant_source_node, int):
+                print(f'All information was seeded to the {constant_source_node}th node.')
+            elif self.beta:
+                print(f'Information seeded proportional to diversity of connections, with partition exponent of beta = {self.beta}')
+            elif not constant_source_node or self.beta:
+                print(f'All information was seeded randomly.')
+
+            if multiple_path:
+                print(f'The Multiple Path Effective Distance (MPED) was used, with higher order paths suppressed by a exp_decay_param of {exp_decay_param}')
+            else:
+                print(f'The (analytic) Random Walker Effective Distance (RWED) was used, with an exp_decay_param of {exp_decay_param}.')
+
+            print('Edge Update algorithm:')
+            if self.rate_of_edge_adaptation:
+                print(f'Reweight_edges_via_info_score algorithm, with {self.rate_of_edge_adaptation} as the rate of edge adaptation')
+            elif self.take_the_best_reward_rate:
+                print(f'Take the best edge reweighing algorithm, with {self.take_the_best_reward_rate} reward rate')
+            elif self.gamma:
+                print(f'Reweight_edges_with_clustering was used, with gamma of {self.gamma}')
+            else:
+                print(f'Edges were reweighed by simply adding the product of their edge value and origin node (from which they were directed) to their value')
+
+            # Body of run function
+        self.A = np.vstack((self.A, [self.A[-1]]))  # so that initial values (before initial update) are preserved
+        for i in range(0, num_runs):
+            self.seed_info_conditional(constant_source_node)
+            self.add_inv_eff_distances_to_node_values(exp_decay_param, source_reward, multiple_path)
+            if i % update_interval == 0:
+                self.update_edges()
+                # so the next values may be overwritten, we start with 0 node values.
+                self.nodes = np.vstack((self.nodes, np.zeros((1, self.num_nodes))))
+                self.A = np.vstack((self.A, [self.A[-1]]))
+            if i == num_runs-1:
+                self.A = np.delete(self.A, -1, axis=0)
+                self.nodes = self.nodes[:-1]
+            if verbose:
+                print_run_percentage(i, num_runs, 17)
+        if verbose:
+            print_run_methods()
 
 
 class LogEffDisGraph(Graph):
@@ -224,67 +362,3 @@ class LogEffDisGraph(Graph):
                 if int(i % num_runs) % int(num_runs/17) == 0:
                     print(f'{(i/num_runs)*100:.1f}%-ish done')
 
-
-class SumEffDisGraph(Graph):
-
-    def __init__(self, num_nodes,  value_per_nugget=1, exp_edge_weighting=None, enforcement_factor=0.01, beta=None, gamma=None, q=None, alpha=1):
-        self.alpha = alpha  # Presently not used, ideally relevant via eff_dis = ((# edges)^\alpha)/sum_weights
-        super().__init__(num_nodes, value_per_nugget, exp_edge_weighting, enforcement_factor, beta, gamma, q)
-
-    def evaluate_effective_distances(self, source, source_reward_scalar, multiple_path_eff_dist=False, parameter=1, timestep=-1):
-        """
-        Defaults to random walker effective distance metric unless given multiple_path_eff_dist=True
-        returns array of effective distances to each node (from source) according to effective dist library´methods
-        TODO: eff_dis = ((# edges)^\alpha)/sum_weights
-        """
-        if multiple_path_eff_dist:
-            eff_dists = self.get_eff_dist(adjacency_matrix=self.A[timestep], multiple_path=True, source=source,
-                                          parameter=parameter)
-        else:
-            # pre-normalize
-            # normed_A = [self.A[timestep][node, :]/self.A[timestep].sum(axis=1) for node in range(self.nodes.shape[1]) if node != 0]
-            normalization_factors = self.A[timestep].sum(axis=1)
-            normalized_A = np.where(normalization_factors != 0, self.A[timestep] / normalization_factors[:, np.newaxis], 0)
-            # normalized_A = np.array([self.A[timestep][node, :]/normalization_factors[node] for node in range(self.A[timestep].shape[0])])
-            # Here parameter is the exp_decay_parameter for the random walk effective distance
-            eff_dists = self.get_eff_dist(adjacency_matrix=normalized_A, random_walk_distance=True,
-                                                          source=source, parameter=parameter)
-            # re-normalizing not needed, as self.A was not changed; only eff_distances can be scaled in desired
-        assert np.isclose(eff_dists[source], 0, rtol=1e-10), "Source has nonzero effective distance"
-        eff_dists = np.delete(eff_dists, source)  # awkward deletion/insertion to ensure min search of remaining eff_distances
-        eff_dists = np.insert(eff_dists, source, min(eff_dists)/source_reward_scalar)
-        self.global_eff_dist_history.append(eff_dists.mean())
-        self.eff_dist_history.append(eff_dists)
-        # print(f'Eff Distances: {np.round(eff_dists, 3)}  Source (Val): {source} ({np.round(eff_dists[source], 3)})')
-        return eff_dists
-
-    def add_inv_eff_distances_to_node_values(self, exp_decay_param, source_reward_scalar, multiple_path=False):
-        # self.nodes[-1] = [1/val for val in np.array(self.evaluate_effective_distances(self.starting_node, parameter=exp_decay_param, source_reward_scalar=source_reward_scalar, multiple_path_eff_dist=multiple_path))]
-        self.nodes[-1] = np.array(self.evaluate_effective_distances(self.starting_node, parameter=exp_decay_param, source_reward_scalar=source_reward_scalar, multiple_path_eff_dist=multiple_path))
-
-    def seed_info_conditional(self, constant_source_node):
-        if self.beta:
-            self.seed_info_by_diversity_of_connections()
-        elif constant_source_node or constant_source_node == 0:
-            self.seed_info_constant_source(constant_source_node)
-        else:
-            self.seed_info_random()
-
-    def run(self, num_runs, update_interval=1, exp_decay_param=0.4, source_reward_scalar=1.6, constant_source_node=None, verbose=False, multiple_path=False):
-        # removed edge initialization, so it may be customized before call
-        self.A = np.vstack((self.A, [self.A[-1]]))  # so that initial values (before initial update) are preserved
-        for i in range(0, num_runs):
-            self.seed_info_conditional(constant_source_node)
-            self.add_inv_eff_distances_to_node_values(exp_decay_param, source_reward_scalar, multiple_path)
-            if i % update_interval == 0:
-                self.update_edges()
-                # so the next values may be overwritten, we start with 0 node values.
-                self.nodes = np.vstack((self.nodes, np.zeros((1, self.num_nodes))))
-                self.A = np.vstack((self.A, [self.A[-1]]))
-            if i == num_runs-1:
-                self.A = np.delete(self.A, -1, axis=0)
-                self.nodes = self.nodes[:-1]
-            if verbose:
-                assert num_runs > 17, "too few runs, set verbose to False"
-                if int(i % num_runs) % int(num_runs / 17) == 0:
-                    print(f'{(i / num_runs) * 100:.1f}%-ish done')
