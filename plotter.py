@@ -47,15 +47,19 @@ def plot_node_edges(graph, node, num_nodes, num_runs, value_per_nugget, show=Tru
         plt.show()
 
 
-def plot_global_eff_dist(graph, fit=False):
+def plot_global_eff_dist(graph, fit=False, normalized=True):
     fig = plt.figure(figsize=(12, 6))
-    plt.plot(graph.global_eff_dist_history)
+    x = np.array(range(len(graph.global_eff_dist_history)))
+    if normalized:
+        y = np.array(graph.global_eff_dist_history) / max(graph.global_eff_dist_history)
+    else:
+        y = graph.global_eff_dist_history
+    plt.plot(x, y)
     plt.title(f'Total Effective Distance history')
     plt.xlabel('Time step')
     plt.ylabel(f'Total Effective distance')
+
     if fit:
-        x = np.array(range(len(graph.global_eff_dist_history)))
-        y = graph.global_eff_dist_history
         if fit == 'log':
             # log_fit = np.polyfit(np.log(x), y, 1, w=np.sqrt(y))
             # plt.plot(x, np.exp(log_fit[1])*np.exp(log_fit[0]*x))
@@ -67,7 +71,7 @@ def plot_global_eff_dist(graph, fit=False):
             plt.plot(x, linear_fit[0]*x + linear_fit[1])
         if fit == 'average':
             ave_range = int(len(y)/20)
-            assert ave_range % 2 == 0, 'Average range must be even (lest, for this algorithm)'
+            assert ave_range % 2 == 0, 'Average range must be even (lest, for this algorithm). Default range is ave_range = int(len(y)/20)'
             half_range = int((ave_range/2))
             averaging_fit = [np.mean(y[index-half_range:index+half_range]) for index in x[half_range:-half_range]]
             # averaging_fit = np.insert(averaging_fit, 0, y[:half_range])
@@ -81,12 +85,12 @@ def plot_node_values(graph, value_per_nugget, node='all', show=True, save_fig=Fa
     fig = plt.figure(figsize=(10, 4))
     if node == 'all':
         plt.plot(graph.nodes)
-        plt.title(f'All nodes\' values, {value_per_nugget} nugget value, default parameters')
+        plt.title(f'All nodes\' values')
         plt.xlabel('Time step')
         plt.ylabel(f'Nodes values')  # reveals it generally gets all the information!
     else:
         plt.plot(graph.nodes[:-2, node])
-        plt.title(f'{node}\'th Node\'s values, {value_per_nugget} nugget value, default parameters')
+        plt.title(f'{node}\'th Node\'s values')
         plt.xlabel('Time step')
         plt.ylabel(f'{node}th node\'s values')  # reveals it generally gets all the information!
     if save_fig:
