@@ -1,5 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
+from matplotlib import cm
+from mpl_toolkits.mplot3d import Axes3D
 import networkx as nx  # Used for network plots
 
 import imageio  # Used for making gifs of the network plots
@@ -371,4 +373,37 @@ def gif_of_network_evolution(graph, node_size_scaling=200, source_weighting=Fals
     writer.close()
     if verbose:
         print(f'gif and mp4 of network evolution created in {vid_path} \n Stills stored in {fig_path}')
+
+
+def plot_3d(function, x_range, y_range=None, piecewise=False, z_limits=None, spacing=0.05):
+    """
+    :param function: z(x,y)
+    :param x_range: [lower bound, upper bound]
+    :param y_range: defaults to x_range, otherwise list as [lower bound, upper bound]
+    :param piecewise: set true if function is piecewise (i.e. contains conditional)
+    :param z_limits: [lower bound, upper bound]
+    :param spacing: interval between both x and y ranges.
+    """
+    if y_range is None:
+        y_range = x_range
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.gca(projection='3d')
+    X = np.arange(x_range[0], x_range[1], spacing)
+    Y = np.arange(y_range[0], y_range[1], spacing)
+    if piecewise:
+        Z = np.zeros((len(X), len(Y)))
+        for i in range(len(X)):
+            for j in range(len(Y)):
+                Z[i][j] = function(X[i], Y[j])
+        X, Y = np.meshgrid(X, Y)
+    else:
+        X, Y = np.meshgrid(X, Y)
+        Z = function(X, Y)
+    surf = ax.plot_surface(X, Y, Z, cmap=cm.winter, linewidth=0, antialiased=False)
+    if z_limits:
+        ax.set_zlim(z_limits[0], z_limits[1])
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_zlabel('z')
+    plt.show()
 

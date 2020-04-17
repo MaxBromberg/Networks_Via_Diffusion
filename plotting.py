@@ -10,8 +10,7 @@ value_per_nugget = 1  # does not matter at present, as effective distances and h
 examined_node = 2
 rounding = 3
 
-# G = graph.EffDisGraph(num_nodes, edge_weighting_exp_rate=0.1, take_the_best_reward_rate=0.05)
-G = graph.EffDisGraph(num_nodes, edge_weighting_exp_rate=1, rate_of_edge_adaptation=1.2)
+G = graph.EffDisGraph(num_nodes, edge_weighting_exp_rate=3, rate_of_edge_adaptation=1.2)
 # G.sparse_random_edge_init(outgoing_edges_per_node)
 G.uniform_random_edge_init()
 G.run(num_runs, exp_decay_param=0.1, constant_source_node=7, multiple_path=False, verbose=True)

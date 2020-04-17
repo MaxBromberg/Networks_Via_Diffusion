@@ -10,7 +10,7 @@ This repository contains the working code relevant for Max Bromberg's physics ma
 
 
 
-Supervised by [Dr. Lorenz-Spreen][1] of the Max Planck Institute for Human Development ([Max Planck Institut fuer Bildungsforschung][2]) and [Prof. Netz][3] of Freie UNiversitaet Berlin. 
+Supervised by [Dr. Lorenz-Spreen][1] of the Max Planck Institute for Human Development ([Max Planck Institut für Bildungsforschung][2]) and [Prof. Netz][3] of Freie Universität Berlin. 
 
 [1]: https://www.mpib-berlin.mpg.de/staff/philipp-lorenz-spreen
 [2]: https://www.mpib-berlin.mpg.de/de

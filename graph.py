@@ -99,6 +99,14 @@ class Graph:
                 self.A[-1][node][edge] += self.nodes[-1][node] * self.A[-1][node][edge]
             # We normalize along the outgoing edges (columns) so that we do not simply reset the rows (as with rows)
 
+    def evaluate_info_score(self, from_node_index, node_sum):
+        # returns all edges directed to from node reweighted by raising each edge to value proportional the node's value as a fraction of the total
+        # rewards the edge which leads to the greatest info score with a constant (the take_the_best_reward_rate factor)
+        # return [pow(self.A[-1][node_index][from_node_index], (self.edge_weighting_exp * (1 - (self.nodes[-1][node_index] / node_sum)))) for node_index in range(self.nodes.shape[1])]
+
+        # z = pow((2 * x - 1), 2) * np.sqrt(y) where x is the (self.nodes[-1][node_index] / node_sum) and y the edge value
+        return [pow((2 * self.edge_weighting_exp * (self.nodes[-1][node_index] / node_sum) - 1), 2) * np.sqrt(self.A[-1][node_index][from_node_index]) for node_index in range(self.nodes.shape[1])]
+
     def reweight_edges_via_take_the_best(self):
         """
         https://www.wolframalpha.com/input/?i=y^(1-x)+from+x%3D0+to+1+from+y%3D0+to+1 for geometry of info_score space,
@@ -107,27 +115,27 @@ class Graph:
         max_info_score_indices = [self.nodes.shape[1] for i in range(self.nodes.shape[1])]
         node_sum = self.nodes[-1].sum()
         for from_node in range(0, self.nodes[-1].size):
-            info_score = [pow(self.A[-1][node_index][from_node], (self.edge_weighting_exp*(1 - (self.nodes[-1][node_index]/node_sum)))) for node_index in range(self.nodes.shape[1])]
-            # returns all edges directed to from node reweighted by raising each edge to value proportional the node's value as a fraction of the total
-            # rewards the edge which leads to the greatest info score with a constant (the take_the_best_reward_rate factor)
+            info_score = self.evaluate_info_score(from_node, node_sum)
             max_info_score_indices[from_node] = info_score.index(max(info_score))
+        # Update must come after all info_scores are evaluated so as not to interfer with itself
         for i in range(0, len(max_info_score_indices)):
             self.A[-1][max_info_score_indices[i]][i] += self.take_the_best_reward_rate
-            # Update must come after all info_scores are evaluated so as not to interfer with itself
 
     def reweight_edges_via_info_score(self):
         info_scores = np.zeros(self.A[-1].shape)
         node_sum = self.nodes[-1].sum()
         # print(f'node_sum: {node_sum}')
         for from_node in range(0, self.nodes[-1].size):
-            info_score = [pow(self.A[-1][node_index][from_node], (self.edge_weighting_exp*(1 - (self.nodes[-1][node_index]/node_sum)))) for node_index in range(self.nodes.shape[1])]
+            info_score = self.evaluate_info_score(from_node, node_sum)
             # print(f'A[-1][:][{from_node}]: {np.round(self.A[-1][:][from_node], 1)} \n'
-            #       f'Unweighted Exponents: {np.round([(1 - (self.nodes[-1][i]/node_sum)) for i in range(self.nodes.shape[1])], 3)} \n'
-            #       f'Exponents: {np.round([self.edge_weighting_exp*(1 - (self.nodes[-1][i]/node_sum)) for i in range(self.nodes.shape[1])], 3)}')
+                  # f'Unweighted Exponents: {np.round([(1 - (self.nodes[-1][i]/node_sum)) for i in range(self.nodes.shape[1])], 3)} \n'
+                  # f'Exponents: {np.round([self.edge_weighting_exp*(1 - (self.nodes[-1][i]/node_sum)) for i in range(self.nodes.shape[1])], 3)}')
+            print(f'x values: {np.round([(self.edge_weighting_exp * (self.nodes[-1][i] / node_sum)) for i in range(self.nodes.shape[1])], 3)}')
+            print(f'y values: {np.round(self.A[-1][:][from_node], 3)}')
             print(f'info score for [{from_node}]: {np.round(info_score, 2)}')
             if from_node == self.nodes[-1].size - 1: print('')
             info_scores[:, from_node] = pow(np.array(info_score), self.rate_of_edge_adaptation)
-        print(np.round(info_scores, 3), '\n')
+        # print(np.round(info_scores, 3), '\n')
         self.A[-1] += info_scores
 
     def update_edges(self):
@@ -304,82 +312,4 @@ class EffDisGraph(Graph):
         self.nodes = self.nodes[:-1]
         if verbose:
             print_run_methods()
-
-
-class LogEffDisGraph(Graph):
-    invalid_nodes = []  # will be overwritten upon network_prop call. Lists nodes that have already propagated
-    next_nodes = []  # lists nodes which are sufficiently connected to be visited next propagation step
-    # starting_nodes_with_info = []  # holds the starting nodes for each run, reset after every run
-
-    def __init__(self, num_nodes, beta=None, value_per_nugget=1, gamma=None, q=None, nuggets_per_timestep=1, lower_info_cutoff=0.1,
-                 upper_info_cutoff=None):
-        """
-        Initialization; the 'extra' dimensionality (i.e. 1 for nodes, A) are there to dynamically store their history
-        via use of vstack later on.
-        """
-        self.num_nuggets = nuggets_per_timestep
-        if upper_info_cutoff is None:
-            upper_info_cutoff = num_nodes
-        self.nugget_value = value_per_nugget
-        self.upper_cutoff = (upper_info_cutoff * value_per_nugget) / num_nodes
-        self.lower_cutoff = (lower_info_cutoff * value_per_nugget) / num_nodes
-        # This kind of normalization is advisable so that parameters may be shifted independently
-        assert self.upper_cutoff > self.lower_cutoff
-        super().__init__(num_nodes, beta, value_per_nugget, gamma, q)
-
-    def node_propagation(self, index):
-        """
-        The functions that is to be used to recursively distribute info through the network.
-        Index references the node which is presently distributing information.
-        """
-        self.invalid_nodes.append(index)  # stops future propagation from this node
-        for node in range(0, self.nodes[-1].size):
-            info = self.A[-1][index][node] * self.nodes[-1][index]
-            # could use ln(info) to examine effect of moderating learning rate, align with special algorithm in
-            # Effective distances for epidemics spreading on complex networks [2017] Flavio Iannelli et al.
-            if info >= self.lower_cutoff and node not in set(self.invalid_nodes):  # likely inefficient
-                # not in statement ensures every contribution to the node's value is from the same propagation step
-                self.nodes[-1][node] += info  # adds info to connected nodes
-                self.next_nodes.append(node)
-                if self.nodes[-1][node] > self.upper_cutoff:  # only needs to check if >= lower_cutoff
-                    self.nodes[-1][node] = self.upper_cutoff  # limits info gain to upper cutoff
-
-    def propagate(self):
-        """
-        Propagates info to all nodes which are free, i.e. the difference of nodes rewarded last time and those that
-        have already propagated information themselves. (it's possible for a node to receive info after propagating)
-        """
-        for node in list(set(self.next_nodes) - set(self.invalid_nodes)):
-            self.node_propagation(node)
-        self.next_nodes = []
-
-    def propagate_info_through_network(self):
-        """
-        Propagates the information according to node_prop until new nodes with strong enough connections are exhausted
-        """
-        self.next_nodes = []
-        self.invalid_nodes = []
-        assert self.starting_node is not None, 'No node seeded for propagation'
-        self.node_propagation(self.starting_node)
-        while list(set(self.next_nodes) - set(self.invalid_nodes)):
-            self.propagate()
-
-    def run(self, num_runs, verbose=False):
-        self.A = np.vstack((self.A, [self.A[-1]]))  # so that initial values (before initial update) are preserved
-        for i in range(0, num_runs):
-            if self.beta:
-                self.seed_info_by_diversity_of_connections()
-            else:
-                self.seed_info_random()
-            self.propagate_info_through_network()
-            self.update_edges()
-            # so the next values may be overwritten, we start with 0 node values.
-            self.nodes = np.vstack((self.nodes, np.zeros((1, self.num_nodes))))
-            self.A = np.vstack((self.A, [self.A[-1]]))
-            if i == num_runs-1:
-                self.A = np.delete(self.A, -1, axis=0)
-                self.nodes = self.nodes[:-1]
-            if verbose:
-                if int(i % num_runs) % int(num_runs/17) == 0:
-                    print(f'{(i/num_runs)*100:.1f}%-ish done')
 
