@@ -239,7 +239,6 @@ def plot_single_network(graph, timestep, directed=True, node_size_scaling=200, s
                                edge_color=edge_colors,
                                node_size=source_weight,
                                node_color=node_colors,
-                               # node_color=node_colors,
                                widths=weights,
                                cmap=plt.get_cmap('viridis'))
         plt.title(f"Nodes size proportional to number of times they've been the source [timestep: {timestep}]")
@@ -249,7 +248,6 @@ def plot_single_network(graph, timestep, directed=True, node_size_scaling=200, s
                                edge_color=edge_colors,
                                node_size=incoming_edge_sum,
                                node_color=node_colors,
-                               # node_color=node_colors,
                                widths=weights,
                                cmap=plt.get_cmap('viridis'))
         plt.title(f"Nodes size proportional to incoming edge weights [timestep: {timestep}]")
@@ -322,11 +320,9 @@ def plot_network(graph, value_per_nugget, directed=True, node_size_scaling=200, 
 def gif_of_network_evolution(graph, node_size_scaling=200, source_weighting=False, directory_name='network_animation', file_title='network_evolution', parent_directory=None, gif_duration_in_sec=5,  num_runs_per_fig=None, verbose=False):
     """
     Creates a gif and mp4 of the network evolution and stores them in a folder with the individual frames.
-    TODO: when skipping files (e.g. showing only every 10 steps) and going over 100, the files are misordered, as
-    TODO: the writer sees 100 as coming before 20, given its leading 1.
     """
 
-    assert num_runs_per_fig != 0, 'Number of runs per figure must be larger than 0, or else omitted to graph every run'
+    assert num_runs_per_fig != 0, 'Number of runs per figure must be larger than 0, or else omitted for graph every run'
 
     if parent_directory is None:
         source_directory = os.path.dirname(__file__)
@@ -344,7 +340,7 @@ def gif_of_network_evolution(graph, node_size_scaling=200, source_weighting=Fals
     nx_G = nx.to_directed(nx.from_numpy_matrix(np.array(graph.A[0]), create_using=nx.DiGraph))
     initial_position = nx.drawing.layout.spring_layout(nx_G, k=0.5, scale=0.5, weight='weight')
     for i in range(0, graph.A.shape[0]):
-        files = Path(fig_path, f'{i}')
+        files = Path(fig_path, f'{i:05}')
         if num_runs_per_fig:
             if i % num_runs_per_fig == 0:
                 plot_single_network(graph, i, node_size_scaling=node_size_scaling, source_weighting=source_weighting,
@@ -365,7 +361,7 @@ def gif_of_network_evolution(graph, node_size_scaling=200, source_weighting=Fals
         writer = imageio.get_writer(f'{Path(vid_path, file_title)}.mp4', fps=(graph.A.shape[0] / gif_duration_in_sec))
 
     images = []
-    for filename in os.listdir(fig_path):
+    for filename in sorted(os.listdir(fig_path)):
         if filename.endswith(".png"):
             images.append(imageio.imread(Path(fig_path, filename)))
             writer.append_data(imageio.imread(Path(fig_path, filename)))

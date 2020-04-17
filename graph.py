@@ -105,11 +105,14 @@ class Graph:
         # return [pow(self.A[-1][node_index][from_node_index], (self.edge_weighting_exp * (1 - (self.nodes[-1][node_index] / node_sum)))) for node_index in range(self.nodes.shape[1])]
 
         # z = pow((2 * x - 1), 2) * np.sqrt(y) where x is the (self.nodes[-1][node_index] / node_sum) and y the edge value
-        return [pow((2 * self.edge_weighting_exp * (self.nodes[-1][node_index] / node_sum) - 1), 2) * np.sqrt(self.A[-1][node_index][from_node_index]) for node_index in range(self.nodes.shape[1])]
+        # return [pow((2 * self.edge_weighting_exp * (self.nodes[-1][node_index] / node_sum) - 1), 2) * np.sqrt(self.A[-1][node_index][from_node_index]) for node_index in range(self.nodes.shape[1])]
+
+        # To make the info_score space have an inverse correlation between Eff_dist (node value) and edge value (\in A)
+        return [pow((1 - (self.edge_weighting_exp * (self.nodes[-1][node_index] / node_sum))), 2) * np.sqrt(self.A[-1][node_index][from_node_index]) for node_index in range(self.nodes.shape[1])]
+        # return [np.sqrt(1 - (self.edge_weighting_exp * (self.nodes[-1][node_index] / node_sum))) * np.sqrt(self.A[-1][node_index][from_node_index]) for node_index in range(self.nodes.shape[1])]
 
     def reweight_edges_via_take_the_best(self):
         """
-        https://www.wolframalpha.com/input/?i=y^(1-x)+from+x%3D0+to+1+from+y%3D0+to+1 for geometry of info_score space,
         with y being the edge value and x the connected node's fraction of total node value
         """
         max_info_score_indices = [self.nodes.shape[1] for i in range(self.nodes.shape[1])]
@@ -132,10 +135,10 @@ class Graph:
                   # f'Exponents: {np.round([self.edge_weighting_exp*(1 - (self.nodes[-1][i]/node_sum)) for i in range(self.nodes.shape[1])], 3)}')
             print(f'x values: {np.round([(self.edge_weighting_exp * (self.nodes[-1][i] / node_sum)) for i in range(self.nodes.shape[1])], 3)}')
             print(f'y values: {np.round(self.A[-1][:][from_node], 3)}')
-            print(f'info score for [{from_node}]: {np.round(info_score, 2)}')
+            # print(f'info score for [{from_node}]: {np.round(info_score, 2)}')
             if from_node == self.nodes[-1].size - 1: print('')
             info_scores[:, from_node] = pow(np.array(info_score), self.rate_of_edge_adaptation)
-        # print(np.round(info_scores, 3), '\n')
+        print(np.round(info_scores, 3), '\n')
         self.A[-1] += info_scores
 
     def update_edges(self):
