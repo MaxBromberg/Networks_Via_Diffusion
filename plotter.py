@@ -51,11 +51,12 @@ def plot_node_edges(graph, node, num_nodes, num_runs, value_per_nugget, show=Tru
 
 def plot_global_eff_dist(graph, fit=False, normalized=True):
     fig = plt.figure(figsize=(12, 6))
-    x = np.array(range(len(graph.global_eff_dist_history)))
+    mean_eff_dist_history = np.mean(graph.eff_dist_history, axis=1)
+    x = np.array(range(len(mean_eff_dist_history)))
     if normalized:
-        y = np.array(graph.global_eff_dist_history) / max(graph.global_eff_dist_history)
+        y = np.array(mean_eff_dist_history) / max(mean_eff_dist_history)
     else:
-        y = graph.global_eff_dist_history
+        y = mean_eff_dist_history
     plt.plot(x, y)
     plt.title(f'Total Effective Distance history')
     plt.xlabel('Time step')
@@ -228,11 +229,11 @@ def plot_single_network(graph, timestep, directed=True, node_size_scaling=200, s
                            connectionstyle='arc3, rad=0.2')
     edge_colors = range(2, nx_G.number_of_edges() + 2)
     node_colors = ['grey' for _ in nx_G]
-    node_colors[graph.starting_node_history[timestep-1]] = 'red'
+    node_colors[graph.source_node_history[timestep - 1]] = 'red'
     incoming_edge_sum = graph.A[timestep].sum(axis=1)
     incoming_edge_sum = [node_size_scaling * node / sum(incoming_edge_sum) for node in incoming_edge_sum]
     if source_weighting:  # sizes nodes proportional to the number of times they've been a source
-        source_weight = [graph.starting_node_history.count(node) for node in range(graph.nodes.shape[1])]
+        source_weight = [graph.source_node_history.count(node) for node in range(graph.nodes.shape[1])]
         source_weight = [node_size_scaling*(weight/sum(source_weight)) for weight in source_weight]
         nx.draw_networkx_nodes(nx_G, pos,
                                arrowstyle='->',
@@ -288,7 +289,7 @@ def plot_network(graph, value_per_nugget, directed=True, node_size_scaling=200, 
         incoming_edge_sum = [(node_size_scaling * node / sum(incoming_edge_sum)) for node in incoming_edge_sum]
         edge_colors = range(2, nx_G.number_of_edges() + 2)
         node_colors = ['grey'] * graph.nodes.shape[1]
-        node_colors[graph.starting_node_history[timestep]] = 'red'
+        node_colors[graph.source_node_history[timestep]] = 'red'
         nx.draw_networkx_edges(nx_G, pos, nodelist=['0'], alpha=0.8, width=weights, arrowsize=4, connectionstyle='arc3, rad=0.2')
         # not sure reversal does anything in this context... (could just transpose?)
         # nx.draw_networkx_edges(nx_G.reverse(copy=True), pos, nodelist=['0'], alpha=0.8, width=weights, arrowsize=4,
@@ -402,4 +403,64 @@ def plot_3d(function, x_range, y_range=None, piecewise=False, z_limits=None, spa
     ax.set_ylabel('y')
     ax.set_zlabel('z')
     plt.show()
+
+
+def plot_clustering_coefficients(nx_graphs, source=False, average_clustering=False, show=True, save_fig=False):
+    """
+    :param source: if not None, computes ave_clustering for the single (presumably source) node
+    """
+    if source:
+        if average_clustering:
+            clustering_coefficients = [nx.average_clustering(nx_graphs[i], weight='weight', nodes=[source]) for i in range(len(nx_graphs))]
+        else:
+            clustering_coefficients = [nx.clustering(nx_graphs[i], weight='weight', nodes=[source])[0] for i in range(len(nx_graphs))]
+    else:
+        if average_clustering:
+            clustering_coefficients = [nx.average_clustering(nx_graphs[i], weight='weight') for i in range(len(nx_graphs))]
+        else:
+            clustering_coefficients = np.array([list(nx.clustering(nx_graphs[i], weight='weight').values()) for i in range(len(nx_graphs))])
+
+    fig = plt.figure(figsize=(12, 6))
+    plt.plot(clustering_coefficients)
+    plt.xlabel('Time steps')
+    plt.ylabel(f'Clustering Coefficient')
+
+    if source and average_clustering or source is 0 and average_clustering:
+        plt.title(f'Average Clustering Coefficients for node [{source}]')
+    elif source or source is 0:
+        plt.title(f'Clustering Coefficients for node [{source}]')
+    elif average_clustering:
+        plt.title(f'Average Clustering Coefficients')
+    else:
+        plt.title(f'Clustering Coefficients [for all nodes]')
+
+    if save_fig:
+        plt.savefig(f'Clustering Coefficients.png')
+    if show:
+        plt.show()
+
+
+def plot_ave_neighbor_degree(nx_graphs, source='in', target='in', node=False, show=True, save_fig=False):
+    """
+    :param source: if not None, computes ave_neighborhood degree for the single (presumably source) node
+    """
+    if node:
+        ave_neighbor_degree = [list(nx.average_neighbor_degree(nx_graphs[t], nodes=[node], source=source, target=target, weight='weight').values()) for t in range(len(nx_graphs))]
+    else:
+        ave_neighbor_degree = [list(nx.average_neighbor_degree(nx_graphs[t], source=source, target=target, weight='weight').values()) for t in range(len(nx_graphs))]
+
+    fig = plt.figure(figsize=(12, 6))
+    plt.plot(ave_neighbor_degree)
+    plt.xlabel('Time steps')
+    plt.ylabel(f'Average Neighbor Degree')
+
+    if node or node is 0:
+        plt.title(f'Neighbor Degree for node [{node}], target {target}, source {source}')
+    else:
+        plt.title(f'Neighbor Degree [for all nodes], target {target}, source {source}')
+
+    if save_fig:
+        plt.savefig(f'Neighbor_Degree.png')
+    if show:
+        plt.show()
 
