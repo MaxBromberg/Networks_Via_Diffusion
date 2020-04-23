@@ -49,12 +49,12 @@ def plot_node_edges(graph, node, num_nodes, num_runs, value_per_nugget, show=Tru
         plt.show()
 
 
-def plot_global_eff_dist(graph, fit=False, normalized=True):
+def plot_global_eff_dist(graph, fit=False, normalized=True, show=True, save_fig=False, title=None):
     fig = plt.figure(figsize=(12, 6))
     mean_eff_dist_history = np.mean(graph.eff_dist_history, axis=1)
     x = np.array(range(len(mean_eff_dist_history)))
     if normalized:
-        y = np.array(mean_eff_dist_history) / max(mean_eff_dist_history)
+        y = np.array(mean_eff_dist_history) / np.amax(mean_eff_dist_history)
     else:
         y = mean_eff_dist_history
     plt.plot(x, y)
@@ -80,11 +80,18 @@ def plot_global_eff_dist(graph, fit=False, normalized=True):
             # averaging_fit = np.insert(averaging_fit, 0, y[:half_range])
             # averaging_fit = np.insert(averaging_fit, averaging_fit.shape[0], y[-half_range:])
             plt.plot(averaging_fit)
-    plt.show()
+    if show:
+        plt.show()
+    if title:
+        plt.savefig(f'{title}.png')
+        plt.close(fig)
+    if save_fig:
+        plt.savefig(f'Effective_Distance for edge_to_eff_dist_coupling of {graph.edge_to_eff_dist_coupling}.png')
+        plt.close(fig)
 
 
-def plot_node_values(graph, value_per_nugget, node='all', show=True, save_fig=False):
-    assert show or save_fig, 'Graph will be neither shown nor saved'
+def plot_node_values(graph, node='all', show=True, save_fig=False, title=None):
+    assert show or save_fig or title, 'Graph will be neither shown nor saved'
     fig = plt.figure(figsize=(10, 4))
     if node == 'all':
         plt.plot(graph.nodes)
@@ -97,7 +104,10 @@ def plot_node_values(graph, value_per_nugget, node='all', show=True, save_fig=Fa
         plt.xlabel('Time step')
         plt.ylabel(f'{node}th node\'s values')  # reveals it generally gets all the information!
     if save_fig:
-        plt.savefig(f'{node} node_values with {value_per_nugget} seed_val {graph.nodes.shape[0]} runs.png')
+        plt.savefig(f'{node} node_values with edge_to_eff_dist_coupling of {np.round(graph.edge_to_eff_dist_coupling, 2)} and {graph.nodes.shape[0]} runs.png')
+    if title:
+        plt.savefig(f'{title}.png')
+        plt.close(fig)
     if show:
         plt.show()
 
@@ -262,10 +272,10 @@ def plot_single_network(graph, timestep, directed=True, node_size_scaling=200, s
         plt.close(fig)
 
 
-def plot_network(graph, value_per_nugget, directed=True, node_size_scaling=200, nodes_sized_by_eff_distance=False,
-                 show=True, save_fig=False):
+def plot_network(graph, directed=True, node_size_scaling=200, nodes_sized_by_eff_distance=False,
+                 show=True, save_fig=False, title=None):
     fig = plt.figure(figsize=(12, 6))
-    assert show or save_fig, 'Graph will be neither shown nor saved'
+    assert show or save_fig or title, 'Graph will be neither shown nor saved'
     count = 1
     timesteps = [0, int(graph.nodes.shape[0] / 3), int(graph.nodes.shape[0] * (2 / 3)), (graph.nodes.shape[0])-1]
     for timestep in timesteps:
@@ -313,8 +323,11 @@ def plot_network(graph, value_per_nugget, directed=True, node_size_scaling=200, 
         plt.title("timestep: {0}".format(timestep))
     if show:
         plt.show()
+    if title:
+        plt.savefig(f'{title}.png')
+        plt.close(fig)
     if save_fig:
-        plt.savefig(f'Network Structure(s) for {value_per_nugget} nugget value, {graph.nodes.shape[0]} runs.png')
+        plt.savefig(f'Network Structure(s) for edge_to_eff_dist_coupling of {np.round(graph.edge_to_eff_dist_coupling, 2)}, {graph.nodes.shape[0]} runs.png')
         plt.close(fig)
 
 
@@ -463,4 +476,47 @@ def plot_ave_neighbor_degree(nx_graphs, source='in', target='in', node=False, sh
         plt.savefig(f'Neighbor_Degree.png')
     if show:
         plt.show()
+
+
+import graph as g
+
+
+def basic_double_param_search(num_nodes, num_runs, coupling_range, coupling_interval, adaptation_range, adaptation_interval, parent_directory=None, directory_name='grid_search', verbose=False):
+
+    if parent_directory is None:
+        source_directory = os.path.dirname(__file__)
+    else:
+        source_directory = parent_directory
+    grid_search = Path(source_directory, directory_name+f'_{num_nodes}_nodes')
+    node_path = Path(grid_search, 'node_plots')
+    eff_dist_path = Path(grid_search, 'eff_dist_plots')
+    graph_path = Path(grid_search, 'network_graphs')
+    try:
+        os.mkdir(grid_search), f'Created folder for grid search results at {grid_search}'
+        os.mkdir(node_path), f'Created folder for node plots at {node_path}'
+        os.mkdir(eff_dist_path), f'Created folder for eff dist plots at {eff_dist_path}'
+        os.mkdir(graph_path), f'Created folder for graphs at {graph_path}'
+    except OSError:
+        print(f'{grid_search} already exists, adding or overwriting contents')
+        pass
+
+    if verbose:
+        print(f'Beginning grid search, Num_nodes: {num_nodes}, num_rums: {num_runs}, coupling, adaptation_rate ranges {coupling_range, adaptation_range} and intervals {coupling_interval, adaptation_interval}')
+    edge_to_eff_dist_coupling_range = np.arange(coupling_range[0], coupling_range[1], coupling_interval)
+    rate_of_adaptation_range = np.arange(adaptation_range[0], adaptation_range[1], adaptation_interval)
+    run_counter = 0
+    for coupling_val in edge_to_eff_dist_coupling_range:
+        for adaption_value in rate_of_adaptation_range:
+            G = g.EffDisGraph(num_nodes=num_nodes, edge_to_eff_dist_coupling=coupling_val, rate_of_edge_adaptation=adaption_value)
+            G.uniform_random_edge_init()
+            G.run(num_runs=num_runs, exp_decay_param=1, constant_source_node=1, equilibrium_distance=200, multiple_path=False)
+            plot_node_values(G, node='all', show=False, save_fig=False,
+                             title=Path(node_path, f'{run_counter:03}_node_values_for_coupling{np.round(coupling_val, 2)}_adaption_exp_{np.round(adaption_value, 2)}'))
+            plot_global_eff_dist(G, show=False, save_fig=False,
+                                 title=Path(eff_dist_path, f'{run_counter:03}_eff_dist_for_coupling_{np.round(coupling_val, 2)}_adaption_exp_{np.round(adaption_value, 2)}'))
+            plot_network(G, nodes_sized_by_eff_distance=True, show=False, save_fig=False,
+                         title=Path(graph_path, f'{run_counter:03}_graph_for_coupling_{np.round(coupling_val, 2)}_adaption_exp_{np.round(adaption_value, 2)}'))
+            run_counter += 1
+            if verbose:
+                print(f'Run with edge_to_eff_dist value {np.round(coupling_val, 2)}, rate_of_edge_adaptation:{np.round(adaption_value, 2)} complete. (ranges {coupling_range}, {adaptation_range} respectively)')
 

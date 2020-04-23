@@ -19,10 +19,10 @@ def count(iterable, val):
 def matrix_normalize(matrix, row_normalize=False):
     if row_normalize:
         row_sums = matrix.sum(axis=1)
-        return (matrix.T / row_sums).T
+        return np.array([matrix[index, :] / row_sums[index] for index in range(row_sums.size) if row_sums[index] is not np.isclose(row_sums[index], 0, 1e-15)])
     else:
         column_sums = matrix.sum(axis=0)
-        return matrix / column_sums
+        return np.array([matrix[:, index] / column_sums[index] for index in range(column_sums.size) if column_sums[index] is not np.isclose(column_sums[index], 0, 1e-15)]).T
 
 
 def print_run_percentage(index, runs, fraction_intervals=10):

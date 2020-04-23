@@ -10,7 +10,7 @@ random.seed(42)
 class Graph:
     starting_node = None
 
-    def __init__(self, num_nodes, value_per_nugget=1, edge_weighting_exp_rate=None, take_the_best_reward_rate=None, rate_of_edge_adaptation=None, beta=None, gamma=None, q=None):
+    def __init__(self, num_nodes, value_per_nugget=1, edge_to_eff_dist_coupling=None, take_the_best_reward_rate=None, rate_of_edge_adaptation=None, beta=None, gamma=None, q=None):
         """
         Initialization; the 'extra' dimensionality (i.e. 1 for nodes, A) are there to dynamically store their history
         via use of vstack later on. To minimize variables, many features are activated by specifying their relevant
@@ -23,8 +23,7 @@ class Graph:
         self.gamma = gamma  # Determines punishment for connecting to the same node, as default strategy for both
         # random and diverse connection weighted seeding would otherwise be to connect all nodes to one other
         self.q = q  # exp{-gamma*[(sum_j w_ij)-q*N]} => for 0<q(<1) nodes are incentivized to strengthen outgoing edges
-        self.edge_weighting_exp = edge_weighting_exp_rate  # determines exponential suppression of rate of adaptation in
-        # info scores for both reweight_edges_via_info_score and reweight_edges_via_info_score, should be between 0 and 1
+        self.edge_to_eff_dist_coupling = edge_to_eff_dist_coupling  # 0 if only eff_dist, 1 if only edge_weight
         self.take_the_best_reward_rate = take_the_best_reward_rate  # change in edge weight in take_the_best
         self.rate_of_edge_adaptation = rate_of_edge_adaptation  # rescaling of all rewards in reweight_edges_via_info_score
         self.nodes = np.zeros((1, num_nodes))  # node values (and history of via the first dimension)
@@ -104,17 +103,13 @@ class Graph:
          By design, x is the (scaled) proportion of connected node value to all node connections
          (scaled proportional to effective distance, thus the inverse relation via (1-x) while
          y is the edge's value (i.e. probability od transition, given normalization of A columns)
+        To absolve the model of arbitrarity w.r.t. info score space geometry, we let the control parameter vary between two extremes (of uncoupled linear relation w.r.t. x, y)
+        To make the info_score space have an inverse correlation between Eff_dist (node value) and edge value (\in A):
+        May use with either (1-x)^alpha * y^(1-alpha) or else (x)^-alpha * y^(1-alpha)
+        For (1-x)^alpha * y^(1-alpha) only alpha=0.5 leads to 'optimal' solution
         """
-        # returns all edges directed to from node reweighted by raising each edge to value proportional the node's value as a fraction of the total
-        # rewards the edge which leads to the greatest info score with a constant (the take_the_best_reward_rate factor)
-        # return [pow(self.A[-1][node_index][from_node_index], (self.edge_weighting_exp * (1 - (self.nodes[-1][node_index] / node_sum)))) for node_index in range(self.nodes.shape[1])]
-
-        # z = pow((2 * x - 1), 2) * np.sqrt(y) where x is the (self.nodes[-1][node_index] / node_sum) and y the edge value
-        # return [pow((2 * self.edge_weighting_exp * (self.nodes[-1][node_index] / node_sum) - 1), 2) * np.sqrt(self.A[-1][node_index][from_node_index]) for node_index in range(self.nodes.shape[1])]
-
-        # To make the info_score space have an inverse correlation between Eff_dist (node value) and edge value (\in A)
-        # return [pow((1 - (self.edge_weighting_exp * (self.nodes[-1][node_index] / node_sum))), 2) * np.sqrt(self.A[-1][node_index][from_node_index]) for node_index in range(self.nodes.shape[1])]
-        return [np.sqrt(1 - (self.edge_weighting_exp * (self.nodes[-1][node_index] / node_sum))) * np.sqrt(self.A[-1][node_index][from_node_index]) for node_index in range(self.nodes.shape[1])]
+        return [pow((1 - (self.nodes[-1][node_index] / node_sum)), self.edge_to_eff_dist_coupling) * pow(self.A[-1][node_index][from_node_index], (1 - self.edge_to_eff_dist_coupling)) for node_index in range(self.nodes.shape[1])]
+        # return [pow((self.nodes[-1][node_index] / node_sum), -self.edge_to_eff_dist_coupling) * pow(self.A[-1][node_index][from_node_index], (1 - self.edge_to_eff_dist_coupling)) for node_index in range(self.nodes.shape[1])]
 
     def reweight_edges_via_take_the_best(self):
         """
@@ -134,6 +129,7 @@ class Graph:
         node_sum = self.nodes[-1].sum()
         for from_node in range(0, self.nodes[-1].size):
             info_score = self.evaluate_info_score(from_node, node_sum)
+            # info_score /= np.sum(info_score)  # Optional info_score normalization. **Should be incompatible with simple positive power in next step, but isn't...
             info_scores[:, from_node] = np.power(np.array(info_score), self.rate_of_edge_adaptation)
             # print(f'x values: {np.round([(self.edge_weighting_exp * (self.nodes[-1][i] / node_sum)) for i in range(self.nodes.shape[1])], 3)}')
             # print(f'y values: {np.round(self.A[-1][:][from_node], 3)}')
@@ -205,7 +201,7 @@ class Graph:
 
 class EffDisGraph(Graph):
 
-    def __init__(self, num_nodes, value_per_nugget=1, edge_weighting_exp_rate=1, take_the_best_reward_rate=None, rate_of_edge_adaptation=None, beta=None, gamma=None, q=None):
+    def __init__(self, num_nodes, value_per_nugget=1, edge_to_eff_dist_coupling=1, take_the_best_reward_rate=None, rate_of_edge_adaptation=None, beta=None, gamma=None, q=None):
         """
         Here initialization seems unnecessary to be independent of the graph superclass, but may yet be useful in future applications.
         Presently defaults to take_the_best
@@ -222,7 +218,7 @@ class EffDisGraph(Graph):
         :param gamma: Determines if edges are reweighed with a tendency to cluster
         :param q: Determines the fraction of the nodes each edge is incentivized to connect to.
         """
-        super().__init__(num_nodes, value_per_nugget, edge_weighting_exp_rate, take_the_best_reward_rate, rate_of_edge_adaptation, beta, gamma, q)
+        super().__init__(num_nodes, value_per_nugget, edge_to_eff_dist_coupling, take_the_best_reward_rate, rate_of_edge_adaptation, beta, gamma, q)
 
     def evaluate_effective_distances(self, source, source_reward, multiple_path_eff_dist, parameter=1, timestep=-1, rounding=3):
         """
@@ -243,17 +239,19 @@ class EffDisGraph(Graph):
             # should be negative of end result eff dist(as algorithm uses - log? Or not inverted, if so...)
         else:
             # pre-normalize rows (as both columns and rows must be normalized for RWED)
-            normalized_A = utility_funcs.matrix_normalize(self.A[timestep], row_normalize=True)
+            # row_sums = self.A[timestep].sum(axis=1)
+            # normalized_A = np.array([self.A[timestep][node, :]/row_sums[node] for node in range(self.A[timestep].shape[0])])
+            normalized_A = np.round(utility_funcs.matrix_normalize(self.A[timestep], row_normalize=True), 20)
             eff_dists = self.get_eff_dist(adjacency_matrix=normalized_A, random_walk=True, source=source, parameter=parameter)
 
         assert np.isclose(eff_dists[source], 0, rtol=1e-10), f'Source has nonzero effective distance of {eff_dists[source]}'
         eff_dists = np.delete(eff_dists, source)  # awkward deletion/insertion to ensure min search of remaining eff_distances
         eff_dists = np.insert(eff_dists, source, min(eff_dists)/source_reward)
-        return eff_dists
+        self.eff_dist_history.append(eff_dists)  # Must come before normalization otherwise sum will always be 1
+        return eff_dists / np.sum(eff_dists)
 
     def set_node_values_as_eff_dists(self, exp_decay_param, source_reward, multiple_path):
         eff_dists = np.array(self.evaluate_effective_distances(self.starting_node, parameter=exp_decay_param, source_reward=source_reward, multiple_path_eff_dist=multiple_path))
-        self.eff_dist_history.append(eff_dists)
         self.nodes[-1] = eff_dists
 
     def seed_info_conditional(self, constant_source_node):
@@ -266,7 +264,7 @@ class EffDisGraph(Graph):
         else:
             self.seed_info_constant_source(constant_source_node)
 
-    def run(self, num_runs, update_interval=1, exp_decay_param=0.4, source_reward=1.6, constant_source_node=False, multiple_path=False, equilibrium_distance=50, verbose=False):
+    def run(self, num_runs, update_interval=1, exp_decay_param=0.4, source_reward=2.6, constant_source_node=False, multiple_path=False, equilibrium_distance=100, verbose=False):
         """
         :param num_runs: Constant natural number, number of runs.
         :param update_interval: Number of seed steps per run (times information is seeded and diffused before reweighing edges)
