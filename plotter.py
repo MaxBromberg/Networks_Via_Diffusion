@@ -86,7 +86,7 @@ def plot_global_eff_dist(graph, fit=False, normalized=True, show=True, save_fig=
         plt.savefig(f'{title}.png')
         plt.close(fig)
     if save_fig:
-        plt.savefig(f'Effective_Distance for edge_to_eff_dist_coupling of {graph.edge_to_eff_dist_coupling}.png')
+        plt.savefig(f'Effective_Distance for edge_to_eff_dist_coupling of {graph.eff_dist_and_edge_response}.png')
         plt.close(fig)
 
 
@@ -104,7 +104,7 @@ def plot_node_values(graph, node='all', show=True, save_fig=False, title=None):
         plt.xlabel('Time step')
         plt.ylabel(f'{node}th node\'s values')  # reveals it generally gets all the information!
     if save_fig:
-        plt.savefig(f'{node} node_values with edge_to_eff_dist_coupling of {np.round(graph.edge_to_eff_dist_coupling, 2)} and {graph.nodes.shape[0]} runs.png')
+        plt.savefig(f'{node} node_values with edge_to_eff_dist_coupling of {np.round(graph.eff_dist_and_edge_response, 2)} and {graph.nodes.shape[0]} runs.png')
     if title:
         plt.savefig(f'{title}.png')
         plt.close(fig)
@@ -301,9 +301,6 @@ def plot_network(graph, directed=True, node_size_scaling=200, nodes_sized_by_eff
         node_colors = ['grey'] * graph.nodes.shape[1]
         node_colors[graph.source_node_history[timestep]] = 'red'
         nx.draw_networkx_edges(nx_G, pos, nodelist=['0'], alpha=0.8, width=weights, arrowsize=4, connectionstyle='arc3, rad=0.2')
-        # not sure reversal does anything in this context... (could just transpose?)
-        # nx.draw_networkx_edges(nx_G.reverse(copy=True), pos, nodelist=['0'], alpha=0.8, width=weights, arrowsize=4,
-        #                        connectionstyle='arc3, rad=0.2')
         nx.draw_networkx_nodes(nx_G, pos,
                                arrowstyle='->',
                                edge_color=edge_colors,
@@ -327,7 +324,7 @@ def plot_network(graph, directed=True, node_size_scaling=200, nodes_sized_by_eff
         plt.savefig(f'{title}.png')
         plt.close(fig)
     if save_fig:
-        plt.savefig(f'Network Structure(s) for edge_to_eff_dist_coupling of {np.round(graph.edge_to_eff_dist_coupling, 2)}, {graph.nodes.shape[0]} runs.png')
+        plt.savefig(f'Network Structure(s) for edge_to_eff_dist_coupling of {np.round(graph.eff_dist_and_edge_response, 2)}, {graph.nodes.shape[0]} runs.png')
         plt.close(fig)
 
 
@@ -418,7 +415,7 @@ def plot_3d(function, x_range, y_range=None, piecewise=False, z_limits=None, spa
     plt.show()
 
 
-def plot_clustering_coefficients(nx_graphs, source=False, average_clustering=False, show=True, save_fig=False):
+def plot_clustering_coefficients(nx_graphs, source=False, average_clustering=False, show=True, save_fig=False, title=None):
     """
     :param source: if not None, computes ave_clustering for the single (presumably source) node
     """
@@ -447,13 +444,16 @@ def plot_clustering_coefficients(nx_graphs, source=False, average_clustering=Fal
     else:
         plt.title(f'Clustering Coefficients [for all nodes]')
 
+    if title:
+        plt.savefig(f'{title}.png')
+        plt.close(fig)
     if save_fig:
         plt.savefig(f'Clustering Coefficients.png')
     if show:
         plt.show()
 
 
-def plot_ave_neighbor_degree(nx_graphs, source='in', target='in', node=False, show=True, save_fig=False):
+def plot_ave_neighbor_degree(nx_graphs, source='in', target='in', node=False, show=True, save_fig=False, title=None):
     """
     :param source: if not None, computes ave_neighborhood degree for the single (presumably source) node
     """
@@ -472,51 +472,121 @@ def plot_ave_neighbor_degree(nx_graphs, source='in', target='in', node=False, sh
     else:
         plt.title(f'Neighbor Degree [for all nodes], target {target}, source {source}')
 
+    if title:
+        plt.savefig(f'{title}.png')
+        plt.close(fig)
     if save_fig:
         plt.savefig(f'Neighbor_Degree.png')
     if show:
         plt.show()
 
 
+def plot_shortest_path_length(nx_graphs, show=True, save_fig=False, title=None):
+    """
+    Requires fully connected graph (no islands0 though could be modified to allow for analysis of disprate components
+    """
+    ave_shortest_path_length = [nx.average_shortest_path_length(nx_graphs[t], weight='weight') for t in range(len(nx_graphs))]
+
+    fig = plt.figure(figsize=(12, 6))
+    plt.plot(ave_shortest_path_length)
+    plt.xlabel('Time steps')
+    plt.ylabel(f'Average Shortest Path Length')
+    plt.title(f'Average Shortest Paths')
+
+    if title:
+        plt.savefig(f'{title}.png')
+        plt.close(fig)
+    if save_fig:
+        plt.savefig(f'Average_Shortest_Path_Lengths.png')
+    if show:
+        plt.show()
+
+
+def plot_heatmap(TwoD_data, title=None):
+    fig = plt.figure(figsize=(10, 10))
+    plt.imshow(TwoD_data, cmap='viridis')
+    plt.colorbar()
+    plt.xlabel('Responsiveness')
+    plt.ylabel(f'Adaptation')
+    if title:
+        plt.savefig(f'{title}.png')
+        plt.close(fig)
+
+
 import graph as g
 
 
-def basic_double_param_search(num_nodes, num_runs, coupling_range, coupling_interval, adaptation_range, adaptation_interval, parent_directory=None, directory_name='grid_search', verbose=False):
+def grid_search(num_nodes, num_runs, exp_decay_param, responsiveness_range, responsiveness_interval, adaptation_range, adaptation_interval, num_shifts_of_source_node=False, parent_directory=None, directory_name='grid_search',
+                node_values=False,
+                eff_dists=True,
+                network_evolution_graphs=True,
+                ave_neighbor_plots=False,
+                cluster_coefficients=False,
+                shortest_paths=False,
+                verbose=False):
 
     if parent_directory is None:
         source_directory = os.path.dirname(__file__)
     else:
         source_directory = parent_directory
-    grid_search = Path(source_directory, directory_name+f'_{num_nodes}_nodes')
-    node_path = Path(grid_search, 'node_plots')
-    eff_dist_path = Path(grid_search, 'eff_dist_plots')
-    graph_path = Path(grid_search, 'network_graphs')
+    grid_search_dir = Path(source_directory, directory_name+f'_{num_nodes}_nodes')
+    if node_values: node_path = Path(grid_search_dir, 'node_plots')
+    if eff_dists: eff_dist_path = Path(grid_search_dir, 'eff_dist_plots')
+    if network_evolution_graphs: graph_path = Path(grid_search_dir, 'network_graphs')
+    if ave_neighbor_plots: neighbor_path = Path(grid_search_dir, 'ave_neighbor_plots')
+    if cluster_coefficients: cluster_coeff_path = Path(grid_search_dir, 'cluster_coefficients_plots')
+    if shortest_paths: shortest_paths_path = Path(grid_search_dir, 'shortest_paths_plots')
     try:
-        os.mkdir(grid_search), f'Created folder for grid search results at {grid_search}'
-        os.mkdir(node_path), f'Created folder for node plots at {node_path}'
-        os.mkdir(eff_dist_path), f'Created folder for eff dist plots at {eff_dist_path}'
-        os.mkdir(graph_path), f'Created folder for graphs at {graph_path}'
+        os.mkdir(grid_search_dir), f'Created folder for grid search results at {grid_search_dir}'
+        if node_values: os.mkdir(node_path), f'Created folder for node plots at {node_path}'
+        if eff_dists: os.mkdir(eff_dist_path), f'Created folder for eff dist plots at {eff_dist_path}'
+        if network_evolution_graphs: os.mkdir(graph_path), f'Created folder for graphs at {graph_path}'
+        if ave_neighbor_plots: os.mkdir(neighbor_path), f'Created folder for graphs at {neighbor_path}'
+        if cluster_coefficients: os.mkdir(cluster_coeff_path), f'Created folder for graphs at {cluster_coeff_path}'
+        if shortest_paths: os.mkdir(shortest_paths_path), f'Created folder for graphs at {shortest_paths_path}'
     except OSError:
-        print(f'{grid_search} already exists, adding or overwriting contents')
+        print(f'{grid_search_dir} already exists, adding or overwriting contents')
         pass
 
     if verbose:
-        print(f'Beginning grid search, Num_nodes: {num_nodes}, num_rums: {num_runs}, coupling, adaptation_rate ranges {coupling_range, adaptation_range} and intervals {coupling_interval, adaptation_interval}')
-    edge_to_eff_dist_coupling_range = np.arange(coupling_range[0], coupling_range[1], coupling_interval)
+        print(f'Beginning grid search, Num_nodes: {num_nodes}, num_rums: {num_runs}, responsiveness, adaptation_rate ranges {responsiveness_range, adaptation_range} and intervals {responsiveness_interval, adaptation_interval}')
+    full_responsiveness_range = np.arange(responsiveness_range[0], responsiveness_range[1], responsiveness_interval)
     rate_of_adaptation_range = np.arange(adaptation_range[0], adaptation_range[1], adaptation_interval)
     run_counter = 0
-    for coupling_val in edge_to_eff_dist_coupling_range:
+
+    eff_dist_diffs_flattened = []
+    ave_neighbor_diffs_flattened = []
+    for responsiveness_val in full_responsiveness_range:
         for adaption_value in rate_of_adaptation_range:
-            G = g.EffDisGraph(num_nodes=num_nodes, edge_to_eff_dist_coupling=coupling_val, rate_of_edge_adaptation=adaption_value)
+            G = g.EffDisGraph(num_nodes=num_nodes, eff_dist_and_edge_response=responsiveness_val, rate_of_edge_adaptation=adaption_value)
             G.uniform_random_edge_init()
-            G.run(num_runs=num_runs, exp_decay_param=1, constant_source_node=1, equilibrium_distance=200, multiple_path=False)
-            plot_node_values(G, node='all', show=False, save_fig=False,
-                             title=Path(node_path, f'{run_counter:03}_node_values_for_coupling{np.round(coupling_val, 2)}_adaption_exp_{np.round(adaption_value, 2)}'))
-            plot_global_eff_dist(G, show=False, save_fig=False,
-                                 title=Path(eff_dist_path, f'{run_counter:03}_eff_dist_for_coupling_{np.round(coupling_val, 2)}_adaption_exp_{np.round(adaption_value, 2)}'))
-            plot_network(G, nodes_sized_by_eff_distance=True, show=False, save_fig=False,
-                         title=Path(graph_path, f'{run_counter:03}_graph_for_coupling_{np.round(coupling_val, 2)}_adaption_exp_{np.round(adaption_value, 2)}'))
+            G.run(num_runs=num_runs, exp_decay_param=exp_decay_param, num_shifts_of_source_node=num_shifts_of_source_node, constant_source_node=False, equilibrium_distance=200, multiple_path=False)
+            if node_values:
+                plot_node_values(G, node='all', show=False, save_fig=False,
+                                 title=Path(node_path, f'{run_counter:03}_node_values_for_responsiveness_{np.round(responsiveness_val, 2)}_adaption_exp_{np.round(adaption_value, 2)}'))
+            if eff_dists:
+                plot_global_eff_dist(G, show=False, save_fig=False,
+                                 title=Path(eff_dist_path, f'{run_counter:03}_eff_dist_for_responsiveness_{np.round(responsiveness_val, 2)}_adaption_exp_{np.round(adaption_value, 2)}'))
+            if network_evolution_graphs:
+                plot_network(G, nodes_sized_by_eff_distance=True, show=False, save_fig=False,
+                         title=Path(graph_path, f'{run_counter:03}_graph_for_responsiveness_{np.round(responsiveness_val, 2)}_adaption_exp_{np.round(adaption_value, 2)}'))
+            if cluster_coefficients or ave_neighbor_plots:
+                nx_graphs = G.convert_history_to_list_of_nx_graphs()
+                ave_neighbor_diffs_flattened.append((lambda x: max(x) - min(x))(nx.average_neighbor_degree(nx_graphs[-1], source='in', target='in', weight='weight').values()))
+                if ave_neighbor_plots:
+                    plot_ave_neighbor_degree(nx_graphs, target='in', source='in', show=False, save_fig=False,
+                                             title=Path(neighbor_path, f'{run_counter:03}_neighbor_plot_for_responsiveness_{np.round(responsiveness_val, 2)}_adaption_exp_{np.round(adaption_value, 2)}'))
+                if cluster_coefficients:
+                    plot_clustering_coefficients(nx_graphs, show=False, save_fig=False,
+                                                 title=Path(cluster_coeff_path, f'{run_counter:03}_cluster_coeffs_plot_for_responsiveness_{np.round(responsiveness_val, 2)}_adaption_exp_{np.round(adaption_value, 2)}'))
+                if shortest_paths:
+                    plot_shortest_path_length(nx_graphs, show=False, save_fig=False,
+                             title=Path(shortest_paths_path, f'{run_counter:03}_shortest_path_plot_for_responsiveness_{np.round(responsiveness_val, 2)}_adaption_exp_{np.round(adaption_value, 2)}'))
+            eff_dist_diffs_flattened.append(G.eff_dist_diff(multiple_path_eff_dist=False))  # Compares first and last eff_dist values
             run_counter += 1
             if verbose:
-                print(f'Run with edge_to_eff_dist value {np.round(coupling_val, 2)}, rate_of_edge_adaptation:{np.round(adaption_value, 2)} complete. (ranges {coupling_range}, {adaptation_range} respectively)')
+                print(f'Run with responsiveness value {np.round(responsiveness_val, 2)}, rate_of_edge_adaptation: {np.round(adaption_value, 2)} complete. (#{run_counter} of {full_responsiveness_range.shape[0]*rate_of_adaptation_range.shape[0]})')
+    plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(full_responsiveness_range.shape[0], rate_of_adaptation_range.shape[0]), title=Path(grid_search_dir, f'_eff_dist_histogram'))
+    plot_heatmap(np.array(ave_neighbor_diffs_flattened).reshape(full_responsiveness_range.shape[0], rate_of_adaptation_range.shape[0]), title=Path(grid_search_dir, f'_ave_neighbor_diff_histogram'))
+
 

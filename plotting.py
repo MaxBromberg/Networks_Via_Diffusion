@@ -12,7 +12,7 @@ rounding = 3
 
 # edge_weighting_exp: tunes between only y (edge) dependence (at 0) and x (eff_dist) dependence at (at 1)
 
-G = graph.EffDisGraph(num_nodes, edge_to_eff_dist_coupling=0.5, rate_of_edge_adaptation=6)
+G = graph.EffDisGraph(num_nodes, eff_dist_and_edge_response=0.5, rate_of_edge_adaptation=6)
 # G.sparse_random_edge_init(outgoing_edges_per_node)
 G.uniform_random_edge_init()
 G.run(num_runs, exp_decay_param=1, constant_source_node=1, equilibrium_distance=200, multiple_path=False, verbose=True)
@@ -37,9 +37,9 @@ print(f'G.eff_dist_diff: {G.eff_dist_diff()}')
 
 # Only convert to nx_graphs if the plots are needed. Takes a bit
 # print(f'Converting numpy graphs to nx_graphs for network observables calculations:')
-# nx_graphs = G.convert_history_to_list_of_nx_graphs(verbose=False)
-# plotter.plot_clustering_coefficients(nx_graphs)
-# plotter.plot_ave_neighbor_degree(nx_graphs, target='in', source='in')  # if not considering 'in' for both s and t, yields constant
+nx_graphs = G.convert_history_to_list_of_nx_graphs(verbose=False)
+plotter.plot_clustering_coefficients(nx_graphs)
+plotter.plot_ave_neighbor_degree(nx_graphs, target='in', source='in')  # if not considering 'in' for both s and t, yields constant
 
 
 print(f'Initial Adjacency Matrix (rounded to {rounding} places): \n{np.round(G.A[0], rounding)} \n')
