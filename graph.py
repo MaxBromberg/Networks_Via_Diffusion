@@ -23,7 +23,7 @@ class Graph:
         self.gamma = gamma  # Determines punishment for connecting to the same node, as default strategy for both
         # random and diverse connection weighted seeding would otherwise be to connect all nodes to one other
         self.q = q  # exp{-gamma*[(sum_j w_ij)-q*N]} => for 0<q(<1) nodes are incentivized to strengthen outgoing edges
-        self.eff_dist_and_edge_response = eff_dist_and_edge_response  # best between 0, 1, responsiveness to network edges
+        self.eff_dist_and_edge_coupling = eff_dist_and_edge_response  # best between 0, 1, responsiveness to network edges
         self.take_the_best_reward_rate = take_the_best_reward_rate  # change in edge weight in take_the_best
         self.rate_of_edge_adaptation = rate_of_edge_adaptation  # rescaling of all rewards in reweight_edges_via_info_score
         self.nodes = np.zeros((1, num_nodes))  # node values (and history of via the first dimension)
@@ -105,8 +105,12 @@ class Graph:
          y is the edge's value (i.e. probability od transition, given normalization of A columns)
         To absolve the model of arbitrarity w.r.t. info score space geometry, we let the control parameter vary between two extremes (of uncoupled linear relation w.r.t. x, y)
         To make the info_score space have an inverse correlation between Eff_dist (node value) and edge value (\in A):
+        Z = pow(x, (alpha - 1)) * pow(y, alpha) || alpha : Coupling parameter
+
+        For general responsiveness to aprameters rather than coupling between them:
+        # return [pow((self.A[-1][node_index][from_node_index] / (self.nodes[-1][node_index] / node_sum)), self.eff_dist_and_edge_response) for node_index in range(self.nodes.shape[1])]
         """
-        return [pow((self.A[-1][node_index][from_node_index] / (self.nodes[-1][node_index] / node_sum)), self.eff_dist_and_edge_response) for node_index in range(self.nodes.shape[1])]
+        return [(pow((self.nodes[-1][node_index] / node_sum), (self.eff_dist_and_edge_coupling - 1)) * pow(self.A[-1][node_index][from_node_index], self.eff_dist_and_edge_coupling)) for node_index in range(self.nodes.shape[1])]
 
     def reweight_edges_via_take_the_best(self):
         """
