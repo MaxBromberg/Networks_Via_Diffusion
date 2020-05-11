@@ -418,6 +418,32 @@ def plot_3d(function, x_range, y_range=None, piecewise=False, z_limits=None, spa
     plt.show()
 
 
+def plot_3d_data(three_d_data, x_range=None, y_range=None, z_range=None, show=True, title=None):
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection='3d')
+    data = np.round(np.swapaxes(np.swapaxes(three_d_data, 0, 1), 1, 2).flatten(), 6)  # sliding node_num axis to last
+    # xs = np.repeat(x_range, three_d_data.shape[1] * three_d_data.shape[2], axis=0).flatten()
+    # ys = np.repeat(y_range, three_d_data.shape[0] * three_d_data.shape[2], axis=0).flatten()
+    # zs = np.repeat(z_range, three_d_data.shape[0] * three_d_data.shape[1], axis=0).flatten()
+    xs = np.repeat([x_range], y_range.size * z_range.size, axis=0).flatten()
+    ys = np.repeat([y_range], x_range.size * z_range.size, axis=0).flatten()
+    zs = np.repeat([z_range], x_range.size * y_range.size, axis=0).flatten()
+    print(f'xs: ys: zs: \n {xs}, \n {ys}, \n {zs}')
+    print(f'three_d_data.shape {three_d_data.shape}')
+    print(f'xs.size, ys.size, zs.size, data.size: {xs.size}, {ys.size}, {zs.size}, {data.size}')
+
+    img = ax.scatter(xs, ys, zs, c=data, cmap=plt.winter())
+    fig.colorbar(img)
+    ax.set_title('Effective Distance Differences')
+    ax.set_xlabel('adaptation')
+    ax.set_ylabel('coupling')
+    ax.set_zlabel('nodes')
+    if show:
+        plt.show()
+    if title:
+        plt.savefig(f"{title}")
+
+
 def plot_clustering_coefficients(nx_graphs, source=False, average_clustering=False, show=True, save_fig=False, title=None):
     """
     :param source: if not None, computes ave_clustering for the single (presumably source) node
@@ -505,11 +531,17 @@ def plot_shortest_path_length(nx_graphs, show=True, save_fig=False, title=None):
         plt.show()
 
 
-def plot_heatmap(TwoD_data, title=None):
-    plt.imshow(TwoD_data, cmap='viridis')
+def plot_heatmap(TwoD_data, x_range=None, y_range=None, normalize=False, title=None):
+    if normalize:  # though data is automatically normalized in output heatmap.
+        data = np.array(TwoD_data / np.amax(np.array(TwoD_data)))
+    else:
+        data = TwoD_data
+    if x_range.any(): plt.xticks(x_range)
+    if y_range.any(): plt.yticks(y_range)
+    plt.imshow(data, cmap='viridis', extent=[x_range[0], x_range[-1], y_range[0], y_range[-1]], aspect='auto')
     plt.colorbar()
-    plt.xlabel('Responsiveness')
-    plt.ylabel(f'Adaptation')
+    plt.xlabel('Adaptation')
+    plt.ylabel('Coupling')
     if title:
         plt.savefig(f'{title}.png')
         plt.close()
@@ -530,25 +562,97 @@ def open_graph_obj(path, graph_id):
     with open(Path(path, f'{graph_id}_graph_obj.pkl'), 'rb') as input:
         return pickle.load(input)
 
+"""
+def three_d_plot_from_data(path_to_data_dir, coupling_range, adaptation_range, output_dir=None):
+    if output_dir is None:
+        output_dir = path_to_data_dir
+    eff_dists_all_nodes = np.zeros((1, coupling_range.size, adaptation_range.size))
+    ave_nbr_var_all_nodes = np.zeros((1, coupling_range.size, adaptation_range.size))
+    eff_dist_diffs_flattened = []
+    ave_nbr_var_flattened = []
+    node_nums = []
 
-def heatmaps_from_data(path_to_data_dir, num_coupling_values, num_adaptation_values, output_dir=None):
+    for sub_dir, sub_sub_dirs, data_files in os.walk(path_to_data_dir):
+        if str(sub_dir) == str(path_to_data_dir):
+            continue
+        if str(sub_dir).split('_')[2].isnumeric(): node_nums.append(int(str(sub_dir).split('_')[2]))
+        for file in sorted(data_files):  # Order preserved due to 0 padding.
+            with open(Path(Path(path_to_data_dir, sub_dir), file), 'rb') as input:
+                G = pickle.load(input)
+                input.close()
+                last_ave_nbr_deg = list(nx.average_neighbor_degree(G.convert_to_nx_graph(timestep=-1), source='in', target='in', weight='weight').values())
+                eff_dist_diffs_flattened.append(G.eff_dist_diff(multiple_path_eff_dist=False))  # Compares first and last eff_dist values
+                ave_nbr_var_flattened.append(np.array(last_ave_nbr_deg).var())
+        eff_dists_all_nodes = np.vstack((eff_dists_all_nodes, [np.array(eff_dist_diffs_flattened).reshape(coupling_range.size, adaptation_range.size)]))
+        ave_nbr_var_all_nodes = np.vstack((ave_nbr_var_all_nodes, [np.array(ave_nbr_var_flattened).reshape(coupling_range.size, adaptation_range.size)]))
+        print(f'ave_nbr_var_all_nodes.shape {ave_nbr_var_all_nodes.shape}')
+        ave_nbr_var_flattened = []
+        eff_dist_diffs_flattened = []
+
+    eff_dists_all_nodes = np.delete(eff_dists_all_nodes, 0, axis=0)
+    ave_nbr_var_all_nodes = np.delete(ave_nbr_var_all_nodes, 0, axis=0)
+    # print(f'ave_nbr_var_all_nodes.shape {ave_nbr_var_all_nodes.shape}')
+    plot_3d_data(eff_dists_all_nodes, x_range=coupling_range, y_range=adaptation_range, z_range=np.array(node_nums), title=Path(output_dir, f'eff_dist_3d_plot'))
+    plot_3d_data(ave_nbr_var_all_nodes, x_range=coupling_range, y_range=adaptation_range, z_range=np.array(node_nums), title=Path(output_dir, f'ave_nbr_3d_plot'))
+"""
+
+
+def three_d_plot_from_data(path_to_data_dir, coupling_range, adaptation_range, output_dir=None):
+    if output_dir is None:
+        output_dir = path_to_data_dir
+    eff_dists_all_nodes = np.zeros((1, coupling_range.size, adaptation_range.size))
+    ave_nbr_var_all_nodes = np.zeros((1, coupling_range.size, adaptation_range.size))
+    eff_dist_diffs_flattened = []
+    ave_nbr_var_flattened = []
+    node_nums = []
+    node_files = []
+
+    sub_dirs = sorted([dirs[0] for dirs in os.walk(path_to_data_dir) if dirs[0] != str(path_to_data_dir)])
+    for sub_dir in sub_dirs:
+        if str(sub_dir).split('_')[2].isnumeric(): node_nums.append(int(str(sub_dir).split('_')[2]))
+        tmp_data_files = [files[2] for files in os.walk(Path(path_to_data_dir, sub_dir))]
+        node_files.append(sorted(tmp_data_files[0]))
+    node_files = np.array(node_files)
+
+    for node_index in range(node_files.shape[0]):
+        for file_index in range(node_files.shape[1]):
+            with open(Path(sub_dirs[node_index], node_files[node_index][file_index]), 'rb') as input:
+                G = pickle.load(input)
+                input.close()
+                last_ave_nbr_deg = list(nx.average_neighbor_degree(G.convert_to_nx_graph(timestep=-1), source='in', target='in', weight='weight').values())
+                eff_dist_diffs_flattened.append(G.eff_dist_diff(multiple_path_eff_dist=False))  # Compares first and last eff_dist values
+                ave_nbr_var_flattened.append(np.array(last_ave_nbr_deg).var())
+        eff_dists_all_nodes = np.vstack((eff_dists_all_nodes, [np.array(eff_dist_diffs_flattened).reshape(coupling_range.size, adaptation_range.size)]))
+        ave_nbr_var_all_nodes = np.vstack((ave_nbr_var_all_nodes, [np.array(ave_nbr_var_flattened).reshape(coupling_range.size, adaptation_range.size)]))
+        eff_dist_diffs_flattened = []
+        ave_nbr_var_flattened = []
+
+    eff_dists_all_nodes = np.delete(eff_dists_all_nodes, 0, axis=0)
+    ave_nbr_var_all_nodes = np.delete(eff_dists_all_nodes, 0, axis=0)
+    plot_3d_data(eff_dists_all_nodes, x_range=coupling_range, y_range=adaptation_range, z_range=np.array(node_nums), title=Path(output_dir, f'eff_dist_3d_plot'))
+    # plot_3d_data(ave_nbr_var_all_nodes, x_range=coupling_range, y_range=adaptation_range, z_range=np.array(node_nums), title=Path(output_dir, f'ave_nbr_3d_plot'))
+
+
+def heatmaps_from_data(path_to_data_dir, coupling_range, adaptation_range, output_dir=None, normalize=False):
     if output_dir is None:
         output_dir = path_to_data_dir
     f = []
     eff_dist_diffs_flattened = []
     ave_neighbor_diffs_flattened = []
+    ave_nbr_var_flattened = []
     for root, dirs, files in os.walk(path_to_data_dir):
-        f = files
+        f = sorted(files)
     for file in f:  # Order preserved due to 0 padding.
         with open(Path(path_to_data_dir, file), 'rb') as input:
             G = pickle.load(input)
             input.close()
+            last_ave_nbr_deg = list(nx.average_neighbor_degree(G.convert_to_nx_graph(timestep=-1), source='in', target='in', weight='weight').values())
             eff_dist_diffs_flattened.append(G.eff_dist_diff(multiple_path_eff_dist=False))  # Compares first and last eff_dist values
-            nx_graphs = G.convert_history_to_list_of_nx_graphs()
-            ave_neighbor_diffs_flattened.append((lambda x: max(x) - min(x))(nx.average_neighbor_degree(nx_graphs[-1], source='in', target='in', weight='weight').values()))
-
-    plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(num_coupling_values, num_adaptation_values), title=Path(output_dir, f'eff_dist_histogram'))
-    plot_heatmap(np.array(ave_neighbor_diffs_flattened).reshape(num_coupling_values, num_adaptation_values), title=Path(output_dir, f'ave_neighbor_diff_histogram'))
+            ave_neighbor_diffs_flattened.append((lambda x: max(x) - min(x))(last_ave_nbr_deg))
+            ave_nbr_var_flattened.append(np.array(last_ave_nbr_deg).var())
+    plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(coupling_range.size, adaptation_range.size), title=Path(output_dir, f'eff_dist_histogram'), x_range=adaptation_range, y_range=coupling_range, normalize=normalize)
+    plot_heatmap(np.array(ave_neighbor_diffs_flattened).reshape(coupling_range.size, adaptation_range.size), title=Path(output_dir, f'ave_neighbor_diff_histogram'), x_range=adaptation_range, y_range=coupling_range, normalize=normalize)
+    plot_heatmap(np.array(ave_nbr_var_flattened).reshape(coupling_range.size, adaptation_range.size), title=Path(output_dir, f'ave_neighbor_var_histogram'), x_range=adaptation_range, y_range=coupling_range, normalize=normalize)
 
 
 def data_only_grid_search(num_nodes, num_runs, exp_decay_param, coupling_range, coupling_interval, adaptation_range, adaptation_interval, num_shifts_of_source_node=False, parent_directory=None, directory_name='grid_search', verbose=False):
@@ -576,21 +680,22 @@ def data_only_grid_search(num_nodes, num_runs, exp_decay_param, coupling_range, 
     ave_nbr_var_flattened = []
     for coupling_val in full_coupling_range:
         for adaption_value in rate_of_adaptation_range:
-            numbered_graph_path = Path(graphs_path, f'{run_counter:04}_graph_obj.pkl')
+            numbered_graph_path = Path(graphs_path, f'{run_counter+1:04}_graph_obj.pkl')
             G = g.EffDisGraph(num_nodes=num_nodes, eff_dist_and_edge_response=coupling_val, rate_of_edge_adaptation=adaption_value)
             G.uniform_random_edge_init()
             G.run(num_runs=num_runs, exp_decay_param=exp_decay_param, num_shifts_of_source_node=num_shifts_of_source_node, constant_source_node=2, equilibrium_distance=200, multiple_path=False)
             save_object(G, numbered_graph_path)
-            last_nx_graph = G.convert_to_nx_graph(timestep=-1)
-            ave_neighbor_diffs_flattened.append((lambda x: max(x) - min(x))(nx.average_neighbor_degree(last_nx_graph, source='in', target='in', weight='weight').values()))
-            ave_nbr_var_flattened.append(np.var(nx.average_neighbor_degree(last_nx_graph, source='in', target='in', weight='weight').values()))
+            last_ave_nbr_deg = list(nx.average_neighbor_degree(G.convert_to_nx_graph(timestep=-1), source='in', target='in', weight='weight').values())
             eff_dist_diffs_flattened.append(G.eff_dist_diff(multiple_path_eff_dist=False))  # Compares first and last eff_dist values
+            ave_neighbor_diffs_flattened.append((lambda x: max(x) - min(x))(last_ave_nbr_deg))
+            ave_nbr_var_flattened.append(np.array(last_ave_nbr_deg).var())
             run_counter += 1
             if verbose:
                 print(f'Run with responsiveness value {np.round(coupling_val, 2)}, rate_of_edge_adaptation: {np.round(adaption_value, 2)} complete. (#{run_counter} of {full_coupling_range.shape[0]*rate_of_adaptation_range.shape[0]})')
 
-    plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(full_coupling_range.shape[0], rate_of_adaptation_range.shape[0]), title=Path(grid_search_dir, f'eff_dist_histogram'))
-    plot_heatmap(np.array(ave_neighbor_diffs_flattened).reshape(full_coupling_range.shape[0], rate_of_adaptation_range.shape[0]), title=Path(grid_search_dir, f'ave_neighbor_diff_histogram'))
+    plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(full_coupling_range.shape[0], rate_of_adaptation_range.shape[0]), title=Path(grid_search_dir, f'eff_dist_histogram'), x_range=rate_of_adaptation_range, y_range=full_coupling_range, normalize=True)
+    plot_heatmap(np.array(ave_neighbor_diffs_flattened).reshape(full_coupling_range.shape[0], rate_of_adaptation_range.shape[0]), title=Path(grid_search_dir, f'ave_neighbor_diff_histogram'), x_range=rate_of_adaptation_range, y_range=full_coupling_range, normalize=True)
+    plot_heatmap(np.array(ave_nbr_var_flattened).reshape(full_coupling_range.shape[0], rate_of_adaptation_range.shape[0]), title=Path(grid_search_dir, f'ave_neighbor_var_histogram'), x_range=rate_of_adaptation_range, y_range=full_coupling_range, normalize=True)
 
 
 def grid_search(num_nodes, num_runs, exp_decay_param, coupling_range, coupling_interval, adaptation_range, adaptation_interval, num_shifts_of_source_node=False, parent_directory=None, directory_name='grid_search',
@@ -638,7 +743,7 @@ def grid_search(num_nodes, num_runs, exp_decay_param, coupling_range, coupling_i
     ave_nbr_var_flattened = []
     for coupling_val in full_coupling_range:
         for adaption_value in rate_of_adaptation_range:
-            numbered_graph_path = Path(graphs_path, f'{run_counter:04}_graph_obj.pkl')
+            numbered_graph_path = Path(graphs_path, f'{run_counter+1:04}_graph_obj.pkl')
             G = g.EffDisGraph(num_nodes=num_nodes, eff_dist_and_edge_response=coupling_val, rate_of_edge_adaptation=adaption_value)
             G.uniform_random_edge_init()
             G.run(num_runs=num_runs, exp_decay_param=exp_decay_param, num_shifts_of_source_node=num_shifts_of_source_node, constant_source_node=2, equilibrium_distance=200, multiple_path=False)
@@ -654,8 +759,13 @@ def grid_search(num_nodes, num_runs, exp_decay_param, coupling_range, coupling_i
                          title=Path(graph_path, f'{run_counter:03}_graph_for_responsiveness_{np.round(coupling_val, 2)}_adaption_exp_{np.round(adaption_value, 2)}'))
             if cluster_coefficients or ave_neighbor_plots:
                 nx_graphs = G.convert_history_to_list_of_nx_graphs()
-                ave_neighbor_diffs_flattened.append((lambda x: max(x) - min(x))(nx.average_neighbor_degree(nx_graphs[-1], source='in', target='in', weight='weight').values()))
-                ave_nbr_var_flattened.append(np.var(nx.average_neighbor_degree(nx_graphs[-1], source='in', target='in', weight='weight').values()))
+                last_ave_nbr_deg = list(
+                    nx.average_neighbor_degree(G.convert_to_nx_graph(timestep=-1), source='in', target='in',
+                                               weight='weight').values())
+                eff_dist_diffs_flattened.append(
+                    G.eff_dist_diff(multiple_path_eff_dist=False))  # Compares first and last eff_dist values
+                ave_neighbor_diffs_flattened.append((lambda x: max(x) - min(x))(last_ave_nbr_deg))
+                ave_nbr_var_flattened.append(np.array(last_ave_nbr_deg).var())
                 if ave_neighbor_plots:
                     plot_ave_neighbor_degree(nx_graphs, target='in', source='in', show=False, save_fig=False,
                                              title=Path(neighbor_path, f'{run_counter:03}_neighbor_plot_for_responsiveness_{np.round(coupling_val, 2)}_adaption_exp_{np.round(adaption_value, 2)}'))
@@ -670,8 +780,8 @@ def grid_search(num_nodes, num_runs, exp_decay_param, coupling_range, coupling_i
             if verbose:
                 print(f'Run with responsiveness value {np.round(coupling_val, 2)}, rate_of_edge_adaptation: {np.round(adaption_value, 2)} complete. (#{run_counter} of {full_coupling_range.shape[0]*rate_of_adaptation_range.shape[0]})')
 
-    plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(full_coupling_range.shape[0], rate_of_adaptation_range.shape[0]), title=Path(grid_search_dir, f'eff_dist_histogram'))
-    plot_heatmap(np.array(ave_neighbor_diffs_flattened).reshape(full_coupling_range.shape[0], rate_of_adaptation_range.shape[0]), title=Path(grid_search_dir, f'ave_neighbor_diff_histogram'))
-    plot_heatmap(np.array(ave_nbr_var_flattened).reshape(full_coupling_range.shape[0], rate_of_adaptation_range.shape[0]), title=Path(grid_search_dir, f'ave_neighbor_var_histogram'))
+    plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(full_coupling_range.shape[0], rate_of_adaptation_range.shape[0]), title=Path(grid_search_dir, f'eff_dist_histogram'), x_range=rate_of_adaptation_range, y_range=full_coupling_range, normalize=True)
+    plot_heatmap(np.array(ave_neighbor_diffs_flattened).reshape(full_coupling_range.shape[0], rate_of_adaptation_range.shape[0]), title=Path(grid_search_dir, f'ave_neighbor_diff_histogram'), x_range=rate_of_adaptation_range, y_range=full_coupling_range, normalize=True)
+    plot_heatmap(np.array(ave_nbr_var_flattened).reshape(full_coupling_range.shape[0], rate_of_adaptation_range.shape[0]), title=Path(grid_search_dir, f'ave_neighbor_var_histogram'), x_range=rate_of_adaptation_range, y_range=full_coupling_range, normalize=True)
 
 
