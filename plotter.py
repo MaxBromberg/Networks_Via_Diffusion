@@ -418,30 +418,26 @@ def plot_3d(function, x_range, y_range=None, piecewise=False, z_limits=None, spa
     plt.show()
 
 
-def plot_3d_data(three_d_data, x_range=None, y_range=None, z_range=None, show=True, title=None):
+def plot_3d_data(three_d_data, x_range=None, y_range=None, z_range=None, show=True):
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection='3d')
-    data = np.round(np.swapaxes(np.swapaxes(three_d_data, 0, 1), 1, 2).flatten(), 6)  # sliding node_num axis to last
-    # xs = np.repeat(x_range, three_d_data.shape[1] * three_d_data.shape[2], axis=0).flatten()
-    # ys = np.repeat(y_range, three_d_data.shape[0] * three_d_data.shape[2], axis=0).flatten()
-    # zs = np.repeat(z_range, three_d_data.shape[0] * three_d_data.shape[1], axis=0).flatten()
-    xs = np.repeat([x_range], y_range.size * z_range.size, axis=0).flatten()
-    ys = np.repeat([y_range], x_range.size * z_range.size, axis=0).flatten()
-    zs = np.repeat([z_range], x_range.size * y_range.size, axis=0).flatten()
-    print(f'xs: ys: zs: \n {xs}, \n {ys}, \n {zs}')
-    print(f'three_d_data.shape {three_d_data.shape}')
-    print(f'xs.size, ys.size, zs.size, data.size: {xs.size}, {ys.size}, {zs.size}, {data.size}')
-
-    img = ax.scatter(xs, ys, zs, c=data, cmap=plt.winter())
+    data = np.swapaxes(np.swapaxes(three_d_data, 0, 1), 1, 2)  # sliding node_num axis to last
+    xs = np.repeat(x_range, data.shape[1] * data.shape[2], axis=0).flatten()
+    ys = np.repeat([y_range], data.shape[0] * data.shape[2], axis=0).flatten()
+    zs = np.repeat([z_range], data.shape[0] * data.shape[1], axis=0).flatten()
+    print(f'data.shape {data.shape}')
+    data = np.round(data.flatten(), 6)
+    # print(f'xs: ys: zs: \n {xs}, \n {ys}, \n {zs}')
+    # print(f'xs.size, ys.size, zs.size, data.size: {xs.size}, {ys.size}, {zs.size}, {data.size}')
+    logged_data = np.log(abs(data))
+    # TODO: here the questionable assumption of the data being entirely positive/negative is used. FIX
+    img = ax.scatter(xs, ys, zs, c=logged_data, cmap=plt.winter())
     fig.colorbar(img)
-    ax.set_title('Effective Distance Differences')
-    ax.set_xlabel('adaptation')
-    ax.set_ylabel('coupling')
-    ax.set_zlabel('nodes')
+    ax.set_xlabel('Adaptation')
+    ax.set_ylabel('Coupling')
+    ax.set_zlabel('Nodes')
     if show:
         plt.show()
-    if title:
-        plt.savefig(f"{title}")
 
 
 def plot_clustering_coefficients(nx_graphs, source=False, average_clustering=False, show=True, save_fig=False, title=None):
@@ -562,42 +558,8 @@ def open_graph_obj(path, graph_id):
     with open(Path(path, f'{graph_id}_graph_obj.pkl'), 'rb') as input:
         return pickle.load(input)
 
-"""
-def three_d_plot_from_data(path_to_data_dir, coupling_range, adaptation_range, output_dir=None):
-    if output_dir is None:
-        output_dir = path_to_data_dir
-    eff_dists_all_nodes = np.zeros((1, coupling_range.size, adaptation_range.size))
-    ave_nbr_var_all_nodes = np.zeros((1, coupling_range.size, adaptation_range.size))
-    eff_dist_diffs_flattened = []
-    ave_nbr_var_flattened = []
-    node_nums = []
 
-    for sub_dir, sub_sub_dirs, data_files in os.walk(path_to_data_dir):
-        if str(sub_dir) == str(path_to_data_dir):
-            continue
-        if str(sub_dir).split('_')[2].isnumeric(): node_nums.append(int(str(sub_dir).split('_')[2]))
-        for file in sorted(data_files):  # Order preserved due to 0 padding.
-            with open(Path(Path(path_to_data_dir, sub_dir), file), 'rb') as input:
-                G = pickle.load(input)
-                input.close()
-                last_ave_nbr_deg = list(nx.average_neighbor_degree(G.convert_to_nx_graph(timestep=-1), source='in', target='in', weight='weight').values())
-                eff_dist_diffs_flattened.append(G.eff_dist_diff(multiple_path_eff_dist=False))  # Compares first and last eff_dist values
-                ave_nbr_var_flattened.append(np.array(last_ave_nbr_deg).var())
-        eff_dists_all_nodes = np.vstack((eff_dists_all_nodes, [np.array(eff_dist_diffs_flattened).reshape(coupling_range.size, adaptation_range.size)]))
-        ave_nbr_var_all_nodes = np.vstack((ave_nbr_var_all_nodes, [np.array(ave_nbr_var_flattened).reshape(coupling_range.size, adaptation_range.size)]))
-        print(f'ave_nbr_var_all_nodes.shape {ave_nbr_var_all_nodes.shape}')
-        ave_nbr_var_flattened = []
-        eff_dist_diffs_flattened = []
-
-    eff_dists_all_nodes = np.delete(eff_dists_all_nodes, 0, axis=0)
-    ave_nbr_var_all_nodes = np.delete(ave_nbr_var_all_nodes, 0, axis=0)
-    # print(f'ave_nbr_var_all_nodes.shape {ave_nbr_var_all_nodes.shape}')
-    plot_3d_data(eff_dists_all_nodes, x_range=coupling_range, y_range=adaptation_range, z_range=np.array(node_nums), title=Path(output_dir, f'eff_dist_3d_plot'))
-    plot_3d_data(ave_nbr_var_all_nodes, x_range=coupling_range, y_range=adaptation_range, z_range=np.array(node_nums), title=Path(output_dir, f'ave_nbr_3d_plot'))
-"""
-
-
-def three_d_plot_from_data(path_to_data_dir, coupling_range, adaptation_range, output_dir=None):
+def three_d_plot_from_data(path_to_data_dir, coupling_range, adaptation_range, normalized=False, output_dir=None):
     if output_dir is None:
         output_dir = path_to_data_dir
     eff_dists_all_nodes = np.zeros((1, coupling_range.size, adaptation_range.size))
@@ -609,7 +571,7 @@ def three_d_plot_from_data(path_to_data_dir, coupling_range, adaptation_range, o
 
     sub_dirs = sorted([dirs[0] for dirs in os.walk(path_to_data_dir) if dirs[0] != str(path_to_data_dir)])
     for sub_dir in sub_dirs:
-        if str(sub_dir).split('_')[2].isnumeric(): node_nums.append(int(str(sub_dir).split('_')[2]))
+        node_nums.append(int(str(str(sub_dir).split('/')[-1]).split('_')[-1]))
         tmp_data_files = [files[2] for files in os.walk(Path(path_to_data_dir, sub_dir))]
         node_files.append(sorted(tmp_data_files[0]))
     node_files = np.array(node_files)
@@ -620,17 +582,21 @@ def three_d_plot_from_data(path_to_data_dir, coupling_range, adaptation_range, o
                 G = pickle.load(input)
                 input.close()
                 last_ave_nbr_deg = list(nx.average_neighbor_degree(G.convert_to_nx_graph(timestep=-1), source='in', target='in', weight='weight').values())
-                eff_dist_diffs_flattened.append(G.eff_dist_diff(multiple_path_eff_dist=False))  # Compares first and last eff_dist values
                 ave_nbr_var_flattened.append(np.array(last_ave_nbr_deg).var())
+                eff_dist_diffs_flattened.append(G.eff_dist_diff(multiple_path_eff_dist=False))  # Compares first and last eff_dist values
         eff_dists_all_nodes = np.vstack((eff_dists_all_nodes, [np.array(eff_dist_diffs_flattened).reshape(coupling_range.size, adaptation_range.size)]))
         ave_nbr_var_all_nodes = np.vstack((ave_nbr_var_all_nodes, [np.array(ave_nbr_var_flattened).reshape(coupling_range.size, adaptation_range.size)]))
         eff_dist_diffs_flattened = []
         ave_nbr_var_flattened = []
 
     eff_dists_all_nodes = np.delete(eff_dists_all_nodes, 0, axis=0)
-    ave_nbr_var_all_nodes = np.delete(eff_dists_all_nodes, 0, axis=0)
-    plot_3d_data(eff_dists_all_nodes, x_range=coupling_range, y_range=adaptation_range, z_range=np.array(node_nums), title=Path(output_dir, f'eff_dist_3d_plot'))
-    # plot_3d_data(ave_nbr_var_all_nodes, x_range=coupling_range, y_range=adaptation_range, z_range=np.array(node_nums), title=Path(output_dir, f'ave_nbr_3d_plot'))
+    ave_nbr_var_all_nodes = np.delete(ave_nbr_var_all_nodes, 0, axis=0)
+    if normalized:
+        eff_dists_all_nodes /= np.amax(eff_dists_all_nodes)
+        ave_nbr_var_all_nodes /= np.amax(ave_nbr_var_all_nodes)
+
+    plot_3d_data(eff_dists_all_nodes, x_range=coupling_range, y_range=adaptation_range, z_range=np.array(node_nums))
+    plot_3d_data(ave_nbr_var_all_nodes, x_range=coupling_range, y_range=adaptation_range, z_range=np.array(node_nums))
 
 
 def heatmaps_from_data(path_to_data_dir, coupling_range, adaptation_range, output_dir=None, normalize=False):

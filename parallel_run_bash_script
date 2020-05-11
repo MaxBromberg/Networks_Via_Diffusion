@@ -5,7 +5,7 @@
 output_directory="/home/maqz/Desktop/data/"
 run_index=1
 
-for nodes in {10..200..25}
+for nodes in {10..110..25}
 do
   sub_output_directory="$output_directory/node_num_$nodes"
   mkdir -p "$sub_output_directory"
