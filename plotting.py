@@ -12,7 +12,7 @@ rounding = 3
 
 # edge_weighting_exp: tunes between only y (edge) dependence (at 0) and x (eff_dist) dependence at (at 1)
 
-G = graph.EffDisGraph(num_nodes, eff_dist_and_edge_response=0.5, rate_of_edge_adaptation=6)
+G = graph.EffDisGraph(num_nodes, eff_dist_and_edge_response=0.5, fraction_info_score_redistributed=6)
 # G.sparse_random_edge_init(outgoing_edges_per_node)
 G.uniform_random_edge_init()
 G.run(num_runs, exp_decay_param=1, constant_source_node=1, equilibrium_distance=200, multiple_path=False, verbose=True)

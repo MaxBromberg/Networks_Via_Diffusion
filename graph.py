@@ -10,7 +10,7 @@ random.seed(42)
 class Graph:
     starting_node = None
 
-    def __init__(self, num_nodes, value_per_nugget=1, eff_dist_and_edge_response=None, take_the_best_reward_rate=None, rate_of_edge_adaptation=None, beta=None, gamma=None, q=None):
+    def __init__(self, num_nodes, value_per_nugget=1, eff_dist_and_edge_response=None, take_the_best_reward_rate=None, fraction_info_score_redistributed=None, beta=None, gamma=None, q=None):
         """
         Initialization; the 'extra' dimensionality (i.e. 1 for nodes, A) are there to dynamically store their history
         via use of vstack later on. To minimize variables, many features are activated by specifying their relevant
@@ -25,7 +25,7 @@ class Graph:
         self.q = q  # exp{-gamma*[(sum_j w_ij)-q*N]} => for 0<q(<1) nodes are incentivized to strengthen outgoing edges
         self.eff_dist_and_edge_coupling = eff_dist_and_edge_response  # best between 0, 1, responsiveness to network edges
         self.take_the_best_reward_rate = take_the_best_reward_rate  # change in edge weight in take_the_best
-        self.rate_of_edge_adaptation = rate_of_edge_adaptation  # rescaling of all rewards in reweight_edges_via_info_score
+        self.fraction_infoscore_redistributed = fraction_info_score_redistributed  # rescaling of all rewards in reweight_edges_via_info_score
         self.nodes = np.zeros((1, num_nodes))  # node values (and history of via the first dimension)
         self.A = np.zeros((1, self.num_nodes, self.num_nodes))  # Adjacency matrix (and history of)
         self.starting_node = None  # holds the starting nodes for each run, reset after every run.
@@ -112,6 +112,19 @@ class Graph:
         """
         return [(pow((self.nodes[-1][node_index] / node_sum), (self.eff_dist_and_edge_coupling - 1)) * pow(self.A[-1][node_index][from_node_index], self.eff_dist_and_edge_coupling)) for node_index in range(self.nodes.shape[1])]
 
+    def reweight_info_score(self, info_score, info_score_sum):
+        """
+        Reweights info_score by redistributing ____ fraction of info_score overall reward to the remaining (1-___)
+        fraction of highest info_scores proportional to their respective percentage of total remaining info_score value
+        By default, only redistributes the base info_score_sum value, but through coefficient could be more/less
+        :param info_score_sum: simply passed to avoid recomputing sum, though only more efficient for larger node_numbers
+        """
+        # assert self.fraction_infoscore_redistributed <= 1 & self.fraction_infoscore_redistributed >= 0, 'fraction_infoscore_redistributed must be between 0 and 1'
+        cutoff_val = sorted(info_score)[int(self.fraction_infoscore_redistributed * len(info_score))]
+        reduced_info_score = [val if val > cutoff_val else 0 for val in info_score]
+        reduced_info_score_sum = sum(reduced_info_score)
+        return [info_score_sum * (val / reduced_info_score_sum) for val in reduced_info_score]
+
     def reweight_edges_via_take_the_best(self):
         """
         with y being the edge value and x the connected node's fraction of total node value
@@ -131,10 +144,8 @@ class Graph:
         for from_node in range(0, self.nodes[-1].size):
             info_score = self.evaluate_info_score(from_node, node_sum)
             info_score /= np.sum(info_score)  # Optional info_score normalization. **Should be incompatible with simple positive power in next step, but isn't...
-            info_scores[:, from_node] = np.power(np.array(info_score), self.rate_of_edge_adaptation)
-            # print(f'x values: {np.round([(self.edge_weighting_exp * (self.nodes[-1][i] / node_sum)) for i in range(self.nodes.shape[1])], 3)}')
-            # print(f'y values: {np.round(self.A[-1][:][from_node], 3)}')
-            # if from_node == self.nodes[-1].size - 1: print('')
+            # info_scores[:, from_node] = np.power(np.array(info_score), self.fraction_infoscore_redistributed)
+            info_scores[:, from_node] = self.reweight_info_score(info_score, 1)  # replace 1 with sum(info_score) if not normalized
         # print(np.round(info_scores, 3), '\n')
         self.A[-1] += info_scores
 
@@ -148,7 +159,7 @@ class Graph:
         """
         if self.take_the_best_reward_rate:
             self.reweight_edges_via_take_the_best()
-        elif self.rate_of_edge_adaptation:
+        elif self.fraction_infoscore_redistributed:
             self.reweight_edges_via_info_score()
         elif self.gamma:
             self.reweight_edges_with_clustering()
@@ -202,7 +213,7 @@ class Graph:
 
 class EffDisGraph(Graph):
 
-    def __init__(self, num_nodes, value_per_nugget=1, eff_dist_and_edge_response=1, take_the_best_reward_rate=None, rate_of_edge_adaptation=None, beta=None, gamma=None, q=None):
+    def __init__(self, num_nodes, value_per_nugget=1, eff_dist_and_edge_response=1, take_the_best_reward_rate=None, fraction_info_score_redistributed=None, beta=None, gamma=None, q=None):
         """
         Here initialization seems unnecessary to be independent of the graph superclass, but may yet be useful in future applications.
         Presently defaults to take_the_best
@@ -213,13 +224,13 @@ class EffDisGraph(Graph):
         Suggested range (0,1]
         :param take_the_best_reward_rate: Determines if take_the_best is used, and the amount added each node's best edge.
         Suggested range is around 0.01.
-        :param rate_of_edge_adaptation: Determines if reweight_edges_via_info_score is used, rate of adaptation.
+        :param fraction_info_score_redistributed: Determines if reweight_edges_via_info_score is used, rate of adaptation.
         Suggested range > 1.
         :param beta: Determines if info is seeded by diversity of connexions, how much (exponential factor, \in (0,1) )
         :param gamma: Determines if edges are reweighed with a tendency to cluster
         :param q: Determines the fraction of the nodes each edge is incentivized to connect to.
         """
-        super().__init__(num_nodes, value_per_nugget, eff_dist_and_edge_response, take_the_best_reward_rate, rate_of_edge_adaptation, beta, gamma, q)
+        super().__init__(num_nodes, value_per_nugget, eff_dist_and_edge_response, take_the_best_reward_rate, fraction_info_score_redistributed, beta, gamma, q)
 
     def evaluate_effective_distances(self, source, source_reward, multiple_path_eff_dist, parameter=1, timestep=-1, rounding=3):
         """
@@ -299,8 +310,8 @@ class EffDisGraph(Graph):
                 print(f'The (analytic) Random Walker Effective Distance (RWED) was used, with an exp_decay_param of {exp_decay_param}.')
 
             print('Edge Update algorithm:')
-            if self.rate_of_edge_adaptation:
-                print(f'Reweight_edges_via_info_score algorithm, with {self.rate_of_edge_adaptation} as the exponential scaling/rate of edge adaptation')
+            if self.fraction_infoscore_redistributed:
+                print(f'Reweight_edges_via_info_score algorithm, with {self.fraction_infoscore_redistributed} as the exponential scaling/rate of edge adaptation')
             elif self.take_the_best_reward_rate:
                 print(f'Take the best edge reweighing algorithm, with {self.take_the_best_reward_rate} reward rate')
             elif self.gamma:
