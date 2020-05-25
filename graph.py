@@ -3,6 +3,7 @@ import random
 import utility_funcs
 import networkx as nx
 import effective_distance as ed
+import multiprocessing as mp
 np.random.seed(42)
 random.seed(42)
 
@@ -10,7 +11,7 @@ random.seed(42)
 class Graph:
     starting_node = None
 
-    def __init__(self, num_nodes, value_per_nugget=1, eff_dist_and_edge_response=None, take_the_best_reward_rate=None, fraction_info_score_redistributed=None, beta=None, gamma=None, q=None):
+    def __init__(self, num_nodes, value_per_nugget=1, eff_dist_and_edge_response=None, fraction_info_score_redistributed=None, beta=None, gamma=None, q=None, reinforcement_infoscore_coupling=True):
         """
         Initialization; the 'extra' dimensionality (i.e. 1 for nodes, A) are there to dynamically store their history
         via use of vstack later on. To minimize variables, many features are activated by specifying their relevant
@@ -23,14 +24,15 @@ class Graph:
         self.gamma = gamma  # Determines punishment for connecting to the same node, as default strategy for both
         # random and diverse connection weighted seeding would otherwise be to connect all nodes to one other
         self.q = q  # exp{-gamma*[(sum_j w_ij)-q*N]} => for 0<q(<1) nodes are incentivized to strengthen outgoing edges
-        self.eff_dist_and_edge_coupling = eff_dist_and_edge_response  # best between 0, 1, responsiveness to network edges
-        self.take_the_best_reward_rate = take_the_best_reward_rate  # change in edge weight in take_the_best
+        self.eff_dist_and_edge_coupling = eff_dist_and_edge_response  # tunes info score based on between 0 (pure eff. dist. dependence) and 1 (pure edge dependence)
         self.fraction_infoscore_redistributed = fraction_info_score_redistributed  # rescaling of all rewards in reweight_edges_via_info_score
         self.nodes = np.zeros((1, num_nodes))  # node values (and history of via the first dimension)
         self.A = np.zeros((1, self.num_nodes, self.num_nodes))  # Adjacency matrix (and history of)
         self.starting_node = None  # holds the starting nodes for each run, reset after every run.
         self.source_node_history = []
         self.eff_dist_history = []
+
+        self.reinforcement_infoscore_coupling = reinforcement_infoscore_coupling
 
     def sparse_random_edge_init(self, nonzero_edges_per_node=1):
         """
@@ -118,25 +120,20 @@ class Graph:
         fraction of highest info_scores proportional to their respective percentage of total remaining info_score value
         By default, only redistributes the base info_score_sum value, but through coefficient could be more/less
         :param info_score_sum: simply passed to avoid recomputing sum, though only more efficient for larger node_numbers
+        :param decoupled: if true, decouples edge value and reinforcement of edge value. (edge value only effects infoscore, and thus which edges are reinforced, not how much.)
         """
-        # assert self.fraction_infoscore_redistributed <= 1 & self.fraction_infoscore_redistributed >= 0, 'fraction_infoscore_redistributed must be between 0 and 1'
-        cutoff_val = sorted(info_score)[int(self.fraction_infoscore_redistributed * len(info_score))]
-        reduced_info_score = [val if val > cutoff_val else 0 for val in info_score]
+        if self.fraction_infoscore_redistributed == 1:
+            cutoff_val = sorted(info_score)[-1]
+        else:
+            cutoff_val = sorted(info_score)[int(self.fraction_infoscore_redistributed * len(info_score))]
+
+        if self.reinforcement_infoscore_coupling:
+            reduced_info_score = [val if val >= cutoff_val else 0 for val in info_score]
+        else:
+            reduced_info_score = [1 if val >= cutoff_val else 0 for val in info_score]
+
         reduced_info_score_sum = sum(reduced_info_score)
         return [info_score_sum * (val / reduced_info_score_sum) for val in reduced_info_score]
-
-    def reweight_edges_via_take_the_best(self):
-        """
-        with y being the edge value and x the connected node's fraction of total node value
-        """
-        max_info_score_indices = [self.nodes.shape[1] for i in range(self.nodes.shape[1])]
-        node_sum = self.nodes[-1].sum()
-        for from_node in range(0, self.nodes[-1].size):
-            info_score = self.evaluate_info_score(from_node, node_sum)
-            max_info_score_indices[from_node] = info_score.index(max(info_score))
-        # Update must come after all info_scores are evaluated so as not to interfer with itself
-        for i in range(0, len(max_info_score_indices)):
-            self.A[-1][max_info_score_indices[i]][i] += self.take_the_best_reward_rate
 
     def reweight_edges_via_info_score(self):
         info_scores = np.zeros(self.A[-1].shape)
@@ -157,9 +154,7 @@ class Graph:
         The normalization (along incoming edges) is where the conservation of edge weight applies,
          negatively effecting those not reinforced.
         """
-        if self.take_the_best_reward_rate:
-            self.reweight_edges_via_take_the_best()
-        elif self.fraction_infoscore_redistributed:
+        if self.fraction_infoscore_redistributed:
             self.reweight_edges_via_info_score()
         elif self.gamma:
             self.reweight_edges_with_clustering()
@@ -193,7 +188,7 @@ class Graph:
         if path is None:
             path = f"graph_at_{timestep}.graphml"
         nx_G = nx.to_directed(nx.from_numpy_matrix(np.array(self.A[timestep]), create_using=nx.DiGraph))
-        nx.write_graphml(nx_G, path)
+        nx.write_graphml(nx_G, f'{path}.graphml')
 
     def convert_to_nx_graph(self, timestep=-1):
         return nx.to_directed(nx.from_numpy_matrix(np.array(self.A[timestep]), create_using=nx.DiGraph))
@@ -213,7 +208,7 @@ class Graph:
 
 class EffDisGraph(Graph):
 
-    def __init__(self, num_nodes, value_per_nugget=1, eff_dist_and_edge_response=1, take_the_best_reward_rate=None, fraction_info_score_redistributed=None, beta=None, gamma=None, q=None):
+    def __init__(self, num_nodes, value_per_nugget=1, eff_dist_and_edge_response=1, fraction_info_score_redistributed=None, beta=None, gamma=None, q=None, reinforcement_infoscore_coupling=True):
         """
         Here initialization seems unnecessary to be independent of the graph superclass, but may yet be useful in future applications.
         Presently defaults to take_the_best
@@ -230,7 +225,7 @@ class EffDisGraph(Graph):
         :param gamma: Determines if edges are reweighed with a tendency to cluster
         :param q: Determines the fraction of the nodes each edge is incentivized to connect to.
         """
-        super().__init__(num_nodes, value_per_nugget, eff_dist_and_edge_response, take_the_best_reward_rate, fraction_info_score_redistributed, beta, gamma, q)
+        super().__init__(num_nodes, value_per_nugget, eff_dist_and_edge_response, fraction_info_score_redistributed, beta, gamma, q, reinforcement_infoscore_coupling=reinforcement_infoscore_coupling)
 
     def evaluate_effective_distances(self, source, source_reward, multiple_path_eff_dist, parameter=1, timestep=-1, rounding=3):
         """
@@ -266,7 +261,7 @@ class EffDisGraph(Graph):
         eff_dists = np.array(self.evaluate_effective_distances(self.starting_node, parameter=exp_decay_param, source_reward=source_reward, multiple_path_eff_dist=multiple_path))
         self.nodes[-1] = eff_dists
 
-    def seed_info_conditional(self, constant_source_node, num_shifts_of_source_node, index):
+    def seed_info_conditional(self, constant_source_node, num_shifts_of_source_node, num_runs, index):
         if self.beta:
             self.seed_info_by_diversity_of_connections()
         elif isinstance(constant_source_node, bool) & constant_source_node:
@@ -275,7 +270,7 @@ class EffDisGraph(Graph):
             self.seed_info_random()
         elif num_shifts_of_source_node:
             assert num_shifts_of_source_node < self.num_nodes, "More changes to constant source node than number of nodes. Set constant_source_node to false to activate continues random seeding"
-            if (index % num_shifts_of_source_node) == 0:
+            if (index % int((num_runs / num_shifts_of_source_node))) == 0:
                 self.seed_info_constant_source(random.choice(list(set(range(len(self.nodes[-1]))) - set(self.source_node_history))))
         else:
             self.seed_info_constant_source(constant_source_node)
@@ -323,7 +318,7 @@ class EffDisGraph(Graph):
         self.A = np.vstack((self.A, [self.A[-1]]))  # so that initial values (before initial update) are preserved
         equilibrium_span = 1  # if a greater range of values between equilibrium distance ought be compared
         for i in range(0, num_runs):
-            self.seed_info_conditional(constant_source_node, num_shifts_of_source_node, i)
+            self.seed_info_conditional(constant_source_node, num_shifts_of_source_node, num_runs=num_runs, index=i)
             self.set_node_values_as_eff_dists(exp_decay_param, source_reward, multiple_path)
             if i % update_interval == 0:
                 self.update_edges()

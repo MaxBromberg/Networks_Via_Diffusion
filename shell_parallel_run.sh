@@ -2,14 +2,14 @@
 
 # define ranges of nodes / couple_vals / adapt_vals lines {start..end..interval}
 
-output_directory="/home/maqz/Desktop/data/"
+output_directory="/home/maqz/Desktop/data/infoscore_reinforcement_decoupled/"
 run_index=1
 
-for nodes in {10..85..15}
+for nodes in {50..51..15}  # deliberately out of bounds for single run
 do
   sub_output_directory="$output_directory/node_num_$nodes"
   mkdir -p "$sub_output_directory"
-  for couple_val in 0.{0..95..5}
+  for couple_val in 0.{0..9..1}
   do
 	  for adapt_val in 0.{0..9..1}
 	  do

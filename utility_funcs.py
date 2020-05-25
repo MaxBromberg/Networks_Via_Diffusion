@@ -1,4 +1,5 @@
 import numpy as np
+import itertools, collections
 
 rounding = 3
 
@@ -30,6 +31,10 @@ def print_run_percentage(index, runs, fraction_intervals=10):
         print(f"Too few runs, set verbose to False (num runs [{runs}] must be divisible by [{fraction_intervals}])")
     elif int(index % runs) % int(runs / fraction_intervals) == 0:
         print(f'{(index / runs) * 100:.1f}%-ish done')
+
+
+def consume(iterator, n):
+    collections.deque(itertools.islice(iterator, n))
 
 
 # just for debugging

@@ -3,6 +3,7 @@ from matplotlib import pyplot as plt
 from matplotlib import cm
 from mpl_toolkits.mplot3d import Axes3D
 import networkx as nx  # Used for network plots
+import multiprocessing as mp
 
 import pickle  # used to save data (as class object)
 import imageio  # Used for making gifs of the network plots
@@ -535,9 +536,11 @@ def plot_heatmap(TwoD_data, x_range=None, y_range=None, normalize=False, title=N
         data = TwoD_data
     if x_range.any(): plt.xticks(x_range)
     if y_range.any(): plt.yticks(y_range)
-    plt.imshow(data, cmap='viridis', extent=[x_range[0], x_range[-1], y_range[0], y_range[-1]], aspect='auto')
+    x_interval = (x_range[2]-x_range[1])
+    y_interval = (y_range[2]-y_range[1])
+    plt.imshow(data, cmap='viridis', extent=[x_range[0], x_range[-1]+x_interval, y_range[0], y_range[-1]+y_interval], aspect='auto')
     plt.colorbar()
-    plt.xlabel('Adaptation')
+    plt.xlabel('Skew')
     plt.ylabel('Coupling')
     if title:
         plt.savefig(f'{title}.png')
@@ -571,11 +574,11 @@ def open_figure(path, filename):
     plt.show()
 
 
-def three_d_plot_from_data(path_to_data_dir, coupling_range, adaptation_range, normalized=False, output_dir=None):
+def three_d_plot_from_data(path_to_data_dir, coupling_range, skew_range, normalized=False, output_dir=None):
     if output_dir is None:
         output_dir = path_to_data_dir
-    eff_dists_all_nodes = np.zeros((1, coupling_range.size, adaptation_range.size))
-    ave_nbr_var_all_nodes = np.zeros((1, coupling_range.size, adaptation_range.size))
+    eff_dists_all_nodes = np.zeros((1, coupling_range.size, skew_range.size))
+    ave_nbr_var_all_nodes = np.zeros((1, coupling_range.size, skew_range.size))
     eff_dist_diffs_flattened = []
     ave_nbr_var_flattened = []
     node_nums = []
@@ -596,8 +599,8 @@ def three_d_plot_from_data(path_to_data_dir, coupling_range, adaptation_range, n
                 last_ave_nbr_deg = list(nx.average_neighbor_degree(G.convert_to_nx_graph(timestep=-1), source='in', target='in', weight='weight').values())
                 ave_nbr_var_flattened.append(np.array(last_ave_nbr_deg).var())
                 eff_dist_diffs_flattened.append(G.eff_dist_diff(multiple_path_eff_dist=False))  # Compares first and last eff_dist values
-        eff_dists_all_nodes = np.vstack((eff_dists_all_nodes, [np.array(eff_dist_diffs_flattened).reshape(coupling_range.size, adaptation_range.size)]))
-        ave_nbr_var_all_nodes = np.vstack((ave_nbr_var_all_nodes, [np.array(ave_nbr_var_flattened).reshape(coupling_range.size, adaptation_range.size)]))
+        eff_dists_all_nodes = np.vstack((eff_dists_all_nodes, [np.array(eff_dist_diffs_flattened).reshape(coupling_range.size, skew_range.size)]))
+        ave_nbr_var_all_nodes = np.vstack((ave_nbr_var_all_nodes, [np.array(ave_nbr_var_flattened).reshape(coupling_range.size, skew_range.size)]))
         eff_dist_diffs_flattened = []
         ave_nbr_var_flattened = []
 
@@ -607,11 +610,11 @@ def three_d_plot_from_data(path_to_data_dir, coupling_range, adaptation_range, n
         eff_dists_all_nodes /= np.amax(eff_dists_all_nodes)
         ave_nbr_var_all_nodes /= np.amax(ave_nbr_var_all_nodes)
 
-    plot_3d_data(eff_dists_all_nodes, x_range=coupling_range, y_range=adaptation_range, z_range=np.array(node_nums), raw_fig_title=Path(output_dir, "Eff_dist_diff_Grid_Search"))
-    plot_3d_data(ave_nbr_var_all_nodes, x_range=coupling_range, y_range=adaptation_range, z_range=np.array(node_nums), raw_fig_title=Path(output_dir, "Ave_nbr_var_Grid_Search"))
+    plot_3d_data(eff_dists_all_nodes, x_range=coupling_range, y_range=skew_range, z_range=np.array(node_nums), raw_fig_title=Path(output_dir, "Eff_dist_diff_Grid_Search"))
+    plot_3d_data(ave_nbr_var_all_nodes, x_range=coupling_range, y_range=skew_range, z_range=np.array(node_nums), raw_fig_title=Path(output_dir, "Ave_nbr_var_Grid_Search"))
 
 
-def heatmaps_from_data(path_to_data_dir, coupling_range, adaptation_range, output_dir=None, normalize=False):
+def heatmaps_from_data(path_to_data_dir, coupling_range, skew_range, output_dir=None, normalize=False):
     if output_dir is None:
         output_dir = path_to_data_dir
     f = []
@@ -628,12 +631,12 @@ def heatmaps_from_data(path_to_data_dir, coupling_range, adaptation_range, outpu
             eff_dist_diffs_flattened.append(G.eff_dist_diff(multiple_path_eff_dist=False))  # Compares first and last eff_dist values
             ave_neighbor_diffs_flattened.append((lambda x: max(x) - min(x))(last_ave_nbr_deg))
             ave_nbr_var_flattened.append(np.array(last_ave_nbr_deg).var())
-    plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(coupling_range.size, adaptation_range.size), title=Path(output_dir, f'eff_dist_histogram'), x_range=adaptation_range, y_range=coupling_range, normalize=normalize)
-    plot_heatmap(np.array(ave_neighbor_diffs_flattened).reshape(coupling_range.size, adaptation_range.size), title=Path(output_dir, f'ave_neighbor_diff_histogram'), x_range=adaptation_range, y_range=coupling_range, normalize=normalize)
-    plot_heatmap(np.array(ave_nbr_var_flattened).reshape(coupling_range.size, adaptation_range.size), title=Path(output_dir, f'ave_neighbor_var_histogram'), x_range=adaptation_range, y_range=coupling_range, normalize=normalize)
+    plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(coupling_range.size, skew_range.size), title=Path(output_dir, f'eff_dist_histogram'), x_range=skew_range, y_range=coupling_range, normalize=normalize)
+    plot_heatmap(np.array(ave_neighbor_diffs_flattened).reshape(coupling_range.size, skew_range.size), title=Path(output_dir, f'ave_neighbor_diff_histogram'), x_range=skew_range, y_range=coupling_range, normalize=normalize)
+    plot_heatmap(np.array(ave_nbr_var_flattened).reshape(coupling_range.size, skew_range.size), title=Path(output_dir, f'ave_neighbor_var_histogram'), x_range=skew_range, y_range=coupling_range, normalize=normalize)
 
 
-def data_only_grid_search(num_nodes, num_runs, exp_decay_param, coupling_range, coupling_interval, adaptation_range, adaptation_interval, num_shifts_of_source_node=False, parent_directory=None, directory_name='grid_search', verbose=False):
+def data_only_grid_search(num_nodes, num_runs, exp_decay_param, coupling_range, coupling_interval, skew_range, skew_interval, num_shifts_of_source_node=False, parent_directory=None, directory_name='grid_search', verbose=False):
     if parent_directory is None:
         source_directory = os.path.dirname(__file__)
     else:
@@ -648,18 +651,18 @@ def data_only_grid_search(num_nodes, num_runs, exp_decay_param, coupling_range, 
         pass
 
     if verbose:
-        print(f'Beginning grid search, Num_nodes: {num_nodes}, num_rums: {num_runs}, responsiveness, adaptation_rate ranges {coupling_range, adaptation_range} and intervals {coupling_interval, adaptation_interval}')
+        print(f'Beginning grid search, Num_nodes: {num_nodes}, num_rums: {num_runs}, responsiveness, adaptation_rate ranges {coupling_range, skew_range} and intervals {coupling_interval, skew_interval}')
     full_coupling_range = np.arange(coupling_range[0], coupling_range[1], coupling_interval)
-    rate_of_adaptation_range = np.arange(adaptation_range[0], adaptation_range[1], adaptation_interval)
+    rate_of_skew_range = np.arange(skew_range[0], skew_range[1], skew_interval)
     run_counter = 0
 
     eff_dist_diffs_flattened = []
     ave_neighbor_diffs_flattened = []
     ave_nbr_var_flattened = []
     for coupling_val in full_coupling_range:
-        for adaption_value in rate_of_adaptation_range:
+        for skew_value in rate_of_skew_range:
             numbered_graph_path = Path(graphs_path, f'{run_counter+1:04}_graph_obj.pkl')
-            G = g.EffDisGraph(num_nodes=num_nodes, eff_dist_and_edge_response=coupling_val, fraction_info_score_redistributed=adaption_value)
+            G = g.EffDisGraph(num_nodes=num_nodes, eff_dist_and_edge_response=coupling_val, fraction_info_score_redistributed=skew_value)
             G.uniform_random_edge_init()
             G.run(num_runs=num_runs, exp_decay_param=exp_decay_param, num_shifts_of_source_node=num_shifts_of_source_node, constant_source_node=2, equilibrium_distance=200, multiple_path=False)
             save_object(G, numbered_graph_path)
@@ -669,14 +672,14 @@ def data_only_grid_search(num_nodes, num_runs, exp_decay_param, coupling_range, 
             ave_nbr_var_flattened.append(np.array(last_ave_nbr_deg).var())
             run_counter += 1
             if verbose:
-                print(f'Run with responsiveness value {np.round(coupling_val, 2)}, rate_of_edge_adaptation: {np.round(adaption_value, 2)} complete. (#{run_counter} of {full_coupling_range.shape[0]*rate_of_adaptation_range.shape[0]})')
+                print(f'Run with responsiveness value {np.round(coupling_val, 2)}, rate_of_edge_adaptation: {np.round(skew_value, 2)} complete. (#{run_counter} of {full_coupling_range.shape[0]*rate_of_skew_range.shape[0]})')
 
-    plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(full_coupling_range.shape[0], rate_of_adaptation_range.shape[0]), title=Path(grid_search_dir, f'eff_dist_histogram'), x_range=rate_of_adaptation_range, y_range=full_coupling_range, normalize=True)
-    plot_heatmap(np.array(ave_neighbor_diffs_flattened).reshape(full_coupling_range.shape[0], rate_of_adaptation_range.shape[0]), title=Path(grid_search_dir, f'ave_neighbor_diff_histogram'), x_range=rate_of_adaptation_range, y_range=full_coupling_range, normalize=True)
-    plot_heatmap(np.array(ave_nbr_var_flattened).reshape(full_coupling_range.shape[0], rate_of_adaptation_range.shape[0]), title=Path(grid_search_dir, f'ave_neighbor_var_histogram'), x_range=rate_of_adaptation_range, y_range=full_coupling_range, normalize=True)
+    plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(full_coupling_range.shape[0], rate_of_skew_range.shape[0]), title=Path(grid_search_dir, f'eff_dist_histogram'), x_range=rate_of_skew_range, y_range=full_coupling_range, normalize=True)
+    plot_heatmap(np.array(ave_neighbor_diffs_flattened).reshape(full_coupling_range.shape[0], rate_of_skew_range.shape[0]), title=Path(grid_search_dir, f'ave_neighbor_diff_histogram'), x_range=rate_of_skew_range, y_range=full_coupling_range, normalize=True)
+    plot_heatmap(np.array(ave_nbr_var_flattened).reshape(full_coupling_range.shape[0], rate_of_skew_range.shape[0]), title=Path(grid_search_dir, f'ave_neighbor_var_histogram'), x_range=rate_of_skew_range, y_range=full_coupling_range, normalize=True)
 
 
-def grid_search(num_nodes, num_runs, exp_decay_param, coupling_range, coupling_interval, adaptation_range, adaptation_interval, num_shifts_of_source_node=False, parent_directory=None, directory_name='grid_search',
+def grid_search(num_nodes, num_runs, exp_decay_param, coupling_range, coupling_interval, skew_range, skew_interval, num_shifts_of_source_node=False, parent_directory=None, directory_name='grid_search',
                 node_values=False,
                 eff_dists=True,
                 network_evolution_graphs=True,
@@ -711,9 +714,9 @@ def grid_search(num_nodes, num_runs, exp_decay_param, coupling_range, coupling_i
         pass
 
     if verbose:
-        print(f'Beginning grid search, Num_nodes: {num_nodes}, num_rums: {num_runs}, responsiveness, adaptation_rate ranges {coupling_range, adaptation_range} and intervals {coupling_interval, adaptation_interval}')
+        print(f'Beginning grid search, Num_nodes: {num_nodes}, num_rums: {num_runs}, coupling, skew ranges {coupling_range, skew_range} and intervals {coupling_interval, skew_interval}')
     full_coupling_range = np.arange(coupling_range[0], coupling_range[1], coupling_interval)
-    rate_of_adaptation_range = np.arange(adaptation_range[0], adaptation_range[1], adaptation_interval)
+    rate_of_adaptation_range = np.arange(skew_range[0], skew_range[1], skew_interval)
     run_counter = 0
 
     eff_dist_diffs_flattened = []
@@ -728,13 +731,13 @@ def grid_search(num_nodes, num_runs, exp_decay_param, coupling_range, coupling_i
             save_object(G, numbered_graph_path)
             if node_values:
                 plot_node_values(G, node='all', show=False, save_fig=False,
-                                 title=Path(node_path, f'{run_counter:03}_node_values_for_responsiveness_{np.round(coupling_val, 2)}_adaption_exp_{np.round(adaption_value, 2)}'))
+                                 title=Path(node_path, f'{run_counter:03}_node_values_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))
             if eff_dists:
                 plot_global_eff_dist(G, show=False, save_fig=False,
-                                 title=Path(eff_dist_path, f'{run_counter:03}_eff_dist_for_responsiveness_{np.round(coupling_val, 2)}_adaption_exp_{np.round(adaption_value, 2)}'))
+                                 title=Path(eff_dist_path, f'{run_counter:03}_eff_dist_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))
             if network_evolution_graphs:
                 plot_network(G, nodes_sized_by_eff_distance=True, show=False, save_fig=False,
-                         title=Path(graph_path, f'{run_counter:03}_graph_for_responsiveness_{np.round(coupling_val, 2)}_adaption_exp_{np.round(adaption_value, 2)}'))
+                         title=Path(graph_path, f'{run_counter:03}_graph_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))
             if cluster_coefficients or ave_neighbor_plots:
                 nx_graphs = G.convert_history_to_list_of_nx_graphs()
                 last_ave_nbr_deg = list(
@@ -746,33 +749,33 @@ def grid_search(num_nodes, num_runs, exp_decay_param, coupling_range, coupling_i
                 ave_nbr_var_flattened.append(np.array(last_ave_nbr_deg).var())
                 if ave_neighbor_plots:
                     plot_ave_neighbor_degree(nx_graphs, target='in', source='in', show=False, save_fig=False,
-                                             title=Path(neighbor_path, f'{run_counter:03}_neighbor_plot_for_responsiveness_{np.round(coupling_val, 2)}_adaption_exp_{np.round(adaption_value, 2)}'))
+                                             title=Path(neighbor_path, f'{run_counter:03}_neighbor_plot_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))
                 if cluster_coefficients:
                     plot_clustering_coefficients(nx_graphs, show=False, save_fig=False,
-                                                 title=Path(cluster_coeff_path, f'{run_counter:03}_cluster_coeffs_plot_for_responsiveness_{np.round(coupling_val, 2)}_adaption_exp_{np.round(adaption_value, 2)}'))
+                                                 title=Path(cluster_coeff_path, f'{run_counter:03}_cluster_coeffs_plot_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))
                 if shortest_paths:
                     plot_shortest_path_length(nx_graphs, show=False, save_fig=False,
-                             title=Path(shortest_paths_path, f'{run_counter:03}_shortest_path_plot_for_responsiveness_{np.round(coupling_val, 2)}_adaption_exp_{np.round(adaption_value, 2)}'))
+                             title=Path(shortest_paths_path, f'{run_counter:03}_shortest_path_plot_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))
             run_counter += 1
             if verbose:
-                print(f'Run with responsiveness value {np.round(coupling_val, 2)}, rate_of_edge_adaptation: {np.round(adaption_value, 2)} complete. (#{run_counter} of {full_coupling_range.shape[0]*rate_of_adaptation_range.shape[0]})')
+                print(f'Run with coupling value {np.round(coupling_val, 2)}, edge reinforcement skew: {np.round(adaption_value, 2)} complete. (#{run_counter} of {full_coupling_range.shape[0]*rate_of_adaptation_range.shape[0]})')
 
     plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(full_coupling_range.shape[0], rate_of_adaptation_range.shape[0]), title=Path(grid_search_dir, f'eff_dist_histogram'), x_range=rate_of_adaptation_range, y_range=full_coupling_range, normalize=True)
     plot_heatmap(np.array(ave_neighbor_diffs_flattened).reshape(full_coupling_range.shape[0], rate_of_adaptation_range.shape[0]), title=Path(grid_search_dir, f'ave_neighbor_diff_histogram'), x_range=rate_of_adaptation_range, y_range=full_coupling_range, normalize=True)
     plot_heatmap(np.array(ave_nbr_var_flattened).reshape(full_coupling_range.shape[0], rate_of_adaptation_range.shape[0]), title=Path(grid_search_dir, f'ave_neighbor_var_histogram'), x_range=rate_of_adaptation_range, y_range=full_coupling_range, normalize=True)
 
 
-def all_plots_from_data(path_to_data_dir, coupling_range, adaptation_range, output_dir=None):
+def all_plots_from_data(path_to_data_dir, coupling_range, skew_range, output_dir=None):
     if output_dir is None:
         output_dir = path_to_data_dir
 
     sub_dirs = sorted([dirs[0] for dirs in os.walk(path_to_data_dir) if dirs[0] != str(path_to_data_dir)])
     for sub_dir in sub_dirs:
         node_nums = int(str(str(sub_dir).split('/')[-1]).split('_')[-1])
-        twoD_grid_search_plots(Path(sub_dir), coupling_range, adaptation_range, num_nodes=node_nums, output_dir=output_dir)
+        twoD_grid_search_plots(Path(sub_dir), coupling_range, skew_range, num_nodes=node_nums, output_dir=output_dir)
 
 
-def twoD_grid_search_plots(path_to_data_dir, coupling_range, adaptation_range, num_nodes, ave_nbr=False, cluster_coeff=False, shortest_path=False, output_dir=None):
+def twoD_grid_search_plots(path_to_data_dir, coupling_range, skew_range, num_nodes, ave_nbr=False, cluster_coeff=False, shortest_path=False, output_dir=None):
     # Creates all plots for a given dataset (sub)directory, and puts the results in new appropriately named subdirectories
     if output_dir is None:
         output_dir = path_to_data_dir
@@ -801,33 +804,33 @@ def twoD_grid_search_plots(path_to_data_dir, coupling_range, adaptation_range, n
     ave_nbr_var_flattened = []
     for root, dirs, files in os.walk(path_to_data_dir):
         f = sorted(files)  # Order preserved due to 0 padding.
-    assert len(f) == coupling_range.size * adaptation_range.size, f"Not as many files as parameter combinations: \n num_files: {len(f)}, coupling_range.size * adaptation_range.size {coupling_range.size * adaptation_range.size}"
+    assert len(f) == coupling_range.size * skew_range.size, f"Not as many files as parameter combinations: \n num_files: {len(f)}, coupling_range.size * adaptation_range.size {coupling_range.size * skew_range.size}"
     for coupling_val in coupling_range:
-        for adaption_value in adaptation_range:
+        for adaption_value in skew_range:
             with open(Path(path_to_data_dir, f[run_counter]), 'rb') as input:
                 G = pickle.load(input)
                 input.close()
             plot_node_values(G, node='all', show=False, save_fig=False,
-                             title=Path(node_path, f'{run_counter:03}_node_values_for_responsiveness_{np.round(coupling_val, 2)}_adaption_exp_{np.round(adaption_value, 2)}'))
+                             title=Path(node_path, f'{run_counter:03}_node_values_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))
             plot_global_eff_dist(G, show=False, save_fig=False,
-                                 title=Path(eff_dist_path, f'{run_counter:03}_eff_dist_for_responsiveness_{np.round(coupling_val, 2)}_adaption_exp_{np.round(adaption_value, 2)}'))
+                                 title=Path(eff_dist_path, f'{run_counter:03}_eff_dist_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))
             if num_nodes > 20:  # prints end graphs alone for larger node values.
                 plot_single_network(G, timestep=-1, show=False,
-                                    title=Path(graph_path, f'{run_counter:03}_graph_for_responsiveness_{np.round(coupling_val, 2)}_adaption_exp_{np.round(adaption_value, 2)}'))
+                                    title=Path(graph_path, f'{run_counter:03}_graph_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))
             else:
                 plot_network(G, nodes_sized_by_eff_distance=True, show=False, save_fig=False,
-                             title=Path(graph_path, f'{run_counter:03}_graph_for_responsiveness_{np.round(coupling_val, 2)}_adaption_exp_{np.round(adaption_value, 2)}'))
+                             title=Path(graph_path, f'{run_counter:03}_graph_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))
 
             nx_graphs = G.convert_history_to_list_of_nx_graphs()
             if ave_nbr:
                 plot_ave_neighbor_degree(nx_graphs, target='in', source='in', show=False, save_fig=False,
-                                        title=Path(neighbor_path, f'{run_counter:03}_neighbor_plot_for_responsiveness_{np.round(coupling_val, 2)}_adaption_exp_{np.round(adaption_value, 2)}'))
+                                        title=Path(neighbor_path, f'{run_counter:03}_neighbor_plot_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))
             if cluster_coeff:
                 plot_clustering_coefficients(nx_graphs, show=False, save_fig=False,
-                                             title=Path(cluster_coeff_path, f'{run_counter:03}_cluster_coeffs_plot_for_responsiveness_{np.round(coupling_val, 2)}_adaption_exp_{np.round(adaption_value, 2)}'))
-            if ave_nbr:
+                                             title=Path(cluster_coeff_path, f'{run_counter:03}_cluster_coeffs_plot_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))
+            if shortest_path:
                 plot_shortest_path_length(nx_graphs, show=False, save_fig=False,
-                                          title=Path(shortest_paths_path, f'{run_counter:03}_shortest_path_plot_for_responsiveness_{np.round(coupling_val, 2)}_adaption_exp_{np.round(adaption_value, 2)}'))
+                                          title=Path(shortest_paths_path, f'{run_counter:03}_shortest_path_plot_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))
 
             last_ave_nbr_deg = list(nx.average_neighbor_degree(G.convert_to_nx_graph(timestep=-1), source='in', target='in', weight='weight').values())
             eff_dist_diffs_flattened.append(G.eff_dist_diff(multiple_path_eff_dist=False))  # Compares first and last eff_dist values
@@ -835,7 +838,70 @@ def twoD_grid_search_plots(path_to_data_dir, coupling_range, adaptation_range, n
             ave_nbr_var_flattened.append(np.array(last_ave_nbr_deg).var())
             run_counter += 1  # Also serves as file index
 
-    plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(coupling_range.size, adaptation_range.size), title=Path(grid_search_plots_dir, f'eff_dist_histogram'), x_range=adaptation_range, y_range=coupling_range, normalize=True)
-    plot_heatmap(np.array(ave_neighbor_diffs_flattened).reshape(coupling_range.size, adaptation_range.size), title=Path(grid_search_plots_dir, f'ave_neighbor_diff_histogram'), x_range=adaptation_range, y_range=coupling_range, normalize=True)
-    plot_heatmap(np.array(ave_nbr_var_flattened).reshape(coupling_range.size, adaptation_range.size), title=Path(grid_search_plots_dir, f'ave_neighbor_var_histogram'), x_range=adaptation_range, y_range=coupling_range, normalize=True)
+    plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(coupling_range.size, skew_range.size), title=Path(grid_search_plots_dir, f'eff_dist_histogram'), x_range=skew_range, y_range=coupling_range, normalize=True)
+    plot_heatmap(np.array(ave_neighbor_diffs_flattened).reshape(coupling_range.size, skew_range.size), title=Path(grid_search_plots_dir, f'ave_neighbor_diff_histogram'), x_range=skew_range, y_range=coupling_range, normalize=True)
+    plot_heatmap(np.array(ave_nbr_var_flattened).reshape(coupling_range.size, skew_range.size), title=Path(grid_search_plots_dir, f'ave_neighbor_var_histogram'), x_range=skew_range, y_range=coupling_range, normalize=True)
 
+
+def parallelized_twoD_grid_search_plots(path_to_data_dir, coupling_range, skew_range, num_nodes, ave_nbr=False, cluster_coeff=False, shortest_path=False, output_dir=None):
+    # Creates all plots for a given dataset (sub)directory, and puts the results in new appropriately named subdirectories
+    if output_dir is None:
+        output_dir = path_to_data_dir
+    grid_search_plots_dir = Path(output_dir, f'plots_for_{num_nodes}_nodes')
+    node_path = Path(grid_search_plots_dir, 'node_plots')
+    eff_dist_path = Path(grid_search_plots_dir, 'eff_dist_plots')
+    graph_path = Path(grid_search_plots_dir, 'network_graphs')
+    if ave_nbr: neighbor_path = Path(grid_search_plots_dir, 'ave_neighbor_plots')
+    if cluster_coeff: cluster_coeff_path = Path(grid_search_plots_dir, 'cluster_coefficients_plots')
+    if shortest_path: shortest_paths_path = Path(grid_search_plots_dir, 'shortest_paths_plots')
+    try:
+        os.mkdir(grid_search_plots_dir), f'Created folder for grid search results at {grid_search_plots_dir}'
+        os.mkdir(node_path), f'Created folder for node plots at {node_path}'
+        os.mkdir(eff_dist_path), f'Created folder for eff dist plots at {eff_dist_path}'
+        os.mkdir(graph_path), f'Created folder for graphs at {graph_path}'
+        if ave_nbr: os.mkdir(neighbor_path), f'Created folder for graphs at {neighbor_path}'
+        if cluster_coeff: os.mkdir(cluster_coeff_path), f'Created folder for graphs at {cluster_coeff_path}'
+        if shortest_path: os.mkdir(shortest_paths_path), f'Created folder for graphs at {shortest_paths_path}'
+    except OSError:
+        print(f'{grid_search_plots_dir} already exists, adding or overwriting contents')
+        pass
+
+    run_counter = 0
+    f = []
+    eff_dist_diffs_flattened = []
+    ave_neighbor_diffs_flattened = []
+    ave_nbr_var_flattened = []
+    for root, dirs, files in os.walk(path_to_data_dir):
+        f = sorted(files)  # Order preserved due to 0 padding.
+    assert len(f) == coupling_range.size * skew_range.size, f"Not as many files as parameter combinations: \n num_files: {len(f)}, coupling_range.size * adaptation_range.size {coupling_range.size * skew_range.size}"
+    for coupling_val in coupling_range:
+        for adaption_value in skew_range:
+            with open(Path(path_to_data_dir, f[run_counter]), 'rb') as input:
+                G = pickle.load(input)
+                input.close()
+
+            # all args must be given for Process runs.
+            mp.Process(target=plot_node_values, args=(G, 'all', False, False, Path(node_path, f'{run_counter:03}_node_values_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))).start()
+            mp.Process(target=plot_global_eff_dist, args=(G, False, False, False, False, Path(eff_dist_path, f'{run_counter:03}_eff_dist_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))).start()
+            if num_nodes > 20:  # prints end graphs alone for larger node values.
+                mp.Process(target=plot_single_network, args=(G, -1, True, 200, False, None, False, False, Path(graph_path, f'{run_counter:03}_graph_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))).start()
+            else:
+                mp.Process(target=plot_network, args=(G, True, 200, False, False, False, Path(graph_path, f'{run_counter:03}_graph_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))).start()
+
+            nx_graphs = G.convert_history_to_list_of_nx_graphs()
+            if ave_nbr:
+                mp.Process(target=plot_ave_neighbor_degree, args=(nx_graphs, 'in', 'in', False, False, False, Path(neighbor_path, f'{run_counter:03}_neighbor_plot_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))).start()
+            if cluster_coeff:
+                mp.Process(target=plot_clustering_coefficients, args=(nx_graphs, False, False, False, False, Path(cluster_coeff_path, f'{run_counter:03}_cluster_coeffs_plot_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))).start()
+            if shortest_path:
+                mp.Process(target=plot_shortest_path_length, args=(nx_graphs, False, False, Path(shortest_paths_path, f'{run_counter:03}_shortest_path_plot_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))).start()
+
+            last_ave_nbr_deg = list(nx.average_neighbor_degree(G.convert_to_nx_graph(timestep=-1), source='in', target='in', weight='weight').values())
+            eff_dist_diffs_flattened.append(G.eff_dist_diff(multiple_path_eff_dist=False))  # Compares first and last eff_dist values
+            ave_neighbor_diffs_flattened.append((lambda x: max(x) - min(x))(last_ave_nbr_deg))
+            ave_nbr_var_flattened.append(np.array(last_ave_nbr_deg).var())
+            run_counter += 1  # Also serves as file index
+
+    plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(coupling_range.size, skew_range.size), title=Path(grid_search_plots_dir, f'eff_dist_histogram'), x_range=skew_range, y_range=coupling_range, normalize=True)
+    plot_heatmap(np.array(ave_neighbor_diffs_flattened).reshape(coupling_range.size, skew_range.size), title=Path(grid_search_plots_dir, f'ave_neighbor_diff_histogram'), x_range=skew_range, y_range=coupling_range, normalize=True)
+    plot_heatmap(np.array(ave_nbr_var_flattened).reshape(coupling_range.size, skew_range.size), title=Path(grid_search_plots_dir, f'ave_neighbor_var_histogram'), x_range=skew_range, y_range=coupling_range, normalize=True)
