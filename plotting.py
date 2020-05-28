@@ -3,7 +3,7 @@ import plotter
 import numpy as np
 
 num_nodes = 10
-num_runs = 1000
+num_runs = 100
 outgoing_edges_per_node = int(num_nodes/3)
 value_per_nugget = 1  # does not matter at present, as effective distances and hence node values are based on eff_dis
 
@@ -12,7 +12,7 @@ rounding = 3
 
 # edge_weighting_exp: tunes between only y (edge) dependence (at 0) and x (eff_dist) dependence at (at 1)
 
-G = graph.EffDisGraph(num_nodes, eff_dist_and_edge_response=0.5, fraction_info_score_redistributed=6)
+G = graph.Graph(num_nodes, eff_dist_and_edge_response=0.5, fraction_info_score_redistributed=0.5)
 # G.sparse_random_edge_init(outgoing_edges_per_node)
 G.uniform_random_edge_init()
 G.run(num_runs, exp_decay_param=1, constant_source_node=1, equilibrium_distance=200, multiple_path=False, verbose=True)
