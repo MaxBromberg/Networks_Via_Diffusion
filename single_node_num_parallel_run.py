@@ -16,7 +16,7 @@ skew_range = np.arange(0, 1.05, 0.05)
 
 
 def process_wrapper(param_dic):
-    os.system('python parallel_run.py {output_directory} {num_nodes} {run_index} {coupling_val} {skew_val}'.format(**param_dic))
+    os.system('python single_run.py {output_directory} {num_nodes} {run_index} {coupling_val} {skew_val}'.format(**param_dic))
 
 
 if __name__ == '__main__':
@@ -63,4 +63,4 @@ if __name__ == '__main__':
             for process in processes:
                 process.join()  # join's created processes to run simultaneously.
 
-    print(f"Time lapsed for {num_nodes} node, {run_index} parameter combinations: {start_time-time.time()} seconds")
+    print(f"Time lapsed for {num_nodes} node, {coupling_range.size * skew_range.size} parameter combinations: {int((time.time()-start_time) / 60)} minutes, {np.round((time.time()-start_time) % 60, 2)} seconds")

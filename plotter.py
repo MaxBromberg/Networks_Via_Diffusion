@@ -2,16 +2,17 @@ import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib import cm
 from mpl_toolkits.mplot3d import Axes3D
-import networkx as nx  # Used for network plots
+import networkx as nx
 import multiprocessing as mp
 
 import pickle  # used to save data (as class object)
 import imageio  # Used for making gifs of the network plots
 import os  # Used for putting the gifs somewhere
 from pathlib import Path  # used for file path compatibility between operating systems
-from scipy import optimize
+import time
 
 import graph as g
+import utility_funcs
 
 
 def plot_ave_node_values(graph, value_per_nugget, as_efficiency=None, show=True, save_fig=False):
@@ -777,6 +778,7 @@ def all_plots_from_data(path_to_data_dir, coupling_range, skew_range, output_dir
 
 def twoD_grid_search_plots(path_to_data_dir, coupling_range, skew_range, num_nodes, ave_nbr=False, cluster_coeff=False, shortest_path=False, output_dir=None):
     # Creates all plots for a given dataset (sub)directory, and puts the results in new appropriately named subdirectories
+    start_time = time.time()
     if output_dir is None:
         output_dir = path_to_data_dir
     grid_search_plots_dir = Path(output_dir, f'plots_for_{num_nodes}_nodes')
@@ -841,10 +843,13 @@ def twoD_grid_search_plots(path_to_data_dir, coupling_range, skew_range, num_nod
     plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(coupling_range.size, skew_range.size), title=Path(grid_search_plots_dir, f'eff_dist_histogram'), x_range=skew_range, y_range=coupling_range, normalize=True)
     plot_heatmap(np.array(ave_neighbor_diffs_flattened).reshape(coupling_range.size, skew_range.size), title=Path(grid_search_plots_dir, f'ave_neighbor_diff_histogram'), x_range=skew_range, y_range=coupling_range, normalize=True)
     plot_heatmap(np.array(ave_nbr_var_flattened).reshape(coupling_range.size, skew_range.size), title=Path(grid_search_plots_dir, f'ave_neighbor_var_histogram'), x_range=skew_range, y_range=coupling_range, normalize=True)
+    print(f"Time lapsed for {num_nodes} node, {run_counter} parameter combinations: {int((time.time()-start_time) / 60)} minutes, {(time.time()-start_time) % 60} seconds")
 
 
 def parallelized_twoD_grid_search_plots(path_to_data_dir, coupling_range, skew_range, num_nodes, ave_nbr=False, cluster_coeff=False, shortest_path=False, output_dir=None):
-    # Creates all plots for a given dataset (sub)directory, and puts the results in new appropriately named subdirectories
+    # Creates all plots for a given dataset (sub)directory, and puts the results in new appropriately named subdirectories.
+    # Parallelization implementation ensures completion of all plots per dataset (or as many as supportable by the number of cpu cores) before continuing to the following set
+    start_time = time.time()
     if output_dir is None:
         output_dir = path_to_data_dir
     grid_search_plots_dir = Path(output_dir, f'plots_for_{num_nodes}_nodes')
@@ -875,33 +880,143 @@ def parallelized_twoD_grid_search_plots(path_to_data_dir, coupling_range, skew_r
         f = sorted(files)  # Order preserved due to 0 padding.
     assert len(f) == coupling_range.size * skew_range.size, f"Not as many files as parameter combinations: \n num_files: {len(f)}, coupling_range.size * adaptation_range.size {coupling_range.size * skew_range.size}"
     for coupling_val in coupling_range:
-        for adaption_value in skew_range:
-            with open(Path(path_to_data_dir, f[run_counter]), 'rb') as input:
-                G = pickle.load(input)
-                input.close()
+        skew_range_iter = iter(range(skew_range.size))
+        for skew_val_index in skew_range_iter:
 
-            # all args must be given for Process runs.
-            mp.Process(target=plot_node_values, args=(G, 'all', False, False, Path(node_path, f'{run_counter:03}_node_values_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))).start()
-            mp.Process(target=plot_global_eff_dist, args=(G, False, False, False, False, Path(eff_dist_path, f'{run_counter:03}_eff_dist_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))).start()
-            if num_nodes > 20:  # prints end graphs alone for larger node values.
-                mp.Process(target=plot_single_network, args=(G, -1, True, 200, False, None, False, False, Path(graph_path, f'{run_counter:03}_graph_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))).start()
+            used_cores = 0
+            skew_vals_per_full_cpu = 0
+            processes = []
+            left_over_skew_values = skew_range.size - skew_val_index
+            # print(f'skew_val_index: {skew_val_index} | mp.cpu_count(): {mp.cpu_count()} | skew_range.size: {skew_range.size}')
+            if left_over_skew_values < mp.cpu_count():  # To ensure that parallelization persists when there are fewer tasks than cores
+                while skew_vals_per_full_cpu < left_over_skew_values:
+                    with open(Path(path_to_data_dir, f[run_counter]), 'rb') as data:
+                        G = pickle.load(data)
+                        data.close()
+                    # all args must be given for Process runs.
+                    p_1 = mp.Process(target=plot_node_values, args=(G, 'all', False, False, Path(node_path,
+                                                                                                 f'{run_counter:03}_node_values_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(skew_range[skew_val_index + skew_vals_per_full_cpu], 2)}')))
+                    p_1.start()
+                    processes.append(p_1)
+                    used_cores += 1
+
+                    p_2 = mp.Process(target=plot_global_eff_dist, args=(G, False, False, False, False,
+                                                                        Path(eff_dist_path,
+                                                                             f'{run_counter:03}_eff_dist_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(skew_range[skew_val_index + skew_vals_per_full_cpu], 2)}')))
+                    p_2.start()
+                    processes.append(p_2)
+                    used_cores += 1
+
+                    if num_nodes > 20:  # prints end graphs alone for larger node values.
+                        p_3 = mp.Process(target=plot_single_network, args=(
+                            G, -1, True, 200, False, None, False, False, Path(graph_path,
+                                                                              f'{run_counter:03}_graph_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(skew_range[skew_val_index + skew_vals_per_full_cpu], 2)}')))
+                        p_3.start()
+                    else:
+                        p_3 = mp.Process(target=plot_network, args=(G, True, 200, False, False, False,
+                                                                    Path(graph_path,
+                                                                         f'{run_counter:03}_graph_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(skew_range[skew_val_index + skew_vals_per_full_cpu], 2)}')))
+                        p_3.start()
+                    processes.append(p_3)
+                    used_cores += 1
+
+                    if ave_nbr or cluster_coeff or shortest_path:
+                        nx_graphs = G.convert_history_to_list_of_nx_graphs()
+                    if ave_nbr:
+                        p_4 = mp.Process(target=plot_ave_neighbor_degree,
+                                         args=(nx_graphs, 'in', 'in', False, False, False,
+                                               Path(neighbor_path,
+                                                    f'{run_counter:03}_neighbor_plot_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(skew_range[skew_val_index + skew_vals_per_full_cpu], 2)}')))
+                        p_4.start()
+                        processes.append(p_4)
+                        used_cores += 1
+                    if cluster_coeff:
+                        p_5 = mp.Process(target=plot_clustering_coefficients,
+                                         args=(nx_graphs, False, False, False, False,
+                                               Path(cluster_coeff_path,
+                                                    f'{run_counter:03}_cluster_coeffs_plot_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(skew_range[skew_val_index + skew_vals_per_full_cpu], 2)}')))
+                        p_5.start()
+                        processes.append(p_5)
+                        used_cores += 1
+                    if shortest_path:
+                        p_6 = mp.Process(target=plot_shortest_path_length, args=(nx_graphs, False, False,
+                                                                                 Path(shortest_paths_path,
+                                                                                      f'{run_counter:03}_shortest_path_plot_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(skew_range[skew_val_index + skew_vals_per_full_cpu], 2)}')))
+                        p_6.start()
+                        processes.append(p_6)
+                        used_cores += 1
+
+                    run_counter += 1  # Also serves as file index
+                    skew_vals_per_full_cpu += 1
+
+                    last_ave_nbr_deg = list(nx.average_neighbor_degree(G.convert_to_nx_graph(timestep=-1), source='in', target='in', weight='weight').values())
+                    eff_dist_diffs_flattened.append(G.eff_dist_diff(multiple_path_eff_dist=False))  # Compares first and last eff_dist values
+                    ave_neighbor_diffs_flattened.append((lambda x: max(x) - min(x))(last_ave_nbr_deg))
+                    ave_nbr_var_flattened.append(np.array(last_ave_nbr_deg).var())
+
+                utility_funcs.consume(skew_range_iter, left_over_skew_values - 1)  # -1 because the iteration forwards 1 step still proceeds directly after
             else:
-                mp.Process(target=plot_network, args=(G, True, 200, False, False, False, Path(graph_path, f'{run_counter:03}_graph_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))).start()
+                while skew_vals_per_full_cpu < mp.cpu_count():
+                    with open(Path(path_to_data_dir, f[run_counter]), 'rb') as data:
+                        G = pickle.load(data)
+                        data.close()
+                    p_1 = mp.Process(target=plot_node_values, args=(G, 'all', False, False, Path(node_path, f'{run_counter:03}_node_values_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(skew_range[skew_val_index + skew_vals_per_full_cpu], 2)}')))
+                    p_1.start()
+                    processes.append(p_1)
+                    used_cores += 1
 
-            nx_graphs = G.convert_history_to_list_of_nx_graphs()
-            if ave_nbr:
-                mp.Process(target=plot_ave_neighbor_degree, args=(nx_graphs, 'in', 'in', False, False, False, Path(neighbor_path, f'{run_counter:03}_neighbor_plot_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))).start()
-            if cluster_coeff:
-                mp.Process(target=plot_clustering_coefficients, args=(nx_graphs, False, False, False, False, Path(cluster_coeff_path, f'{run_counter:03}_cluster_coeffs_plot_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))).start()
-            if shortest_path:
-                mp.Process(target=plot_shortest_path_length, args=(nx_graphs, False, False, Path(shortest_paths_path, f'{run_counter:03}_shortest_path_plot_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))).start()
+                    p_2 = mp.Process(target=plot_global_eff_dist, args=(G, False, False, False, False, Path(eff_dist_path, f'{run_counter:03}_eff_dist_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(skew_range[skew_val_index + skew_vals_per_full_cpu], 2)}')))
+                    p_2.start()
+                    processes.append(p_2)
+                    used_cores += 1
 
-            last_ave_nbr_deg = list(nx.average_neighbor_degree(G.convert_to_nx_graph(timestep=-1), source='in', target='in', weight='weight').values())
-            eff_dist_diffs_flattened.append(G.eff_dist_diff(multiple_path_eff_dist=False))  # Compares first and last eff_dist values
-            ave_neighbor_diffs_flattened.append((lambda x: max(x) - min(x))(last_ave_nbr_deg))
-            ave_nbr_var_flattened.append(np.array(last_ave_nbr_deg).var())
-            run_counter += 1  # Also serves as file index
+                    if num_nodes > 20:  # prints end graphs alone for larger node values.
+                        p_3 = mp.Process(target=plot_single_network, args=(G, -1, True, 200, False, None, False, False, Path(graph_path, f'{run_counter:03}_graph_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(skew_range[skew_val_index + skew_vals_per_full_cpu], 2)}')))
+                        p_3.start()
+                    else:
+                        p_3 = mp.Process(target=plot_network, args=(G, True, 200, False, False, False, Path(graph_path, f'{run_counter:03}_graph_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(skew_range[skew_val_index + skew_vals_per_full_cpu], 2)}')))
+                        p_3.start()
+                    processes.append(p_3)
+                    used_cores += 1
+
+                    if ave_nbr or cluster_coeff or shortest_path:
+                        nx_graphs = G.convert_history_to_list_of_nx_graphs()
+                    if ave_nbr:
+                        p_4 = mp.Process(target=plot_ave_neighbor_degree, args=(nx_graphs, 'in', 'in', False, False, False,
+                                                                          Path(neighbor_path,
+                                                                               f'{run_counter:03}_neighbor_plot_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(skew_range[skew_val_index + skew_vals_per_full_cpu], 2)}')))
+                        p_4.start()
+                        processes.append(p_4)
+                        used_cores += 1
+                    if cluster_coeff:
+                        p_5 = mp.Process(target=plot_clustering_coefficients, args=(nx_graphs, False, False, False, False,
+                                                                              Path(cluster_coeff_path,
+                                                                                   f'{run_counter:03}_cluster_coeffs_plot_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(skew_range[skew_val_index + skew_vals_per_full_cpu], 2)}')))
+                        p_5.start()
+                        processes.append(p_5)
+                        used_cores += 1
+                    if shortest_path:
+                        p_6 = mp.Process(target=plot_shortest_path_length, args=(nx_graphs, False, False,
+                                                                           Path(shortest_paths_path,
+                                                                                f'{run_counter:03}_shortest_path_plot_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(skew_range[skew_val_index + skew_vals_per_full_cpu], 2)}')))
+                        p_6.start()
+                        processes.append(p_6)
+                        used_cores += 1
+
+                    run_counter += 1  # Also serves as file index
+                    skew_vals_per_full_cpu += 1
+
+                    last_ave_nbr_deg = list(nx.average_neighbor_degree(G.convert_to_nx_graph(timestep=-1), source='in', target='in', weight='weight').values())
+                    eff_dist_diffs_flattened.append(G.eff_dist_diff(multiple_path_eff_dist=False))  # Compares first and last eff_dist values
+                    ave_neighbor_diffs_flattened.append((lambda x: np.log(max(x) - min(x)))(last_ave_nbr_deg))
+                    ave_nbr_var_flattened.append(np.log(np.array(last_ave_nbr_deg).var()))
+
+                utility_funcs.consume(skew_range_iter, mp.cpu_count() - 1)  # Advances skew iter cpu count iterations
+
+            for process in processes:
+                process.join()  # join's created processes to run simultaneously.
 
     plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(coupling_range.size, skew_range.size), title=Path(grid_search_plots_dir, f'eff_dist_histogram'), x_range=skew_range, y_range=coupling_range, normalize=True)
-    plot_heatmap(np.array(ave_neighbor_diffs_flattened).reshape(coupling_range.size, skew_range.size), title=Path(grid_search_plots_dir, f'ave_neighbor_diff_histogram'), x_range=skew_range, y_range=coupling_range, normalize=True)
-    plot_heatmap(np.array(ave_nbr_var_flattened).reshape(coupling_range.size, skew_range.size), title=Path(grid_search_plots_dir, f'ave_neighbor_var_histogram'), x_range=skew_range, y_range=coupling_range, normalize=True)
+    plot_heatmap(np.array(ave_neighbor_diffs_flattened).reshape(coupling_range.size, skew_range.size), title=Path(grid_search_plots_dir, f'ave_neighbor_diff_histogram'), x_range=skew_range, y_range=coupling_range, normalize=False)
+    plot_heatmap(np.array(ave_nbr_var_flattened).reshape(coupling_range.size, skew_range.size), title=Path(grid_search_plots_dir, f'ave_neighbor_var_histogram'), x_range=skew_range, y_range=coupling_range, normalize=False)
+    print(f"Time lapsed for {num_nodes} node, {run_counter} parameter combinations: {int((time.time()-start_time) / 60)} minutes, {np.round((time.time()-start_time) % 60, 2)} seconds")

@@ -347,4 +347,3 @@ class EffDisGraph(Graph):
                                                  parameter=higher_order_paths_suppression, timestep=-1))
         else:
             return np.mean(self.eff_dist_history[0]) - np.mean(self.eff_dist_history[-1])
-
