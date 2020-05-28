@@ -9,7 +9,7 @@ random.seed(42)
 
 
 class Graph:
-    starting_node = None
+    _starting_node = None
 
     def __init__(self, num_nodes, value_per_nugget=1, eff_dist_and_edge_response=None, fraction_info_score_redistributed=None, beta=None, gamma=None, q=None, reinforcement_infoscore_coupling=True):
         """
@@ -28,7 +28,7 @@ class Graph:
         self.fraction_infoscore_redistributed = fraction_info_score_redistributed  # rescaling of all rewards in reweight_edges_via_info_score
         self.nodes = np.zeros((1, num_nodes))  # node values (and history of via the first dimension)
         self.A = np.zeros((1, self.num_nodes, self.num_nodes))  # Adjacency matrix (and history of)
-        self.starting_node = None  # holds the starting nodes for each run, reset after every run.
+        self._starting_node = None  # holds the starting nodes for each run, reset after every run.
         self.source_node_history = []
         self.eff_dist_history = []
 
@@ -53,16 +53,16 @@ class Graph:
             self.A[-1][node] /= self.A[-1][node].sum()  # normalizes each node's total weights to 1
 
     def seed_info_random(self):
-        self.starting_node = None  # resets starting nodes such that new seed_info call will not conflict
-        while not self.starting_node:
+        self._starting_node = None  # resets starting nodes such that new seed_info call will not conflict
+        while not self._starting_node:
             seeded_node = int(np.random.rand(1)*self.num_nodes)
             self.nodes[-1][seeded_node] += self.nugget_value
-            self.starting_node = seeded_node
+            self._starting_node = seeded_node
             self.source_node_history.append(seeded_node)
 
     def seed_info_constant_source(self, constant_source_node):
         assert isinstance(constant_source_node, int) & constant_source_node >= 0 & constant_source_node <= self.num_nodes, f'Please choose constant source node to be in range of num_nodes, i.e. in (0, {self.num_nodes})'
-        self.starting_node = constant_source_node
+        self._starting_node = constant_source_node
         self.source_node_history.append(constant_source_node)
 
     def seed_info_by_diversity_of_connections(self):
@@ -71,16 +71,16 @@ class Graph:
         then uses this to distribute 'nuggets' of information (via canonical ensemble of standard deviation).
         Potentially variance would be faster (no sqrt) and better, changing the effect of connectedness.
         """
-        self.starting_node = None  # resets starting nodes such that new seed_info call will not conflict
+        self._starting_node = None  # resets starting nodes such that new seed_info call will not conflict
         exp_stds = []
         for node_edges in self.A[-1][:]:
             exp_stds.append(np.exp(-self.beta * node_edges.std()))  # sum of e^(\beta \sigma_i) for i \in node[weights]
         std_partition = sum(exp_stds)
-        while self.starting_node is None:
+        while self._starting_node is None:
             seeded_node = np.random.randint(0, self.nodes[-1].size)
             if random.uniform(0, std_partition) < exp_stds[seeded_node]/std_partition:
                 self.nodes[-1][seeded_node] += self.nugget_value
-                self.starting_node = seeded_node
+                self._starting_node = seeded_node
                 self.source_node_history.append(seeded_node)
 
     def reweight_edges_with_clustering(self):
@@ -258,7 +258,7 @@ class EffDisGraph(Graph):
         return eff_dists / np.sum(eff_dists)
 
     def set_node_values_as_eff_dists(self, exp_decay_param, source_reward, multiple_path):
-        eff_dists = np.array(self.evaluate_effective_distances(self.starting_node, parameter=exp_decay_param, source_reward=source_reward, multiple_path_eff_dist=multiple_path))
+        eff_dists = np.array(self.evaluate_effective_distances(self._starting_node, parameter=exp_decay_param, source_reward=source_reward, multiple_path_eff_dist=multiple_path))
         self.nodes[-1] = eff_dists
 
     def seed_info_conditional(self, constant_source_node, num_shifts_of_source_node, num_runs, index):

@@ -766,14 +766,14 @@ def grid_search(num_nodes, num_runs, exp_decay_param, coupling_range, coupling_i
     plot_heatmap(np.array(ave_nbr_var_flattened).reshape(full_coupling_range.shape[0], rate_of_adaptation_range.shape[0]), title=Path(grid_search_dir, f'ave_neighbor_var_histogram'), x_range=rate_of_adaptation_range, y_range=full_coupling_range, normalize=True)
 
 
-def all_plots_from_data(path_to_data_dir, coupling_range, skew_range, output_dir=None):
+def all_plots_from_super_data_dir(path_to_data_dir, coupling_range, skew_range, output_dir=None):
     if output_dir is None:
         output_dir = path_to_data_dir
 
     sub_dirs = sorted([dirs[0] for dirs in os.walk(path_to_data_dir) if dirs[0] != str(path_to_data_dir)])
     for sub_dir in sub_dirs:
-        node_nums = int(str(str(sub_dir).split('/')[-1]).split('_')[-1])
-        twoD_grid_search_plots(Path(sub_dir), coupling_range, skew_range, num_nodes=node_nums, output_dir=output_dir)
+        node_nums = int(str(str(sub_dir).split('/')[-1]).split('_')[-1])  # takes the node number as the end number of the latest subdirectory
+        parallelized_twoD_grid_search_plots(Path(sub_dir), coupling_range, skew_range, num_nodes=node_nums, output_dir=output_dir)
 
 
 def twoD_grid_search_plots(path_to_data_dir, coupling_range, skew_range, num_nodes, ave_nbr=False, cluster_coeff=False, shortest_path=False, output_dir=None):
@@ -1017,6 +1017,62 @@ def parallelized_twoD_grid_search_plots(path_to_data_dir, coupling_range, skew_r
                 process.join()  # join's created processes to run simultaneously.
 
     plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(coupling_range.size, skew_range.size), title=Path(grid_search_plots_dir, f'eff_dist_histogram'), x_range=skew_range, y_range=coupling_range, normalize=True)
-    plot_heatmap(np.array(ave_neighbor_diffs_flattened).reshape(coupling_range.size, skew_range.size), title=Path(grid_search_plots_dir, f'ave_neighbor_diff_histogram'), x_range=skew_range, y_range=coupling_range, normalize=False)
-    plot_heatmap(np.array(ave_nbr_var_flattened).reshape(coupling_range.size, skew_range.size), title=Path(grid_search_plots_dir, f'ave_neighbor_var_histogram'), x_range=skew_range, y_range=coupling_range, normalize=False)
+    plot_heatmap(np.array(ave_neighbor_diffs_flattened).reshape(coupling_range.size, skew_range.size), title=Path(grid_search_plots_dir, f'log_ave_neighbor_diff_histogram'), x_range=skew_range, y_range=coupling_range, normalize=False)
+    plot_heatmap(np.array(ave_nbr_var_flattened).reshape(coupling_range.size, skew_range.size), title=Path(grid_search_plots_dir, f'log_ave_neighbor_var_histogram'), x_range=skew_range, y_range=coupling_range, normalize=False)
     print(f"Time lapsed for {num_nodes} node, {run_counter} parameter combinations: {int((time.time()-start_time) / 60)} minutes, {np.round((time.time()-start_time) % 60, 2)} seconds")
+
+
+# data_observables
+def cluster_coeff_diff(data_dir, initial_graph=0, final_graph=-1, clustering_timestep=-1):
+    """
+    Loads and evaluates the clustering coefficients of the last (clustering_) timestep of the (initial, final) data graph
+    and returns their difference.
+    """
+    for root, dirs, files in os.walk(data_dir):
+        f = sorted(files)  # Order preserved due to 0 padding.
+        with open(Path(data_dir, f[initial_graph]), 'rb') as initial_graph_loaded:
+            G_initial = pickle.load(initial_graph_loaded)
+            initial_graph_loaded.close()
+        with open(Path(data_dir, f[final_graph]), 'rb') as final_graph_loaded:
+            G_final = pickle.load(final_graph_loaded)
+            final_graph_loaded.close()
+        initial_clustering_coeff = nx.average_clustering(G_initial.convert_to_nx_graph(timestep=clustering_timestep), weight='weight')
+        final_clustering_coeff = nx.average_clustering(G_final.convert_to_nx_graph(timestep=clustering_timestep), weight='weight')
+        return final_clustering_coeff - initial_clustering_coeff
+
+
+def shortest_path_diff(data_dir, initial_graph=0, final_graph=-1, shortest_path_at_timestep=-1):
+    """
+    Loads and evaluates the average shortest path length of the last (shortest_path_at) timestep of the (initial, final)
+    data graph and takes their difference.
+    """
+    for root, dirs, files in os.walk(data_dir):
+        f = sorted(files)  # Order preserved due to 0 padding.
+        with open(Path(data_dir, f[initial_graph]), 'rb') as initial_graph_loaded:
+            G_initial = pickle.load(initial_graph_loaded)
+            initial_graph_loaded.close()
+        with open(Path(data_dir, f[final_graph]), 'rb') as final_graph_loaded:
+            G_final = pickle.load(final_graph_loaded)
+            final_graph_loaded.close()
+        initial_ave_shortest_path = nx.average_shortest_path_length(G_initial.convert_to_nx_graph(timestep=shortest_path_at_timestep), weight='weight')
+        final_ave_shortest_path = nx.average_shortest_path_length(G_final.convert_to_nx_graph(timestep=shortest_path_at_timestep), weight='weight')
+        return final_ave_shortest_path - initial_ave_shortest_path
+
+
+def ave_degree_diff(data_dir, initial_graph=0, final_graph=-1, ave_degree_at_timestep=-1):
+    """
+    Loads and evaluates the average length of the last (shortest_path_at) timestep of the (initial, final)
+    data graph and takes their difference. TODO: Will this always yield [0.]?
+    Also known as ~k_nearest_neighbors algorithm
+    """
+    for root, dirs, files in os.walk(data_dir):
+        f = sorted(files)  # Order preserved due to 0 padding.
+        with open(Path(data_dir, f[initial_graph]), 'rb') as initial_graph_loaded:
+            G_initial = pickle.load(initial_graph_loaded)
+            initial_graph_loaded.close()
+        with open(Path(data_dir, f[final_graph]), 'rb') as final_graph_loaded:
+            G_final = pickle.load(final_graph_loaded)
+            final_graph_loaded.close()
+        initial_ave_degree = np.array(list(nx.average_degree_connectivity(G_initial.convert_to_nx_graph(timestep=ave_degree_at_timestep), weight='weight').values()))
+        final_ave_degree = np.array(list(nx.average_degree_connectivity(G_final.convert_to_nx_graph(timestep=ave_degree_at_timestep), weight='weight').values()))
+    return final_ave_degree - initial_ave_degree
