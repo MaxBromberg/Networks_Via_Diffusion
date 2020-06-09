@@ -7,9 +7,12 @@ import time
 
 num_nodes = 50
 run_index = 1
-data_directory = "/home/maqz/Desktop/data/test"
+data_directory = "/home/maqz/Desktop/data/infoscore_reinforcement_decoupled/constant_source_reversed_eff_dist_correlation"
 output_directory = Path(data_directory, f"node_num_{num_nodes}")
-os.mkdir(output_directory)
+try: os.mkdir(output_directory)
+except OSError:
+    print(f'{output_directory} already exists, adding or overwriting contents')
+    pass
 
 coupling_range = np.arange(0, 1.05, 0.05)
 skew_range = np.arange(0, 1.05, 0.05)

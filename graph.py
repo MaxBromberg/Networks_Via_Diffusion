@@ -18,7 +18,7 @@ equilibrium_distance_val = 100
 class Graph:
     _starting_node = None   # holds the starting nodes for each run, reset after every run.
 
-    def __init__(self, num_nodes, eff_dist_and_edge_response=None, fraction_info_score_redistributed=None, reinforcement_infoscore_coupling=True, beta=None):
+    def __init__(self, num_nodes, eff_dist_and_edge_response=None, fraction_info_score_redistributed=None, reinforcement_info_score_coupling=True, positive_eff_dist_and_reinforcement_correlation=False, beta=None):
         """
         Initialization; the 'extra' dimensionality (i.e. 1 for nodes, A) are there to dynamically store their history
         via use of vstack later on. To minimize variables, many features are activated by specifying their relevant
@@ -28,13 +28,14 @@ class Graph:
         :param fraction_info_score_redistributed: Determines if reweight_edges_via_info_score is used.
         Takes the lowest fraction \in (0,1) of edge values for each node and rather than reinforcing them, redistributes
          their reward to that node's oher edges proportional to their standing value.
-        :param reinforcement_infoscore_coupling if False decouples the above, leading to the same constant reward for the remaining node's edges
+        :param reinforcement_info_score_coupling if False decouples the above, leading to the same constant reward for the remaining node's edges
         :param beta: Determines if info is seeded by diversity of connexions, how much (exponential factor, \in (0,1) )
         """
         self.num_nodes = num_nodes
         self.eff_dist_and_edge_coupling = eff_dist_and_edge_response  # tunes info score based on between 0 (pure eff. dist. dependence) and 1 (pure edge dependence)
         self.fraction_infoscore_redistributed = fraction_info_score_redistributed  # rescaling of all rewards in reweight_edges_via_info_score
-        self.reinforcement_infoscore_coupling = reinforcement_infoscore_coupling
+        self.reinforcement_infoscore_coupling = reinforcement_info_score_coupling
+        self.positive_eff_dist_and_reinforcement_correlation = positive_eff_dist_and_reinforcement_correlation
         self.beta = beta  # Determines how much the seeding is weighted towards diversely connected nodes (The None default leads to an explicitly random seeding run)
 
         self.nodes = np.zeros((1, num_nodes))  # node values (and history of via the first dimension)
@@ -83,7 +84,7 @@ class Graph:
         self._starting_node = None  # resets starting nodes such that new seed_info call will not conflict
         exp_stds = []
         for node_edges in self.A[-1][:]:
-            exp_stds.append(np.exp(-self.beta * node_edges.std()))  # sum of e^(\beta \sigma_i) for i \in node[weights]
+            exp_stds.append(np.exp(-self.beta * node_edges.std()))  # sum of e^(-\beta \sigma_i) for i \in node[weights]
         std_partition = sum(exp_stds)
         while self._starting_node is None:
             seeded_node = np.random.randint(0, self.nodes[-1].size)
@@ -92,16 +93,18 @@ class Graph:
                 self.source_node_history.append(seeded_node)
 
     def seed_info_conditional(self, constant_source_node, num_shifts_of_source_node, num_runs, index):
+        assert self.beta != num_shifts_of_source_node, "Cannot both shift source randomly and based on diversity of connexion."
+        assert self.beta != constant_source_node, "Cannot both seed source based on diversity of connection and keep it constant"
         if self.beta:
             self.seed_info_by_diversity_of_connections()
-        elif isinstance(constant_source_node, bool) & constant_source_node:
-            self.seed_info_constant_source(0)   # Just to ensure seeding if set == True, it'll work without setting the constant seed to be a specific node
-        elif not constant_source_node:
-            self.seed_info_random()
         elif num_shifts_of_source_node:
-            assert num_shifts_of_source_node < self.num_nodes, "More changes to constant source node than number of nodes. Set constant_source_node to false to activate continues random seeding"
+            assert num_shifts_of_source_node <= self.num_nodes, "More changes to constant source node than number of nodes. Set constant_source_node to false to activate continues random seeding"
             if (index % int((num_runs / num_shifts_of_source_node))) == 0:
                 self.seed_info_constant_source(random.choice(list(set(range(len(self.nodes[-1]))) - set(self.source_node_history))))
+        elif not constant_source_node:
+            self.seed_info_random()
+        elif isinstance(constant_source_node, bool) & constant_source_node:
+            self.seed_info_constant_source(0)  # Just to ensure seeding if set == True, it'll work without setting the constant seed to be a specific node
         else:
             self.seed_info_constant_source(constant_source_node)
 
@@ -118,7 +121,10 @@ class Graph:
         For general responsiveness to parameters rather than coupling between them:
         # return [pow((self.A[-1][node_index][from_node_index] / (self.nodes[-1][node_index] / node_sum)), self.eff_dist_and_edge_response) for node_index in range(self.nodes.shape[1])]
         """
-        return [(pow((self.nodes[-1][node_index] / node_sum), (self.eff_dist_and_edge_coupling - 1)) * pow(self.A[-1][node_index][from_node_index], self.eff_dist_and_edge_coupling)) for node_index in range(self.nodes.shape[1])]
+        if self.positive_eff_dist_and_reinforcement_correlation:
+            return [(pow((self.nodes[-1][node_index] / node_sum), (1 - self.eff_dist_and_edge_coupling)) * pow(self.A[-1][node_index][from_node_index], self.eff_dist_and_edge_coupling)) for node_index in range(self.nodes.shape[1])]
+        else:
+            return [(pow((self.nodes[-1][node_index] / node_sum), (self.eff_dist_and_edge_coupling - 1)) * pow(self.A[-1][node_index][from_node_index], self.eff_dist_and_edge_coupling)) for node_index in range(self.nodes.shape[1])]
 
     def reweight_info_score(self, info_score, info_score_sum):
         """
