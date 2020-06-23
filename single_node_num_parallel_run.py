@@ -5,9 +5,11 @@ import utility_funcs
 from pathlib import Path
 import time
 
-num_nodes = 50
+import plotter
+
+num_nodes = 15
 run_index = 1
-data_directory = "/home/maqz/Desktop/data/infoscore_reinforcement_decoupled/constant_source_reversed_eff_dist_correlation"
+data_directory = "/home/maqz/Desktop/data/power_law_w_exp_10"
 output_directory = Path(data_directory, f"node_num_{num_nodes}")
 try: os.mkdir(output_directory)
 except OSError:
@@ -67,3 +69,5 @@ if __name__ == '__main__':
                 process.join()  # join's created processes to run simultaneously.
 
     print(f"Time lapsed for {num_nodes} node, {coupling_range.size * skew_range.size} parameter combinations: {int((time.time()-start_time) / 60)} minutes, {np.round((time.time()-start_time) % 60, 2)} seconds")
+    plotter.parallelized_twoD_grid_search_plots(output_directory, coupling_range=coupling_range, skew_range=skew_range, num_nodes=num_nodes, ave_nbr=False, cluster_coeff=False, shortest_path=False, output_dir=data_directory)
+

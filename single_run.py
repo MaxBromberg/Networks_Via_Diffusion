@@ -23,9 +23,9 @@ num_runs = 1000
 
 if __name__ == '__main__':
     G = graph.Graph(num_nodes=num_nodes, eff_dist_and_edge_response=coupling_val, fraction_info_score_redistributed=adaptation_val,
-                    reinforcement_info_score_coupling=False, positive_eff_dist_and_reinforcement_correlation=True)  #, beta=1)
+                    reinforcement_info_score_coupling=True, positive_eff_dist_and_reinforcement_correlation=False)  #, beta=1)
     G.uniform_random_edge_init()
-    G.run(num_runs, exp_decay_param=12, constant_source_node=5, num_shifts_of_source_node=False, equilibrium_distance=200, multiple_path=False)
+    G.run(num_runs, exp_decay_param=12, constant_source_node=False, num_shifts_of_source_node=False, equilibrium_distance=200, seeding_sigma_coeff=False, seeding_power_law_exponent=10, multiple_path=False)
     plotter.save_object(G, Path(output_path, f'{run_index:04}_graph_obj.pkl'))
     print(f'Run {run_index}, [coupling_val: {coupling_val}, skew_val: {adaptation_val}] complete.')
 # print(f'Raw graph data recorded at: {output_path}')

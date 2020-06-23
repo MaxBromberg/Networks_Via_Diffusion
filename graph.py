@@ -16,7 +16,7 @@ equilibrium_distance_val = 100
 
 
 class Graph:
-    _starting_node = None   # holds the starting nodes for each run, reset after every run.
+    _source_node = None   # holds the source node for each run, reset after every run.
 
     def __init__(self, num_nodes, eff_dist_and_edge_response=None, fraction_info_score_redistributed=None, reinforcement_info_score_coupling=True, positive_eff_dist_and_reinforcement_correlation=False, beta=None):
         """
@@ -64,15 +64,14 @@ class Graph:
 
     # Information Seeding: ------------------------------------------------------------------------------------------
     def seed_info_random(self):
-        self._starting_node = None  # resets starting nodes such that new seed_info call will not conflict
-        while not self._starting_node:
-            seeded_node = int(np.random.rand(1)*self.num_nodes)
-            self._starting_node = seeded_node
-            self.source_node_history.append(seeded_node)
+        self._source_node = None  # resets starting nodes such that new seed_info call will not conflict
+        seeded_node = np.random.default_rng().integers(self.num_nodes)
+        self._source_node = seeded_node
+        self.source_node_history.append(seeded_node)
 
     def seed_info_constant_source(self, constant_source_node):
         assert isinstance(constant_source_node, int) & constant_source_node >= 0 & constant_source_node <= self.num_nodes, f'Please choose constant source node to be in range of num_nodes, i.e. in (0, {self.num_nodes})'
-        self._starting_node = constant_source_node
+        self._source_node = constant_source_node
         self.source_node_history.append(constant_source_node)
 
     def seed_info_by_diversity_of_connections(self):
@@ -81,27 +80,55 @@ class Graph:
         then uses this to distribute 'nuggets' of information (via canonical ensemble of standard deviation).
         Potentially variance would be faster (no sqrt) and better, changing the effect of connectedness.
         """
-        self._starting_node = None  # resets starting nodes such that new seed_info call will not conflict
+        self._source_node = None  # resets starting nodes such that new seed_info call will not conflict
         exp_stds = []
         for node_edges in self.A[-1][:]:
             exp_stds.append(np.exp(-self.beta * node_edges.std()))  # sum of e^(-\beta \sigma_i) for i \in node[weights]
         std_partition = sum(exp_stds)
-        while self._starting_node is None:
+        while self._source_node is None:
             seeded_node = np.random.randint(0, self.nodes[-1].size)
             if random.uniform(0, std_partition) < exp_stds[seeded_node]/std_partition:
-                self._starting_node = seeded_node
+                self._source_node = seeded_node
                 self.source_node_history.append(seeded_node)
 
-    def seed_info_conditional(self, constant_source_node, num_shifts_of_source_node, num_runs, index):
-        assert self.beta != num_shifts_of_source_node, "Cannot both shift source randomly and based on diversity of connexion."
-        assert self.beta != constant_source_node, "Cannot both seed source based on diversity of connection and keep it constant"
+    def seed_info_normal_distribution(self, mean, normal_sigma_coefficient):
+        """
+        :param mean: Mean of nodes; defaults to num_nodes/2
+        :param normal_sigma_coefficient: coefficient of normal sigma; e.g. 1 yields std normal sigma
+        """
+        if mean is None: Mean = self.nodes.shape[1] / 2
+        Sigma = normal_sigma_coefficient * np.std(np.arange(self.nodes.shape[1]))
+        self._source_node = None
+
+        seeded_node = np.int(np.round(np.random.default_rng().normal(Mean, Sigma)) - 1)
+        while seeded_node < 0 or seeded_node >= self.nodes.shape[1]:
+            seeded_node = np.int(np.round(np.random.default_rng().normal(Mean, Sigma)) - 1)
+        self._source_node = seeded_node
+        self.source_node_history.append(seeded_node)
+
+    def seed_info_power_law_distribution(self, power_law_exponent):
+        self._source_node = None
+        seeded_node = int(np.round(np.random.power(power_law_exponent, 1)*self.nodes[-1].size) + 0.5) - 1
+        self._source_node = seeded_node
+        self.source_node_history.append(seeded_node)
+
+    def seed_info_conditional(self, constant_source_node, num_shifts_of_source_node, num_runs, sigma, power_law_exponent, index):
         if self.beta:
             self.seed_info_by_diversity_of_connections()
         elif num_shifts_of_source_node:
-            assert num_shifts_of_source_node <= self.num_nodes, "More changes to constant source node than number of nodes. Set constant_source_node to false to activate continues random seeding"
+            # assert num_shifts_of_source_node <= self.num_nodes, "More changes to constant source node than number of nodes. Set constant_source_node to false to activate continues random seeding"
             if (index % int((num_runs / num_shifts_of_source_node))) == 0:
-                self.seed_info_constant_source(random.choice(list(set(range(len(self.nodes[-1]))) - set(self.source_node_history))))
-        elif not constant_source_node:
+                if num_shifts_of_source_node > self.num_nodes:
+                    self.seed_info_random()
+                else:
+                    self.seed_info_constant_source(random.choice(list(set(range(len(self.nodes[-1]))) - set(self.source_node_history))))
+            else:
+                self.source_node_history.append(self._source_node)
+        elif sigma:
+            self.seed_info_normal_distribution(mean=None, normal_sigma_coefficient=sigma)
+        elif power_law_exponent:
+            self.seed_info_power_law_distribution(power_law_exponent=power_law_exponent)
+        elif not constant_source_node or sigma or power_law_exponent:
             self.seed_info_random()
         elif isinstance(constant_source_node, bool) & constant_source_node:
             self.seed_info_constant_source(0)  # Just to ensure seeding if set == True, it'll work without setting the constant seed to be a specific node
@@ -192,9 +219,9 @@ class Graph:
         else:
             print('No path type chosen in get_eff_dist call. Set multiple_path, shortest_path, dominant_path or random_walk=True')
 
-    def evaluate_effective_distances(self, source, source_reward, parameter, multiple_path_eff_dist, timestep=-1, rounding=3):
+    def evaluate_effective_distances(self, source_reward, parameter, multiple_path_eff_dist, source=None, timestep=-1, rounding=3):
         """
-        Defaults to random walker effective distance metric unless given multiple_path_eff_dist=True
+        Defaults to random walker effective distance metric unless given MPED=True
         returns array of effective distances to each node (from source) according to effective dist library´methods
         """
         if multiple_path_eff_dist:
@@ -214,12 +241,18 @@ class Graph:
             normalized_A = np.array([self.A[timestep][node, :]/row_sums[node] for node in range(self.A[timestep].shape[0])])
             # normalized_A = np.round(utility_funcs.matrix_normalize(self.A[timestep], row_normalize=True), 20)
             eff_dists = self.get_eff_dist(adjacency_matrix=normalized_A, random_walk=True, source=source, parameter=parameter)
-
-        assert np.isclose(eff_dists[source], 0, rtol=1e-10), f'Source has nonzero effective distance of {eff_dists[source]}'
-        eff_dists = np.delete(eff_dists, source)  # awkward deletion/insertion to ensure min search of remaining eff_distances
-        eff_dists = np.insert(eff_dists, source, min(eff_dists)/source_reward)
-        self.eff_dist_history.append(eff_dists)  # Must come before normalization otherwise sum will always be 1
-        return eff_dists / np.sum(eff_dists)
+        if source is None:
+            # if source is none, the eff_dist library defaults to an all-to-all eff_dist measure, making the
+            for node_index in range(self.nodes[-1].size):
+                min_val = eff_dists[node_index][np.argpartition(eff_dists[node_index], 1)[1]]  # yields non-zero (non-source) min eff_dist
+                eff_dists[node_index][node_index] = (min_val / source_reward)
+            return eff_dists
+        else:
+            assert np.isclose(eff_dists[source], 0, rtol=1e-10), f'Source has nonzero effective distance of {eff_dists[source]}'
+            eff_dists = np.delete(eff_dists, source)  # awkward deletion/insertion to ensure min search of remaining eff_distances
+            eff_dists = np.insert(eff_dists, source, min(eff_dists)/source_reward)
+            self.eff_dist_history.append(eff_dists)  # Must come before normalization otherwise sum will always be 1
+            return eff_dists / np.sum(eff_dists)
 
     # Utility Functions: --------------------------------------------------------------------------------------------
     def write_graph_as_xml(self, timestep=-1, path=None):
@@ -245,20 +278,19 @@ class Graph:
             return [self.convert_to_nx_graph(i) for i in range(self.A.shape[0])]
 
     # Observables: --------------------------------------------------------------------------------------------------
-    def eff_dist_diff(self, eff_dist_to_all=False, multiple_path_eff_dist=False, source_reward=2.6, higher_order_paths_suppression=1):
-        if eff_dist_to_all:
-            return np.mean(self.evaluate_effective_distances(source=self.source_node_history[0], source_reward=source_reward,
-                                                 multiple_path_eff_dist=multiple_path_eff_dist,
-                                                 parameter=higher_order_paths_suppression, timestep=0)) \
-                   - np.mean(self.evaluate_effective_distances(source=self.source_node_history[-1], source_reward=source_reward,
-                                                 multiple_path_eff_dist=multiple_path_eff_dist,
-                                                 parameter=higher_order_paths_suppression, timestep=-1))
+    def eff_dist_diff(self, all_to_all_eff_dist=False, overall_average=False, MPED=False, source_reward=2.6, higher_order_paths_suppression=12):
+        if all_to_all_eff_dist:
+            initial = self.evaluate_effective_distances(source_reward=source_reward, parameter=higher_order_paths_suppression, multiple_path_eff_dist=MPED, source=None, timestep=0)
+            final = self.evaluate_effective_distances(source_reward=source_reward, parameter=higher_order_paths_suppression, multiple_path_eff_dist=MPED, source=None, timestep=-1)
+            return np.mean(final - initial)
+        if overall_average:
+            return np.mean(np.mean(self.eff_dist_history, axis=1))  # of course same as simply np.mean(eff_dist_history), but written so for clarity
         else:
             return np.mean(self.eff_dist_history[0]) - np.mean(self.eff_dist_history[-1])
 
     # Run Function: -------------------------------------------------------------------------------------------------
     def run(self, num_runs, update_interval=1, exp_decay_param=exp_decay_param_val, source_reward=source_reward_val, constant_source_node=False,
-            num_shifts_of_source_node=False, multiple_path=False, equilibrium_distance=equilibrium_distance_val, verbose=False):
+            num_shifts_of_source_node=False, seeding_sigma_coeff=False, seeding_power_law_exponent=False, multiple_path=False, equilibrium_distance=equilibrium_distance_val, verbose=False):
         """
         :param num_runs: Constant natural number, number of runs.
         :param update_interval: Number of seed steps per run (times information is seeded and diffused before reweighing edges)
@@ -297,8 +329,8 @@ class Graph:
         self.A = np.vstack((self.A, [self.A[-1]]))  # so that initial values (before initial update) are preserved
         equilibrium_span = 1  # if a greater range of values between equilibrium distance ought be compared
         for i in range(0, num_runs):
-            self.seed_info_conditional(constant_source_node, num_shifts_of_source_node, num_runs=num_runs, index=i)
-            self.nodes[-1] = np.array(self.evaluate_effective_distances(self._starting_node, source_reward, exp_decay_param, multiple_path))
+            self.seed_info_conditional(constant_source_node, num_shifts_of_source_node, num_runs=num_runs, sigma=seeding_sigma_coeff, power_law_exponent=seeding_power_law_exponent, index=i)
+            self.nodes[-1] = np.array(self.evaluate_effective_distances(source_reward, exp_decay_param, multiple_path, source=self._source_node))
             if i % update_interval == 0:
                 self.update_edges()
                 # so the next values may be overwritten, we start with 0 node values.

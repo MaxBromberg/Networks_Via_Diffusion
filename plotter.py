@@ -192,6 +192,37 @@ def plot_adjacency_matrix_as_heatmap(graph, timestep=-1, show=True, save_fig=Fal
         plt.show()
 
 
+def plot_all_to_all_eff_dists_as_heatmap(graph, timestep=-1, source_reward=2.6, parameter=12, MPED=False, normalize=True, log_norm=False, show=True, save_fig=False, title=None):
+    """
+    Returns all to all effective distances at timestep plotted as a heat map. Default timestep is the latest value.
+    """
+    assert show or save_fig, 'Graph will be neither shown nor saved'
+    fig = plt.figure(figsize=(10, 10))
+    data = graph.evaluate_effective_distances(source_reward=source_reward, parameter=parameter, timestep=timestep, multiple_path_eff_dist=MPED, source=None)
+    # assert normalize != log_norm, 'cannot both log norm and norm at the same time'
+    if log_norm:
+        data = np.log(data)
+    if normalize:
+        data /= np.max(data)
+    plt.imshow(data, cmap='viridis')
+    plt.colorbar()
+    if MPED:
+        ED_type = 'MPED'
+    else:
+        ED_type = 'RWED'
+    if timestep == -1:
+        plt.title(f'All-to-All {ED_type} at final timestep as heat map')
+    else:
+        plt.title(f'All-to-All {ED_type} at timestep {timestep} as heat map')
+    if save_fig:
+        plt.savefig(f'All-to-All {ED_type} heat map at run {timestep}.png')
+    if title:
+        plt.savefig(f'{title}.png')
+        plt.close(fig)
+    if show:
+        plt.show()
+
+
 def plot_weight_histogram(graph, num_bins=False, timestep=-1, show=True, save_fig=False):
     edges = (graph.A[timestep]).flatten()
     fig = plt.figure(figsize=(10, 10))
@@ -205,6 +236,16 @@ def plot_weight_histogram(graph, num_bins=False, timestep=-1, show=True, save_fi
         plt.title(f"Weight histogram for all edges timestep: {timestep} ")
     if save_fig:
         plt.savefig(f'Weight histogram with {num_bins} bins.png')
+    if show:
+        plt.show()
+
+
+def plot_histogram(data, num_bins=False, show=True):
+    fig = plt.figure(figsize=(10, 10))
+    if num_bins:
+        plt.hist(data, bins=num_bins)
+    else:
+        plt.hist(data)  # bins = auto, as per np.histogram
     if show:
         plt.show()
 
@@ -231,6 +272,27 @@ def plot_degree_distribution(graph, num_bins=False, timestep=-1, show=True, save
         plt.show()
 
 
+def plot_source_distribution(graph, num_bins=False, timestep=-1, show=True, save_fig=False, title=False):
+    source_distribution = graph.source_node_history[:timestep]
+    fig = plt.figure(figsize=(10, 10))
+    if num_bins:
+        plt.hist(source_distribution, bins=num_bins)
+    else:
+        plt.hist(source_distribution)  # bins = auto, as per np.histogram
+    if timestep == -1:
+        plt.title(f"Source histogram for all edges final timestep ")
+    else:
+        plt.title(f"Source histogram for all edges timestep: {timestep} ")
+
+    if title:
+        plt.savefig(f'{title}.png')
+        plt.close(fig)
+    if save_fig:
+        plt.savefig(f'Source histogram with {num_bins} bins.png')
+    if show:
+        plt.show()
+
+
 def plot_effective_distance_histogram(eff_dists, num_bins=False, timestep=-1, show=True, save_fig=False):
     eff_dists = eff_dists.flatten()
     fig = plt.figure(figsize=(10, 10))
@@ -248,7 +310,7 @@ def plot_effective_distance_histogram(eff_dists, num_bins=False, timestep=-1, sh
         plt.show()
 
 
-def plot_single_network(graph, timestep, directed=True, node_size_scaling=200, source_weighting=False, position=None, show=True, save_fig=False, title=None):
+def plot_single_network(graph, timestep, directed=True, node_size_scaling=None, source_weighting=False, position=None, show=True, save_fig=False, title=None):
     fig = plt.figure(figsize=(10, 10))
     if directed:
         nx_G = nx.to_directed(nx.from_numpy_matrix(np.array(graph.A[timestep]), create_using=nx.DiGraph))
@@ -259,27 +321,36 @@ def plot_single_network(graph, timestep, directed=True, node_size_scaling=200, s
         pos = nx.spring_layout(nx_G, weight='weight', pos=position, fixed=list(nx_G.nodes))
     else:
         pos = nx.spring_layout(nx_G, k=0.5, scale=0.5, weight='weight', seed=42)
+
+    if node_size_scaling is None:
+        node_size_scaling = 2*graph.nodes.shape[0]  # So that nodes are sized proportional to the number of times they *could've* been the source
+
     # pos = nx.drawing.layout.spring_layout(nx_G, k=0.5, pos=pos, weight='weight', fixed=list(nx_G.nodes))
-    weights = [nx_G[u][v]['weight'] * 1.5 for u, v in nx_G.edges()]
-    nx.draw_networkx_edges(nx_G, pos, nodelist=['0'], alpha=0.8, width=weights, arrowsize=4,
-                           connectionstyle='arc3, rad=0.2')
-    edge_colors = range(2, nx_G.number_of_edges() + 2)
+    weights = [np.round((nx_G[u][v]['weight'] * 2.5), 10) for u, v in nx_G.edges()]
+    nx.draw_networkx_edges(nx_G, pos, nodelist=['0'], alpha=0.8, width=weights, arrowsize=4, edge_color=None,
+                           connectionstyle='arc3, rad=0.2', edge_cmap='winter')
     node_colors = ['grey' for _ in nx_G]
     node_colors[graph.source_node_history[timestep - 1]] = 'red'
-    incoming_edge_sum = graph.A[timestep].sum(axis=1)
-    incoming_edge_sum = [node_size_scaling * node / sum(incoming_edge_sum) for node in incoming_edge_sum]
+    # edge_colors = range(2, nx_G.number_of_edges() + 2)
+    edge_colors = 'black'
+
     if source_weighting:  # sizes nodes proportional to the number of times they've been a source
-        source_weight = [graph.source_node_history.count(node) for node in range(graph.nodes.shape[1])]
-        source_weight = [node_size_scaling*(weight/sum(source_weight)) for weight in source_weight]
+        source_weights = [graph.source_node_history[:timestep].count(node) for node in range(graph.nodes.shape[1]-1)]
+        # source_weight_sum = sum(source_weights)
+        # source_weights = [node_size_scaling*pow((weight/source_weight_sum), 0.5) for weight in source_weights]
+        source_weights = [weight if weight > 0 else 1 for weight in source_weights]
+
         nx.draw_networkx_nodes(nx_G, pos,
                                arrowstyle='->',
                                edge_color=edge_colors,
-                               node_size=source_weight,
+                               node_size=source_weights,
                                node_color=node_colors,
                                widths=weights,
                                cmap=plt.get_cmap('viridis'))
         plt.title(f"Nodes size proportional to number of times they've been the source [timestep: {timestep}]")
     else:
+        incoming_edge_sum = graph.A[timestep].sum(axis=1)
+        incoming_edge_sum = [node_size_scaling * node / sum(incoming_edge_sum) for node in incoming_edge_sum]
         nx.draw_networkx_nodes(nx_G, pos,
                                arrowstyle='->',
                                edge_color=edge_colors,
@@ -354,7 +425,9 @@ def plot_network(graph, directed=True, node_size_scaling=200, nodes_sized_by_eff
         plt.close(fig)
 
 
-def gif_of_network_evolution(graph, node_size_scaling=200, source_weighting=False, directory_name='network_animation', file_title='network_evolution', parent_directory=None, gif_duration_in_sec=5,  num_runs_per_fig=None, verbose=False):
+def gif_of_network_evolution(graph, node_size_scaling=200, source_weighting=False, directory_name='network_animation',
+                             file_title='network_evolution', parent_directory=None, gif_duration_in_sec=5,
+                             num_runs_per_fig=None, verbose=False):
     """
     Creates a gif and mp4 of the network evolution and stores them in a folder with the individual frames.
     """
@@ -376,8 +449,9 @@ def gif_of_network_evolution(graph, node_size_scaling=200, source_weighting=Fals
 
     nx_G = nx.to_directed(nx.from_numpy_matrix(np.array(graph.A[0]), create_using=nx.DiGraph))
     initial_position = nx.drawing.layout.spring_layout(nx_G, k=0.5, scale=0.5, weight='weight')
-    for i in range(0, graph.A.shape[0]):
-        files = Path(fig_path, f'{i:05}')
+
+    for i in range(0, graph.A.shape[0] - 1):
+        files = Path(fig_path, f'{i:04}')
         if num_runs_per_fig:
             if i % num_runs_per_fig == 0:
                 plot_single_network(graph, i, node_size_scaling=node_size_scaling, source_weighting=source_weighting,
@@ -388,7 +462,7 @@ def gif_of_network_evolution(graph, node_size_scaling=200, source_weighting=Fals
         if verbose:
             if int(i % graph.A.shape[0]) % int(graph.A.shape[0] / 10) == 0:
                 print(f'{(i / graph.A.shape[0]) * 100:.1f}%-ish done')
-            if i == graph.A.shape[0]-1:
+            if i == graph.A.shape[0] - 1:
                 print('Now creating video from rendered images... (ignore resolution reformatting error)')
 
     if num_runs_per_fig:
@@ -406,6 +480,83 @@ def gif_of_network_evolution(graph, node_size_scaling=200, source_weighting=Fals
     writer.close()
     if verbose:
         print(f'\n gif and mp4 of network evolution created in {vid_path} \n Stills stored in {fig_path} \n')
+
+
+def parallellized_gif_of_network_evolution(graph, source_weighting=False, node_size_scaling=True, directory_name='network_animation',
+                                           file_title='network_evolution', parent_directory=None, gif_duration_in_sec=5,
+                                           num_runs_per_fig=None, changing_layout=False, verbose=False):
+    """
+    Creates a gif and mp4 of the network evolution and stores them in a folder with the individual frames.
+    """
+
+    assert num_runs_per_fig != 0, 'Number of runs per figure must be larger than 0, or else omitted for graph every run'
+    start_time = time.time()
+
+    if parent_directory is None:
+        source_directory = os.path.dirname(__file__)
+    else:
+        source_directory = parent_directory
+    vid_path = Path(source_directory, directory_name)
+    fig_path = Path(vid_path, 'figures')
+    try:
+        os.mkdir(vid_path), f'Created folder for network structure gif at {vid_path}'
+        os.mkdir(fig_path), f'Created folder for figures at {fig_path}'
+    except OSError:
+        print(f'{vid_path} already exists, adding or overwriting contents')
+        pass
+
+    nx_G = nx.to_directed(nx.from_numpy_matrix(np.array(graph.A[0]), create_using=nx.DiGraph))
+    if changing_layout:
+        initial_position = None
+    else:
+        initial_position = nx.drawing.layout.spring_layout(nx_G, k=0.5, scale=0.5, weight='weight')
+
+    index = 0
+    while index < graph.A.shape[0] - 1:
+        processes = []
+        used_cores = 0
+        while used_cores < mp.cpu_count():
+            if index > graph.A.shape[0] - 1:
+                break
+            index += 1
+            files = Path(fig_path, f'{index:04}')
+            if num_runs_per_fig:
+                if index % num_runs_per_fig == 0:
+                    p = mp.Process(target=plot_single_network, args=(graph, index, node_size_scaling, None, source_weighting, initial_position, False, True, files))
+                    p.start()
+                    processes.append(p)
+                    used_cores += 1
+            else:
+                p = mp.Process(target=plot_single_network, args=(graph, index, node_size_scaling, None, source_weighting, initial_position, False, True, files))
+                print(f'index: {index}')
+                p.start()
+                processes.append(p)
+                used_cores += 1
+
+            if verbose:
+                utility_funcs.print_run_percentage(index, graph.A.shape[0])
+                if index == graph.A.shape[0]-1: print('Now creating video from rendered images... (ignore resolution reformatting error)')
+
+        for process in processes:
+            process.join()
+
+    if num_runs_per_fig:
+        writer = imageio.get_writer(f'{Path(vid_path, file_title)}.mp4',
+                                    fps=((graph.A.shape[0] / num_runs_per_fig) / gif_duration_in_sec))
+    else:
+        writer = imageio.get_writer(f'{Path(vid_path, file_title)}.mp4', fps=(graph.A.shape[0] / gif_duration_in_sec))
+
+    images = []
+    for filename in sorted(os.listdir(fig_path)):
+        if filename.endswith(".png"):
+            images.append(imageio.imread(Path(fig_path, filename)))
+            writer.append_data(imageio.imread(Path(fig_path, filename)))
+    imageio.mimsave(f'{Path(vid_path, file_title)}.gif', images)
+    writer.close()
+
+    if verbose:
+        print(f'\n gif and mp4 of network evolution created in {vid_path} \n Stills stored in {fig_path} \n')
+        print(f"Time lapsed {int((time.time()-start_time) / 60)} minutes, {np.round((time.time()-start_time) % 60, 2)} seconds")
 
 
 def plot_3d(function, x_range, y_range=None, piecewise=False, z_limits=None, spacing=0.05):
@@ -555,7 +706,7 @@ def plot_shortest_path_length(nx_graphs, show=True, save_fig=False, title=None):
         plt.show()
 
 
-def plot_heatmap(TwoD_data, x_range=None, y_range=None, normalize=False, title=None):
+def plot_heatmap(TwoD_data, x_range=None, y_range=None, normalize=False, tick_scale=2, title=None, fig_title=None):
     if normalize:  # though data is automatically normalized in output heatmap.
         data = np.array(TwoD_data / np.amax(np.array(TwoD_data)))
     else:
@@ -565,9 +716,15 @@ def plot_heatmap(TwoD_data, x_range=None, y_range=None, normalize=False, title=N
     x_interval = (x_range[2]-x_range[1])
     y_interval = (y_range[2]-y_range[1])
     plt.imshow(data, cmap='viridis', extent=[x_range[0], x_range[-1]+x_interval, y_range[0], y_range[-1]+y_interval], aspect='auto')
+    xticks = np.arange(x_range[0], x_range[-1], tick_scale*x_interval)
+    yticks = np.arange(y_range[0], y_range[-1], tick_scale*y_interval)
+    plt.xticks(xticks)
+    plt.yticks(yticks)
     plt.colorbar()
-    plt.xlabel('Skew')
-    plt.ylabel('Coupling')
+    plt.xlabel('Selectivity')
+    plt.ylabel('Edge Conservation')
+    if fig_title:
+        plt.title(f'{fig_title}')
     if title:
         plt.savefig(f'{title}.png')
         plt.close()
@@ -801,80 +958,6 @@ def all_plots_from_super_data_dir(path_to_data_dir, coupling_range, skew_range, 
         parallelized_twoD_grid_search_plots(Path(sub_dir), coupling_range, skew_range, num_nodes=node_nums, output_dir=output_dir)
 
 
-def twoD_grid_search_plots(path_to_data_dir, coupling_range, skew_range, num_nodes, ave_nbr=False, cluster_coeff=False, shortest_path=False, output_dir=None):
-    # Creates all plots for a given dataset (sub)directory, and puts the results in new appropriately named subdirectories
-    start_time = time.time()
-    if output_dir is None:
-        output_dir = path_to_data_dir
-    grid_search_plots_dir = Path(output_dir, f'plots_for_{num_nodes}_nodes')
-    node_path = Path(grid_search_plots_dir, 'node_plots')
-    eff_dist_path = Path(grid_search_plots_dir, 'eff_dist_plots')
-    graph_path = Path(grid_search_plots_dir, 'network_graphs')
-    if ave_nbr: neighbor_path = Path(grid_search_plots_dir, 'ave_neighbor_plots')
-    if cluster_coeff: cluster_coeff_path = Path(grid_search_plots_dir, 'cluster_coefficients_plots')
-    if shortest_path: shortest_paths_path = Path(grid_search_plots_dir, 'shortest_paths_plots')
-    try:
-        os.mkdir(grid_search_plots_dir), f'Created folder for grid search results at {grid_search_plots_dir}'
-        os.mkdir(node_path), f'Created folder for node plots at {node_path}'
-        os.mkdir(eff_dist_path), f'Created folder for eff dist plots at {eff_dist_path}'
-        os.mkdir(graph_path), f'Created folder for graphs at {graph_path}'
-        if ave_nbr: os.mkdir(neighbor_path), f'Created folder for graphs at {neighbor_path}'
-        if cluster_coeff: os.mkdir(cluster_coeff_path), f'Created folder for graphs at {cluster_coeff_path}'
-        if shortest_path: os.mkdir(shortest_paths_path), f'Created folder for graphs at {shortest_paths_path}'
-    except OSError:
-        print(f'{grid_search_plots_dir} already exists, adding or overwriting contents')
-        pass
-    run_counter = 0
-    f = []
-    eff_dist_diffs_flattened = []
-    ave_neighbor_diffs_flattened = []
-    global_eff_dist_diffs_flattened = []
-    ave_nbr_var_flattened = []
-    for root, dirs, files in os.walk(path_to_data_dir):
-        f = sorted(files)  # Order preserved due to 0 padding.
-    assert len(f) == coupling_range.size * skew_range.size, f"Not as many files as parameter combinations: \n num_files: {len(f)}, coupling_range.size * adaptation_range.size {coupling_range.size * skew_range.size}"
-    for coupling_val in coupling_range:
-        for adaption_value in skew_range:
-            with open(Path(path_to_data_dir, f[run_counter]), 'rb') as input:
-                G = pickle.load(input)
-                input.close()
-            plot_node_values(G, node='all', show=False, save_fig=False,
-                             title=Path(node_path, f'{run_counter:03}_node_values_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))
-            plot_global_eff_dist(G, show=False, save_fig=False,
-                                 title=Path(eff_dist_path, f'{run_counter:03}_eff_dist_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))
-            if num_nodes > 20:  # prints end graphs alone for larger node values.
-                plot_single_network(G, timestep=-1, show=False,
-                                    title=Path(graph_path, f'{run_counter:03}_graph_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))
-            else:
-                plot_network(G, nodes_sized_by_eff_distance=True, show=False, save_fig=False,
-                             title=Path(graph_path, f'{run_counter:03}_graph_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))
-
-            nx_graphs = G.convert_history_to_list_of_nx_graphs()
-            if ave_nbr:
-                plot_ave_neighbor_degree(nx_graphs, target='in', source='in', show=False, save_fig=False,
-                                        title=Path(neighbor_path, f'{run_counter:03}_neighbor_plot_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))
-            if cluster_coeff:
-                plot_clustering_coefficients(nx_graphs, show=False, save_fig=False,
-                                             title=Path(cluster_coeff_path, f'{run_counter:03}_cluster_coeffs_plot_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))
-            if shortest_path:
-                plot_shortest_path_length(nx_graphs, show=False, save_fig=False,
-                                          title=Path(shortest_paths_path, f'{run_counter:03}_shortest_path_plot_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(adaption_value, 2)}'))
-
-            last_ave_nbr_deg = list(nx.average_neighbor_degree(G.convert_to_nx_graph(timestep=-1), source='in', target='in', weight='weight').values())
-            eff_dist_diffs_flattened.append(G.eff_dist_diff(multiple_path_eff_dist=False))  # Compares first and last eff_dist values
-            ave_neighbor_diffs_flattened.append((lambda x: max(x) - min(x))(last_ave_nbr_deg))
-            global_eff_dist_diffs_flattened.append(G.eff_dist_diff(eff_dist_to_all=True,
-                                                                   multiple_path_eff_dist=False))  # Compares first and last eff_dist values
-            ave_nbr_var_flattened.append(np.array(last_ave_nbr_deg).var())
-            run_counter += 1  # Also serves as file index
-
-    plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(coupling_range.size, skew_range.size), title=Path(grid_search_plots_dir, f'eff_dist_histogram'), x_range=skew_range, y_range=coupling_range, normalize=True)
-    plot_heatmap(np.array(global_eff_dist_diffs_flattened).reshape(coupling_range.size, skew_range.size), title=Path(grid_search_plots_dir, f'global_eff_dist_histogram'), x_range=skew_range, y_range=coupling_range, normalize=True)
-    plot_heatmap(np.array(ave_neighbor_diffs_flattened).reshape(coupling_range.size, skew_range.size), title=Path(grid_search_plots_dir, f'ave_neighbor_diff_histogram'), x_range=skew_range, y_range=coupling_range, normalize=True)
-    plot_heatmap(np.array(ave_nbr_var_flattened).reshape(coupling_range.size, skew_range.size), title=Path(grid_search_plots_dir, f'ave_neighbor_var_histogram'), x_range=skew_range, y_range=coupling_range, normalize=True)
-    print(f"Time lapsed for {num_nodes} node, {run_counter} parameter combinations: {int((time.time()-start_time) / 60)} minutes, {(time.time()-start_time) % 60} seconds")
-
-
 def parallelized_twoD_grid_search_plots(path_to_data_dir, coupling_range, skew_range, num_nodes, ave_nbr=False, cluster_coeff=False, shortest_path=False, degree_dist=False, output_dir=None):
     # Creates all plots for a given dataset (sub)directory, and puts the results in new appropriately named subdirectories.
     # Parallelization implementation ensures completion of all plots per dataset (or as many as supportable by the number of cpu cores) before continuing to the following set
@@ -941,9 +1024,9 @@ def parallelized_twoD_grid_search_plots(path_to_data_dir, coupling_range, skew_r
 
                     if num_nodes > 20:  # prints end graphs alone for larger node values.
                         p_3 = mp.Process(target=plot_single_network, args=(
-                            G, -1, True, 200, False, None, False, False, Path(graph_path,
+                            G, -1, True, 200, True, None, False, False, Path(graph_path,
                                                                               f'{run_counter:03}_graph_for_coupling_{np.round(coupling_val, 2)}_skew_{np.round(skew_range[skew_val_index + skew_vals_per_full_cpu], 2)}')))
-                        p_3.start()
+                        p_3.start()  # source weighting on the network nodes
                     else:
                         p_3 = mp.Process(target=plot_network, args=(G, True, 200, False, False, False,
                                                                     Path(graph_path,
@@ -987,8 +1070,8 @@ def parallelized_twoD_grid_search_plots(path_to_data_dir, coupling_range, skew_r
                     skew_vals_per_full_cpu += 1
 
                     last_ave_nbr_deg = list(nx.average_neighbor_degree(G.convert_to_nx_graph(timestep=-1), source='in', target='in', weight='weight').values())
-                    eff_dist_diffs_flattened.append(G.eff_dist_diff(multiple_path_eff_dist=False))  # Compares first and last eff_dist values
-                    global_eff_dist_diffs_flattened.append(G.eff_dist_diff(eff_dist_to_all=True, multiple_path_eff_dist=False))  # Compares first and last eff_dist values
+                    eff_dist_diffs_flattened.append(G.eff_dist_diff(MPED=False))  # Compares first and last eff_dist values
+                    global_eff_dist_diffs_flattened.append(G.eff_dist_diff(all_to_all_eff_dist=True, MPED=False))  # Compares first and last all to all eff_dist values
                     ave_neighbor_diffs_flattened.append((lambda x: max(x) - min(x))(last_ave_nbr_deg))
                     ave_nbr_var_flattened.append(np.array(last_ave_nbr_deg).var())
 
@@ -1050,9 +1133,10 @@ def parallelized_twoD_grid_search_plots(path_to_data_dir, coupling_range, skew_r
                     skew_vals_per_full_cpu += 1
 
                     last_ave_nbr_deg = list(nx.average_neighbor_degree(G.convert_to_nx_graph(timestep=-1), source='in', target='in', weight='weight').values())
-                    eff_dist_diffs_flattened.append(G.eff_dist_diff(multiple_path_eff_dist=False))  # Compares first and last eff_dist values
+                    # eff_dist_diffs_flattened.append(G.eff_dist_diff(MPED=False))  # Compares first and last eff_dist values
+                    eff_dist_diffs_flattened.append(G.eff_dist_diff(MPED=False, overall_average=True))  # Averages all eff_dist_history
                     ave_neighbor_diffs_flattened.append((lambda x: np.log(max(x) - min(x)))(last_ave_nbr_deg))
-                    global_eff_dist_diffs_flattened.append(G.eff_dist_diff(eff_dist_to_all=True, multiple_path_eff_dist=False))  # Compares first and last eff_dist values
+                    global_eff_dist_diffs_flattened.append(G.eff_dist_diff(all_to_all_eff_dist=True, MPED=False))  # Compares first and last eff_dist values
                     ave_nbr_var_flattened.append(np.log(np.array(last_ave_nbr_deg).var()))
 
                 utility_funcs.consume(skew_range_iter, mp.cpu_count() - 1)  # Advances skew iter cpu count iterations
@@ -1061,13 +1145,72 @@ def parallelized_twoD_grid_search_plots(path_to_data_dir, coupling_range, skew_r
                 process.join()  # join's created processes to run simultaneously.
 
     ave_nbr_diffs, ave_nbr_vars = np.array(ave_neighbor_diffs_flattened).reshape(coupling_range.size, skew_range.size), np.array(ave_nbr_var_flattened).reshape(coupling_range.size, skew_range.size)
-    if np.argmin(ave_nbr_diffs) < 0: ave_nbr_diffs += np.argmin(ave_nbr_diffs)
-    if np.argmin(ave_nbr_vars) < 0: ave_nbr_vars += np.argmin(ave_nbr_diffs)
-    plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(coupling_range.size, skew_range.size), title=Path(grid_search_plots_dir, f'eff_dist_histogram'), x_range=skew_range, y_range=coupling_range, normalize=True)
-    plot_heatmap(np.array(global_eff_dist_diffs_flattened).reshape(coupling_range.size, skew_range.size), title=Path(grid_search_plots_dir, f'global_eff_dist_histogram'), x_range=skew_range, y_range=coupling_range, normalize=True)
-    plot_heatmap(np.log(ave_nbr_diffs), title=Path(grid_search_plots_dir, f'log_ave_neighbor_diff_histogram'), x_range=skew_range, y_range=coupling_range, normalize=False)
-    plot_heatmap(np.log(ave_nbr_vars), title=Path(grid_search_plots_dir, f'log_ave_neighbor_var_histogram'), x_range=skew_range, y_range=coupling_range, normalize=False)
-    print(f"Time lapsed for {num_nodes} node, {run_counter} parameter combinations: {int((time.time()-start_time) / 60)} minutes, {np.round((time.time()-start_time) % 60, 2)} seconds")
+    if np.argmin(ave_nbr_diffs) < 0:  # To avoid errors with taking the log of negative values
+        ave_nbr_diffs += np.abs(np.min(ave_nbr_diffs))
+        min_nbr_diff = np.min([val > 0 for val in ave_nbr_diffs])
+        ave_nbr_diffs = [el if el > 0 else min_nbr_diff for el in ave_nbr_diffs]  # to avoid rounding errors leading to missed-data.
+    if np.argmin(ave_nbr_vars) < 0:
+        ave_nbr_vars += np.abs(np.min(ave_nbr_diffs))
+        min_nbr_var = np.min([val > 0 for val in ave_nbr_vars])
+        ave_nbr_vars = [el if el > 0 else min_nbr_var for el in ave_nbr_vars]
+    plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(coupling_range.size, skew_range.size), title=Path(grid_search_plots_dir, f'eff_dist_histogram'), x_range=skew_range, y_range=coupling_range, normalize=True, fig_title='Ave Effective Distance to Source')
+    plot_heatmap(np.array(global_eff_dist_diffs_flattened).reshape(coupling_range.size, skew_range.size), title=Path(grid_search_plots_dir, f'global_eff_dist_histogram'), x_range=skew_range, y_range=coupling_range, normalize=True, fig_title='All-to-All Effective Distance')
+    plot_heatmap(np.log(ave_nbr_diffs), title=Path(grid_search_plots_dir, 'log_ave_neighbor_diff_histogram'), x_range=skew_range, y_range=coupling_range, normalize=False, fig_title='log_ave_nbr_diffs')
+    plot_heatmap(np.log(ave_nbr_vars), title=Path(grid_search_plots_dir, 'log_ave_neighbor_var_histogram'), x_range=skew_range, y_range=coupling_range, normalize=False, fig_title='log_ave_nbr_var')
+    print(f"Time lapsed for {num_nodes} nodes, {run_counter} parameter combinations: {int((time.time()-start_time) / 60)} minutes, {np.round((time.time()-start_time) % 60, 2)} seconds")
+
+
+def twoD_grid_search_meta_plots(path_to_data_dir, coupling_range, skew_range, num_nodes, output_dir=None, verbose=False):
+    # Creates meta plots for a given dataset (sub)directory, and puts the results in new appropriately named subdirectories.
+    start_time = time.time()
+    if output_dir is None:
+        output_dir = path_to_data_dir
+    meta_grid_search_plots_dir = Path(output_dir, f'meta_plots_for_{num_nodes}_nodes')
+    try:
+        os.mkdir(meta_grid_search_plots_dir), f'Created folder for grid search results at {meta_grid_search_plots_dir}'
+    except OSError:
+        print(f'{meta_grid_search_plots_dir} already exists, adding or overwriting contents')
+        pass
+
+    if verbose: run_counter = 0
+    f = []
+    eff_dist_diffs_flattened = []
+    global_eff_dist_diffs_flattened = []
+    ave_neighbor_diffs_flattened = []
+    ave_nbr_var_flattened = []
+
+    for root, dirs, files in os.walk(path_to_data_dir):
+        f = sorted(files)  # Order preserved due to 0 padding.
+    assert len(f) == coupling_range.size * skew_range.size, f"Not as many files as parameter combinations: \n num_files: {len(f)}, coupling_range.size * adaptation_range.size {coupling_range.size * skew_range.size}"
+    for file in f:
+        with open(Path(path_to_data_dir, file), 'rb') as data:
+            G = pickle.load(data)
+            data.close()
+
+            last_ave_nbr_deg = list(nx.average_neighbor_degree(G.convert_to_nx_graph(timestep=-1), source='in', target='in', weight='weight').values())
+            # eff_dist_diffs_flattened.append(G.eff_dist_diff(MPED=False))  # Compares first and last eff_dist values
+            eff_dist_diffs_flattened.append(G.eff_dist_diff(MPED=False, overall_average=True))  # Averages all eff_dist_history
+            ave_neighbor_diffs_flattened.append((lambda x: np.log(max(x) - min(x)))(last_ave_nbr_deg))
+            global_eff_dist_diffs_flattened.append(G.eff_dist_diff(all_to_all_eff_dist=True, MPED=False))  # Compares first and last eff_dist values
+            ave_nbr_var_flattened.append(np.log(np.array(last_ave_nbr_deg).var()))
+            if verbose:
+                run_counter += 1
+                utility_funcs.print_run_percentage(run_counter, len(f))
+
+    ave_nbr_diffs, ave_nbr_vars = np.array(ave_neighbor_diffs_flattened).reshape(coupling_range.size, skew_range.size), np.array(ave_nbr_var_flattened).reshape(coupling_range.size, skew_range.size)
+    if np.argmin(ave_nbr_diffs) < 0:  # To avoid errors with taking the log of negative values
+        ave_nbr_diffs += np.abs(np.min(ave_nbr_diffs))
+        min_nbr_diff = np.min([val > 0 for val in ave_nbr_diffs])
+        ave_nbr_diffs = [el if el > 0 else min_nbr_diff for el in ave_nbr_diffs]  # to avoid rounding errors leading to missed-data.
+    if np.argmin(ave_nbr_vars) < 0:
+        ave_nbr_vars += np.abs(np.min(ave_nbr_diffs))
+        min_nbr_var = np.min([val > 0 for val in ave_nbr_vars])
+        ave_nbr_vars = [el if el > 0 else min_nbr_var for el in ave_nbr_vars]
+    plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(coupling_range.size, skew_range.size), title=Path(meta_grid_search_plots_dir, f'eff_dist_histogram'), x_range=skew_range, y_range=coupling_range, normalize=True, fig_title='Average Effective Distance to Source')
+    plot_heatmap(np.array(global_eff_dist_diffs_flattened).reshape(coupling_range.size, skew_range.size), title=Path(meta_grid_search_plots_dir, f'global_eff_dist_histogram'), x_range=skew_range, y_range=coupling_range, normalize=True, fig_title='All-to-All Effective Distance')
+    plot_heatmap(np.log(ave_nbr_diffs), title=Path(meta_grid_search_plots_dir, f'log_ave_neighbor_diff_histogram'), x_range=skew_range, y_range=coupling_range, normalize=False, fig_title='ln_Ave_Nbr_Differences')
+    plot_heatmap(np.log(ave_nbr_vars), title=Path(meta_grid_search_plots_dir, f'log_ave_neighbor_var_histogram'), x_range=skew_range, y_range=coupling_range, normalize=False, fig_title='ln_Ave_Nbr_Varience')
+    if verbose: print(f"Time lapsed for {num_nodes} node, {run_counter} parameter combinations: {int((time.time()-start_time) / 60)} minutes, {np.round((time.time()-start_time) % 60, 2)} seconds")
 
 
 # data_observables
