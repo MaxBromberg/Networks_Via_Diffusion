@@ -32,7 +32,7 @@ G.run(num_runs, exp_decay_param=12, constant_source_node=1, equilibrium_distance
 # plotter.plot_single_network(G, num_runs, source_weighting=True)
 plotter.plot_network(G, nodes_sized_by_eff_distance=False)
 plotter.plot_degree_distribution(G)
-plotter.gif_of_network_evolution(G, num_runs_per_fig=5, gif_duration_in_sec=10, verbose=True)
+plotter.animate_network_evolution(G, num_runs_per_fig=5, gif_duration_in_sec=10, verbose=True)
 
 print(f'G.eff_dist_diff: {G.eff_dist_diff()}')
 

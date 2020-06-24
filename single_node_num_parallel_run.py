@@ -32,10 +32,10 @@ if __name__ == '__main__':
             used_cores = 0
             processes = []
             left_over_skew_values = skew_range.size - skew_val_index
-            # print(f'skew_val_index: {skew_val_index} | mp.cpu_count(): {mp.cpu_count()} | skew_range.size: {skew_range.size}')
+            # print(f'skew_val_index: {skew_val_index} | mp.cpu_count(): {mp.cpu_count()} | selectivity_range.size: {selectivity_range.size}')
             if left_over_skew_values < mp.cpu_count():  # To ensure that parallelization persists when there are fewer tasks than cores
                 while used_cores < left_over_skew_values:
-                    # print(f'used_cores: {used_cores} | skew_val_index: {skew_val_index} | skew_range[skew_val_index + used_cores]: {np.round(skew_range[skew_val_index + used_cores], 2)}')
+                    # print(f'used_cores: {used_cores} | skew_val_index: {skew_val_index} | selectivity_range[skew_val_index + used_cores]: {np.round(selectivity_range[skew_val_index + used_cores], 2)}')
                     parameter_dictionary = {
                         'output_directory': output_directory,
                         'num_nodes': num_nodes,
@@ -69,5 +69,5 @@ if __name__ == '__main__':
                 process.join()  # join's created processes to run simultaneously.
 
     print(f"Time lapsed for {num_nodes} node, {coupling_range.size * skew_range.size} parameter combinations: {int((time.time()-start_time) / 60)} minutes, {np.round((time.time()-start_time) % 60, 2)} seconds")
-    plotter.parallelized_twoD_grid_search_plots(output_directory, coupling_range=coupling_range, skew_range=skew_range, num_nodes=num_nodes, ave_nbr=False, cluster_coeff=False, shortest_path=False, output_dir=data_directory)
+    plotter.twoD_grid_search_w_plots(output_directory, edge_conservation_range=coupling_range, selectivity_range=skew_range, num_nodes=num_nodes, ave_nbr=False, cluster_coeff=False, shortest_path=False, output_dir=data_directory)
 
