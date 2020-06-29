@@ -57,10 +57,35 @@ class Graph:
 
     def uniform_random_edge_init(self):
         """Most general case, fills Adjacency matrix with uniform random values and normalizes them"""
-        self.A = np.random.rand(1, self.num_nodes, self.num_nodes)  # creates 1 x n x n adjacency matrix filled with rand(0,1)
+        self.A[-1] = np.random.rand(self.num_nodes, self.num_nodes)  # makes latest A a n x n adjacency matrix filled with rand(0,1)
         for node in range(0, self.num_nodes):
-            self.A[-1][node][node] = 0  # eliminates looping edges (i.e. no edge refers to itself)
-            self.A[-1][node] /= self.A[-1][node].sum()  # normalizes each node's total weights to 1
+            self.A[-1][node][node] = 0  # eliminates looping edges (i.e. no edge refers to itself -> simple graph)
+            self.A[-1][node] /= self.A[-1][node].sum()  # normalizes each node's total (incoming) weights to 1
+
+    def scale_free_edge_init(self, degree_exponent, min_k=1):
+        """
+        Generates degree sequence based on probability of connecting to k nodes: p(k) = k^-degree_exponent,
+        spreads connections uniformly across connections, with the number of connections per node dependant on above
+        :param degree_exponent: determines scale for edge initialization, often written as \gamma in the literature
+        As implemented, the range of k values in p(k) are given in line with indicies.
+        """
+        degree_sequence = [pow(k, -degree_exponent) for k in range(1, self.A[-1].shape[0]+1)]
+        degree_sequence = [degree_sequence[i] / sum(degree_sequence) for i in range(len(degree_sequence))]  # Normalization via Riemann Zeta function required?
+        print(f'deg-seq: {degree_sequence} sum: {sum(degree_sequence)}')
+        if min_k > 0:
+            degree_sequence = [int(np.round(degree_sequence[node] * self.A[-1].shape[0])) if int(np.round(degree_sequence[node] * self.A[-1].shape[0])) > min_k else min_k for node in range(self.A[-1].shape[0])]
+        else:
+            degree_sequence = [int(np.round(degree_sequence[node] * self.A[-1].shape[0])) for node in range(self.A[-1].shape[0])]
+        print(f'deg-seq: {degree_sequence} sum: {sum(degree_sequence)}')
+
+        self.A = np.zeros((1, self.A[-1].shape[0], self.A[-1].shape[1]))  # Reinitialization to zeros for following:
+        for from_node in range(self.A[-1].shape[0]):
+            to_nodes = random.choices(list(set(range(self.A[-1].shape[0])) - {from_node}), k=degree_sequence[from_node])
+            for to_node in to_nodes:
+                self.A[-1][from_node][to_node] = np.random.rand()
+            if self.A[-1][from_node].sum() > 0:
+                self.A[-1][from_node] /= self.A[-1][from_node].sum()  # normalizes each node's total (incoming) weights to 1
+        print(self.A[-1])
 
     # Information Seeding: ------------------------------------------------------------------------------------------
     def seed_info_random(self):
