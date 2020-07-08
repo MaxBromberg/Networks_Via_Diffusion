@@ -106,7 +106,7 @@ class Graph:
         self._source_node = constant_source_node
         self.source_node_history.append(constant_source_node)
 
-    def seed_info_by_diversity_of_connections(self):
+    def seed_info_by_diversity_of_connections(self, beta):
         """
         Computes standard deviation as a (negatively correlated) metric for diversity of connection between nodes,
         then uses this to distribute 'nuggets' of information (via canonical ensemble of standard deviation).
@@ -115,7 +115,7 @@ class Graph:
         self._source_node = None  # resets starting nodes such that new seed_info call will not conflict
         exp_stds = []
         for node_edges in self.A[-1][:]:
-            exp_stds.append(np.exp(-self.beta * node_edges.std()))  # sum of e^(-\beta \sigma_i) for i \in node[weights]
+            exp_stds.append(np.exp(-beta * node_edges.std()))  # sum of e^(-\beta \sigma_i) for i \in node[weights]
         std_partition = sum(exp_stds)
         while self._source_node is None:
             seeded_node = np.random.randint(0, self.nodes[-1].size)
@@ -163,7 +163,7 @@ class Graph:
         """
         assert bool(constant_source_node) + bool(num_shifts_of_source_node) + bool(sigma) + bool(power_law_exponent) + bool(beta) < 2, 'Incompatible arguments for info_seeding conditional, choose one method only per run call'
         if beta:
-            self.seed_info_by_diversity_of_connections()
+            self.seed_info_by_diversity_of_connections(beta)
         elif num_shifts_of_source_node:
             # assert num_shifts_of_source_node <= self.num_nodes, "more changes to constant source node than number of nodes. Set constant_source_node to false to activate continues random seeding"
             if (index % int((num_runs / num_shifts_of_source_node))) == 0:

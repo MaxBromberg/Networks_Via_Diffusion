@@ -23,6 +23,6 @@ except IndexError:
 
 if __name__ == '__main__':
     node_nums = int(str(str(input_path).split('/')[-1]).split('_')[-1])
-    plotter.twoD_grid_search_w_plots(input_path, edge_conservation_range=coupling_range, selectivity_range=adaptation_range, num_nodes=node_nums, output_dir=output_path,
-                                     ave_nbr=False, cluster_coeff=False, shortest_path=False)  # edit directly here for desired more computationally cumbersome observables
+    plotter.twoD_grid_search_plots(input_path, edge_conservation_range=coupling_range, selectivity_range=adaptation_range, num_nodes=node_nums, output_dir=output_path,
+                                   node_plots=False, ave_nbr=False, cluster_coeff=False, shortest_path=False, degree_dist=True)  # edit directly here for desired more computationally cumbersome observables
 
