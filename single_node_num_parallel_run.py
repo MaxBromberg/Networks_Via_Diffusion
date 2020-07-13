@@ -9,7 +9,7 @@ import plotter
 
 num_nodes = 50
 run_index = 1
-data_directory = "/home/maqz/Desktop/data/constant_seeding_param_val_1"
+data_directory = "/home/maqz/Desktop/data/random_seeding"
 output_directory = Path(data_directory, f"node_num_{num_nodes}")
 
 try: os.mkdir(output_directory)
@@ -69,6 +69,6 @@ if __name__ == '__main__':
             for process in processes:
                 process.join()  # join's created processes to run simultaneously.
 
-    print(f"Time lapsed for {num_nodes} node, {edge_conservation_range.size * selectivity_range.size} parameter combinations: {int((time.time() - start_time) / 60)} minutes, {np.round((time.time() - start_time) % 60, 2)} seconds")
-    plotter.twoD_grid_search_plots(output_directory, edge_conservation_range=edge_conservation_range, selectivity_range=selectivity_range, num_nodes=num_nodes, node_plots=False, ave_nbr=False, cluster_coeff=False, shortest_path=False, degree_dist=True, output_dir=data_directory)
+    print(f"Time lapsed for {num_nodes} node, {edge_conservation_range.size * selectivity_range.size} parameter combinations: {utility_funcs.time_lapsed_h_m_s(time.time()-start_time)}")
+    # plotter.twoD_grid_search_plots(output_directory, edge_conservation_range=edge_conservation_range, selectivity_range=selectivity_range, num_nodes=num_nodes, node_plots=False, ave_nbr=False, cluster_coeff=False, shortest_path=False, degree_dist=True, output_dir=data_directory)
 

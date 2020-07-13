@@ -291,6 +291,7 @@ class EffectiveDistances:
         else:
             P = adjacency_matrix(self.graph, weight="weight").tocsc()
 
+        # assert np.all(np.isclose(P.sum(axis=1), 1, rtol=1e-15, equal_nan=True)), "If there are dim incompatibility issues, as nan == nan is false."
         assert np.all(np.isclose(P.sum(axis=1), 1, rtol=1e-15)), "The transition matrix has to be row normalized"
 
         one = eye(self.nodes, format="csc")

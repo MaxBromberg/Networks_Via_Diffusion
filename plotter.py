@@ -447,8 +447,9 @@ def plot_degree_histogram(graph, num_bins=False, timestep=-1, show=True, save_fi
     Plots degree distribution (of entire graph) as a histogram.
     :param num_bins: explicit number of bins for histogram, (default sets them automatically)
     """
-    nx_graph = graph.convert_to_nx_graph(timestep=timestep)
-    degree_dist = [val[1] for val in list(nx_graph.degree(weight='weight'))]
+    # nx_graph = graph.convert_to_nx_graph(timestep=timestep)
+    # degree_dist = [val[1] for val in list(nx_graph.degree(weight='weight'))]
+    degree_dist = graph.degree_distribution(timestep=timestep)
     fig = plt.figure(figsize=(10, 10))
     if num_bins:
         plt.hist(degree_dist, bins=num_bins)
@@ -474,7 +475,10 @@ def plot_source_distribution(graph, num_bins=False, timestep=-1, show=True, save
     :param num_bins: Explicitly set the number of desired histogram bins. Default automatically sets for data
     :param timestep: cut off point of graph history to examine source history. Defaults to the end of the graph
     """
-    source_distribution = graph.source_node_history[:timestep]
+    if len(utility_funcs.arr_dimen(graph.source_node_history)) > 1:
+        source_distribution = np.array(graph.source_node_history)[:, :timestep].flatten()
+    else:
+        source_distribution = graph.source_node_history[:timestep]
     fig = plt.figure(figsize=(10, 10))
     if num_bins:
         plt.hist(source_distribution, bins=num_bins)
@@ -947,7 +951,7 @@ def open_figure(path, filename):
 
 
 #  Grid Search: ------------------------------------------------------------------------------------------------------
-def twoD_grid_search_plots(path_to_data_dir, edge_conservation_range, selectivity_range, num_nodes, node_plots=False, ave_nbr=False, cluster_coeff=False, shortest_path=False, degree_dist=False, output_dir=None):
+def twoD_grid_search_plots(path_to_data_dir, edge_conservation_range, selectivity_range, num_nodes, network_graphs=False, node_plots=False, ave_nbr=False, cluster_coeff=False, shortest_path=False, degree_dist=False, output_dir=None):
     """
     Runs grid-search, and then creates all plots for a given dataset (sub)directory, and puts the results in new appropriately named subdirectories.
     # Parallelization implementation ensures completion of all plots per dataset (or as many as supportable by the number of cpu cores) before continuing to the following set
@@ -966,7 +970,7 @@ def twoD_grid_search_plots(path_to_data_dir, edge_conservation_range, selectivit
         output_dir = path_to_data_dir
     grid_search_plots_dir = Path(output_dir, f'plots_for_{num_nodes}_nodes')
     eff_dist_path = Path(grid_search_plots_dir, 'eff_dist_plots')
-    graph_path = Path(grid_search_plots_dir, 'network_graphs')
+    if network_graphs: graph_path = Path(grid_search_plots_dir, 'network_graphs')
     if node_plots: node_path = Path(grid_search_plots_dir, 'node_plots')
     if ave_nbr: neighbor_path = Path(grid_search_plots_dir, 'ave_neighbor_plots')
     if cluster_coeff: cluster_coeff_path = Path(grid_search_plots_dir, 'cluster_coefficients_plots')
@@ -975,7 +979,7 @@ def twoD_grid_search_plots(path_to_data_dir, edge_conservation_range, selectivit
     try:
         os.mkdir(grid_search_plots_dir), f'Created folder for grid search results at {grid_search_plots_dir}'
         os.mkdir(eff_dist_path), f'Created folder for eff dist plots at {eff_dist_path}'
-        os.mkdir(graph_path), f'Created folder for graphs at {graph_path}'
+        if network_graphs: os.mkdir(graph_path), f'Created folder for graphs at {graph_path}'
         if node_plots: os.mkdir(node_path), f'Created folder for node plots at {node_path}'
         if ave_nbr: os.mkdir(neighbor_path), f'Created folder for graphs at {neighbor_path}'
         if cluster_coeff: os.mkdir(cluster_coeff_path), f'Created folder for graphs at {cluster_coeff_path}'
@@ -1017,14 +1021,15 @@ def twoD_grid_search_plots(path_to_data_dir, edge_conservation_range, selectivit
                     processes.append(p_1)
                     used_cores += 1
 
-                    if num_nodes > 20:  # prints end graphs alone for larger node values.
-                        p_2 = mp.Process(target=plot_single_network, args=(G, -1, True, 200, False, None, False, False, Path(graph_path, f'{run_counter:03}_graph_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
-                        p_2.start()
-                    else:
-                        p_2 = mp.Process(target=plot_network, args=(G, True, 200, False, False, False, Path(graph_path, f'{run_counter:03}_graph_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
-                        p_2.start()
-                    processes.append(p_2)
-                    used_cores += 1
+                    if network_graphs:
+                        if num_nodes > 20:  # prints end graphs alone for larger node values.
+                            p_2 = mp.Process(target=plot_single_network, args=(G, -1, True, 200, False, None, False, False, Path(graph_path, f'{run_counter:03}_graph_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
+                            p_2.start()
+                        else:
+                            p_2 = mp.Process(target=plot_network, args=(G, True, 200, False, False, False, Path(graph_path, f'{run_counter:03}_graph_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
+                            p_2.start()
+                        processes.append(p_2)
+                        used_cores += 1
 
                     if node_plots:
                         p_3 = mp.Process(target=plot_node_values, args=(G, 'all', False, False, Path(node_path, f'{run_counter:03}_node_values_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
@@ -1082,14 +1087,15 @@ def twoD_grid_search_plots(path_to_data_dir, edge_conservation_range, selectivit
                     processes.append(p_1)
                     used_cores += 1
 
-                    if num_nodes > 20:  # prints end graphs alone for larger node values.
-                        p_2 = mp.Process(target=plot_single_network, args=(G, -1, True, 200, False, None, False, False, Path(graph_path, f'{run_counter:03}_graph_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
-                        p_2.start()
-                    else:
-                        p_2 = mp.Process(target=plot_network, args=(G, True, 200, False, False, False, Path(graph_path, f'{run_counter:03}_graph_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
-                        p_2.start()
-                    processes.append(p_2)
-                    used_cores += 1
+                    if network_graphs:
+                        if num_nodes > 20:  # prints end graphs alone for larger node values.
+                            p_2 = mp.Process(target=plot_single_network, args=(G, -1, True, 200, False, None, False, False, Path(graph_path, f'{run_counter:03}_graph_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
+                            p_2.start()
+                        else:
+                            p_2 = mp.Process(target=plot_network, args=(G, True, 200, False, False, False, Path(graph_path, f'{run_counter:03}_graph_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
+                            p_2.start()
+                        processes.append(p_2)
+                        used_cores += 1
 
                     if node_plots:
                         p_3 = mp.Process(target=plot_node_values, args=(G, 'all', False, False, Path(node_path, f'{run_counter:03}_node_values_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
@@ -1156,7 +1162,7 @@ def twoD_grid_search_plots(path_to_data_dir, edge_conservation_range, selectivit
     plot_heatmap(np.array(log_degree_dist_var_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'log_degree_var'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=True, fig_title='Final Degree Distribution Variance')
     plot_heatmap(np.log(ave_nbr_diffs), title=Path(grid_search_plots_dir, 'log_ave_neighbor_diff'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='log_ave_nbr_diffs')
     plot_heatmap(np.log(ave_nbr_vars), title=Path(grid_search_plots_dir, 'log_ave_neighbor_var'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='log_ave_nbr_var')
-    print(f"Time lapsed for {num_nodes} nodes, {run_counter} parameter combinations: {int((time.time()-start_time) / 60)} minutes, {np.round((time.time()-start_time) % 60, 2)} seconds")
+    print(f"Time lapsed for {num_nodes} nodes, {run_counter} parameter combinations: {utility_funcs.time_lapsed_h_m_s(time.time()-start_time)}")
 
 
 def twoD_grid_search_meta_plots(path_to_data_dir, edge_conservation_range, selectivity_range, output_dir=None, verbose=False):

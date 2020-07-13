@@ -4,6 +4,26 @@ import itertools, collections
 rounding = 3
 
 
+def time_lapsed_h_m_s(time_in_seconds):
+    hours, minutes, seconds = int(time_in_seconds / 3600), int((time_in_seconds % 3600) / 60), np.round(((time_in_seconds % 3600) % 60), 2)
+    if hours: return f'{hours} hours, {minutes} minutes, {seconds} seconds'
+    if minutes: return f'{minutes} minutes, {seconds} seconds'
+    if seconds: return f'{seconds} seconds'
+
+
+def arr_dimen(a):
+    # Finds list dimension, curtsy Archit Jain from https://stackoverflow.com/questions/17531796/find-the-dimensions-of-a-multidimensional-python-array
+    return [len(a)]+arr_dimen(a[0]) if(type(a) == list) else []
+
+
+def element_wise_array_average(list_of_np_arrays):
+    """
+    returns single array with every element the average of all input arrays respective element
+    """
+    assert np.all(np.array([list_of_np_arrays[0].shape == [list_of_np_arrays[i].shape for i in range(len(list_of_np_arrays))][ii] for ii in range(len(list_of_np_arrays))])), "Arrays to be averaged element-wise must be of equal dimension"
+    return np.mean(np.array(list_of_np_arrays), axis=0)
+
+
 def return_one_over_2d_matrix(matrix):
     quasi_inverted_matrix = np.array(matrix, float)
     for i in range(quasi_inverted_matrix.shape[0]):

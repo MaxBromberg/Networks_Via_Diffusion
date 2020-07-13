@@ -15,7 +15,7 @@ rounding = 3
 G = graph.Graph(num_nodes, eff_dist_and_edge_response=0.2, fraction_info_score_redistributed=0.8, reinforcement_info_score_coupling=True)
 # G.sparse_random_edge_init(outgoing_edges_per_node)
 G.uniform_random_edge_init()
-G.run(num_runs, exp_decay_param=12, constant_source_node=1, equilibrium_distance=200, multiple_path=False, verbose=True)
+G.simulate(num_runs, eff_dist_delta_param=12, constant_source_node=1, equilibrium_distance=200, multiple_path=False, verbose=True)
 # plotter.plot_weight_histogram(G, num_bins=100, show=True)
 # plotter.plot_effective_distance_histogram(G.get_eff_dist(multiple_path=True), num_bins=100)
 # plotter.plot_adjacency_matrix_as_heatmap(G, show=True)

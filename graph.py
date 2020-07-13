@@ -10,7 +10,7 @@ random.seed(42)
 
 # Global Variables for default run values
 update_interval_val = 1
-exp_decay_param_val = 12
+delta = 12
 source_reward_val = 2.6
 equilibrium_distance_val = 100
 
@@ -397,13 +397,13 @@ class Graph:
         return np.round(np.sum(self.A[timestep], axis=1), 20)
 
     # Run Function: -------------------------------------------------------------------------------------------------
-    def run(self, num_runs, update_interval=1, exp_decay_param=exp_decay_param_val, source_reward=source_reward_val, constant_source_node=False,
-            num_shifts_of_source_node=False, seeding_sigma_coeff=False, seeding_power_law_exponent=False, beta=None, multiple_path=False, equilibrium_distance=equilibrium_distance_val, verbose=False):
+    def simulate(self, num_runs, update_interval=1, eff_dist_delta_param=delta, source_reward=source_reward_val, constant_source_node=False,
+                 num_shifts_of_source_node=False, seeding_sigma_coeff=False, seeding_power_law_exponent=False, beta=None, multiple_path=False, equilibrium_distance=equilibrium_distance_val, verbose=False):
         """
         Run function. Sequentially seeds source node, sets node values to effective distance evaluation, updates edges and corresponding history.
         :param num_runs: Constant natural number, number of runs.
         :param update_interval: Number of seed steps per run (times information is seeded and diffused before reweighing edges)
-        :param exp_decay_param: determines exponential suppression of higher order paths for both RWED and MPED
+        :param eff_dist_delta_param: determines exponential suppression of higher order paths for both RWED and MPED
         :param source_reward: Determines how much the source node is scaled, recommended values \in (1,2)
         :param constant_source_node: Sets seed node to be a given node (the integer given).  True defaults to 0th node.
         :param multiple_path: if True, uses multiple path effective distance algorithm. Otherwise, defaults to random walker effective distance algorithm
@@ -424,25 +424,26 @@ class Graph:
                 print(f'All information was seeded randomly.')
 
             if multiple_path:
-                print(f'The Multiple Path Effective Distance (MPED) was used, with higher order paths suppressed by a exp_decay_param of {exp_decay_param}')
+                print(f'The Multiple Path Effective Distance (MPED) was used, with higher order paths suppressed by a eff_dist_delta_param of {eff_dist_delta_param}')
             else:
-                print(f'The (analytic) Random Walker Effective Distance (RWED) was used, with an exp_decay_param of {exp_decay_param}.')
+                print(f'The (analytic) Random Walker Effective Distance (RWED) was used, with an eff_dist_delta_param of {eff_dist_delta_param}.')
 
             print('Edge Update algorithm:')
-            if self.fraction_infoscore_redistributed:
-                print(f'Reweight_edges_via_info_score algorithm, with {self.fraction_infoscore_redistributed} as the exponential scaling/rate of edge adaptation')
-            else:
-                print(f'Edges were reweighed by simply adding the product of their edge value and origin node (from which they were directed) to their value')
+            print(f'Edges were reweighted via Info score values, with edge conservation and selectivity values of {self.eff_dist_and_edge_coupling}, {self.fraction_infoscore_redistributed}, respectively.')
+            if self.reinforcement_infoscore_coupling:
+                print(f'Reinforcement of edges was coupled to the edges\' info score values')
+            if self.positive_eff_dist_and_reinforcement_correlation:
+                print('There was a positive effective distance and edge reinforcement correlation, the opposite of the usual relation.')
 
         # Body of run function
         self.A = np.vstack((self.A, [self.A[-1]]))  # so that initial values (before initial update) are preserved
         equilibrium_span = 1  # if a greater range of values between equilibrium distance ought be compared
         for i in range(0, num_runs):
             self.seed_info_conditional(constant_source_node, num_shifts_of_source_node, num_runs=num_runs, sigma=seeding_sigma_coeff, power_law_exponent=seeding_power_law_exponent, beta=beta, index=i)
-            self.nodes[-1] = np.array(self.evaluate_effective_distances(source_reward, exp_decay_param, multiple_path, source=self._source_node))
+            self.nodes[-1] = np.array(self.evaluate_effective_distances(source_reward, eff_dist_delta_param, multiple_path, source=self._source_node))
             if i % update_interval == 0:
                 self.update_edges()
-                # so the next values may be overwritten, we start with 0 node values.
+                # so the next values may be overwritten, we start each run with 0 node values.
                 self.nodes = np.vstack((self.nodes, np.zeros((1, self.num_nodes))))
                 self.A = np.vstack((self.A, [self.A[-1]]))
             if verbose:
@@ -455,4 +456,37 @@ class Graph:
         self.nodes = self.nodes[:-1]
         if verbose:
             print_run_methods()
+
+    def simulate_ensemble(self, num_simulations, num_runs_per_sim, update_interval=1,
+                          eff_dist_delta_param=delta,
+                          source_reward=source_reward_val,
+                          constant_source_node=False,
+                          num_shifts_of_source_node=False, seeding_sigma_coeff=False, seeding_power_law_exponent=False, beta=None,
+                          multiple_path=False, equilibrium_distance=equilibrium_distance_val, verbose=False):
+        """
+        Keeps a running average of A, and eff_dist_history over num_simulations, while extending source history.
+        This leaves observables which are not dependent on an averaged A requiring special reprogramming.
+        :param num_simulations: number of simulations over which the end result will be averaged
+        """
+        source_node_history = []
+        for i in range(num_simulations):
+            self.uniform_random_edge_init()
+            self.simulate(num_runs_per_sim, update_interval, eff_dist_delta_param, source_reward, constant_source_node, num_shifts_of_source_node, seeding_sigma_coeff, seeding_power_law_exponent, beta, multiple_path, equilibrium_distance, verbose)
+            if i == 0:
+                A = self.A
+                eff_dist_history = self.eff_dist_history
+            else:
+                A = utility_funcs.element_wise_array_average([A, self.A])
+                eff_dist_history = utility_funcs.element_wise_array_average([np.array(eff_dist_history), np.array(self.eff_dist_history)])
+            source_node_history.append(self.source_node_history)
+            # A = self.A if i == 0 else A = utility_funcs.element_wise_array_average([A, self.A])
+            # eff_dist_history = self.eff_dist_history if i == 0 else eff_dist_history = utility_funcs.element_wise_array_average([np.array(eff_dist_history), np.array(self.eff_dist_history)])
+
+            self.A = np.zeros((1, self.num_nodes, self.num_nodes))  # Re-initializing
+            self.eff_dist_history = []
+            self.source_node_history = []
+        self.A = A
+        self.eff_dist_history = eff_dist_history
+        self.source_node_history = source_node_history  # Makes final source node history 2d, with columns being the individual run histories.
+
 
