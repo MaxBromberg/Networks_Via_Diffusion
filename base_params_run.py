@@ -41,4 +41,3 @@ if __name__ == '__main__':
                         equilibrium_distance=equilibrium_distance, seeding_sigma_coeff=seeding_sigma_coeff, seeding_power_law_exponent=seeding_power_law_exponent, beta=beta, multiple_path=multiple_path, verbose=False)
     plotter.save_object(G, Path(output_path, f'{run_index:04}_graph_obj.pkl'))
     print(f'Run {run_index}, [edge conservation: {edge_conservation_val}, selectivity: {selectivity_val}] complete.')
-# print(f'Raw graph data recorded at: {output_path}')
