@@ -10,7 +10,6 @@ random.seed(42)
 
 # Global Variables for default run values
 update_interval_val = 1
-delta = 12
 source_reward_val = 2.6
 equilibrium_distance_val = 100
 
@@ -22,7 +21,7 @@ class Graph:
         """
         Initialization; the 'extra' dimensionality (i.e. 1 for nodes, A) are there to dynamically store their history
         via use of vstack later on. To minimize variables, many features are activated by specifying their relevant
-        macro parameter, e.g. diversity based seeding by setting beta != None
+        macro delta, e.g. diversity based seeding by setting beta != None
         :param num_nodes: Number of nodes in network. Remains constant
         :param eff_dist_and_edge_response: Tune between 0 (edge reinforcement is entirely based on eff_dist) and 1 (edge reinforcement is entirely based on extant edge values)
         :param fraction_info_score_redistributed: Determines if reweight_edges_via_info_score is used.
@@ -190,9 +189,9 @@ class Graph:
          By design, x is the (scaled) proportion of connected node value to all node connections
          (scaled proportional to effective distance, thus the inverse relation via (1-x) while
          y is the edge's value (i.e. probability od transition, given normalization of A columns)
-        To absolve the model of arbitrarity w.r.t. info score space geometry, we let the control parameter vary between two extremes (of uncoupled linear relation w.r.t. x, y)
+        To absolve the model of arbitrarity w.r.t. info score space geometry, we let the control delta vary between two extremes (of uncoupled linear relation w.r.t. x, y)
         To make the info_score space have an inverse correlation between Eff_dist (node value) and edge value (\in A):
-        Z = pow(x, (alpha - 1)) * pow(y, alpha) || alpha : Coupling parameter = edge_conservation_coefficient
+        Z = pow(x, (alpha - 1)) * pow(y, alpha) || alpha : Coupling delta = edge_conservation_coefficient
 
         For general responsiveness to parameters rather than coupling between them:
         # return [pow((self.A[-1][node_index][from_node_index] / (self.nodes[-1][node_index] / node_sum)), self.eff_dist_and_edge_response) for node_index in range(self.nodes.shape[1])]
@@ -370,7 +369,7 @@ class Graph:
             print('Effective distance and edge reinforcement correlation is NOT reversed')
 
     # Observables: --------------------------------------------------------------------------------------------------
-    def eff_dist_diff(self, all_to_all_eff_dist=False, overall_average=False, MPED=False, source_reward=2.6, higher_order_paths_suppression=12):
+    def eff_dist_diff(self, all_to_all_eff_dist=False, overall_average=False, MPED=False, source_reward=2.6, delta=10):
         """
         Computes the difference in effective distance between two time steps of the same graph.
         :param all_to_all_eff_dist: Bool, determines if all to all effective distance is to be calculated.
@@ -378,11 +377,11 @@ class Graph:
         :param MPED: Bool, determines if the multiple path effective distance is used.
         :param source_reward: float, determines boost to effective distance score of source
         (as it cannot be 0, we divide the min of remaining nodes' effective distances by this value and assign it as the eff dist of the source)
-        :param higher_order_paths_suppression: float/int.
+        :param delta: float/int.
         """
         if all_to_all_eff_dist:
-            initial = self.evaluate_effective_distances(source_reward=source_reward, parameter=higher_order_paths_suppression, multiple_path_eff_dist=MPED, source=None, timestep=0)
-            final = self.evaluate_effective_distances(source_reward=source_reward, parameter=higher_order_paths_suppression, multiple_path_eff_dist=MPED, source=None, timestep=-1)
+            initial = self.evaluate_effective_distances(source_reward=source_reward, parameter=delta, multiple_path_eff_dist=MPED, source=None, timestep=0)
+            final = self.evaluate_effective_distances(source_reward=source_reward, parameter=delta, multiple_path_eff_dist=MPED, source=None, timestep=-1)
             return np.mean(final - initial)
         if overall_average:
             return np.mean(np.mean(self.eff_dist_history, axis=1))  # of course same as simply np.mean(eff_dist_history), but written so for clarity
@@ -396,8 +395,11 @@ class Graph:
         """
         return np.round(np.sum(self.A[timestep], axis=1), 20)
 
-    # Run Function: -------------------------------------------------------------------------------------------------
-    def simulate(self, num_runs, update_interval=1, eff_dist_delta_param=delta, source_reward=source_reward_val, constant_source_node=False,
+    def ensemble_variance(self):
+        assert utility_funcs.arr_dimen(self.source_node_history) == 2, 'Ensemble must consist of more than one simulation to consider variance'
+
+    # Run Functions: -------------------------------------------------------------------------------------------------
+    def simulate(self, num_runs, update_interval=1, eff_dist_delta_param=1, source_reward=source_reward_val, constant_source_node=False,
                  num_shifts_of_source_node=False, seeding_sigma_coeff=False, seeding_power_law_exponent=False, beta=None, multiple_path=False, equilibrium_distance=equilibrium_distance_val, verbose=False):
         """
         Run function. Sequentially seeds source node, sets node values to effective distance evaluation, updates edges and corresponding history.
@@ -451,14 +453,14 @@ class Graph:
             if self.A.shape[0] > equilibrium_distance+equilibrium_span:
                 if np.all(np.array([np.allclose(self.A[-i], self.A[-(equilibrium_distance+i)], rtol=1e-5) for i in range(equilibrium_span)])):
                     print(f'Equilibrium conditions met after {i} runs, run halted.')
-                    break  # Automatic break if equilibrium is reached. Lets run times be arb. large for MC parameter search
+                    break  # Automatic break if equilibrium is reached. Lets run times be arb. large for MC delta search
         self.A = np.delete(self.A, -1, axis=0)
         self.nodes = self.nodes[:-1]
         if verbose:
             print_run_methods()
 
     def simulate_ensemble(self, num_simulations, num_runs_per_sim, update_interval=1,
-                          eff_dist_delta_param=delta,
+                          eff_dist_delta_param=1,
                           source_reward=source_reward_val,
                           constant_source_node=False,
                           num_shifts_of_source_node=False, seeding_sigma_coeff=False, seeding_power_law_exponent=False, beta=None,
@@ -467,6 +469,15 @@ class Graph:
         Keeps a running average of A, and eff_dist_history over num_simulations, while extending source history.
         This leaves observables which are not dependent on an averaged A requiring special reprogramming.
         :param num_simulations: number of simulations over which the end result will be averaged
+        :param num_runs: Constant natural number, number of runs.
+        :param update_interval: Number of seed steps per run (times information is seeded and diffused before reweighing edges)
+        :param eff_dist_delta_param: determines exponential suppression of higher order paths for both RWED and MPED
+        :param source_reward: Determines how much the source node is scaled, recommended values \in (1,2)
+        :param constant_source_node: Sets seed node to be a given node (the integer given).  True defaults to 0th node.
+        :param multiple_path: if True, uses multiple path effective distance algorithm. Otherwise, defaults to random walker effective distance algorithm
+        :param equilibrium_distance: length at which two nearly equal A matricies are constantly compared to break run loop
+        :param verbose: if True, details approximate completion percentage and run parameters, methods.
+        :return: Returns nothing, updates graph values. Use plotter library to evaluate and graph observables
         """
         source_node_history = []
         for i in range(num_simulations):
@@ -490,3 +501,26 @@ class Graph:
         self.source_node_history = source_node_history  # Makes final source node history 2d, with columns being the individual run histories.
 
 
+########################################################################################################################
+
+if __name__ == "__main__":
+    # CHECK VERSIONS
+    vers_python0 = '3.7.3'
+    vers_numpy0 = '1.17.3'
+    vers_matplotlib0 = '3.1.1'
+    vers_netx0 = '2.4'
+
+    from sys import version_info
+    from matplotlib import __version__ as vers_matplotlib
+    from networkx import __version__ as vers_netx
+
+    vers_python = '%s.%s.%s' % version_info[:3]
+    vers_numpy = np.__version__
+
+    print('\n------------------- Network Diffusion Adaptation ----------------------------\n')
+    print('Required modules:')
+    print('Python:        tested for: %s.  Yours: %s' % (vers_python0, vers_python))
+    print('numpy:         tested for: %s.  Yours: %s' % (vers_numpy0, vers_numpy))
+    print('matplotlib:    tested for: %s.  Yours: %s' % (vers_matplotlib0, vers_matplotlib))
+    print('networkx:      tested for: %s.   Yours: %s' % (vers_netx0, vers_netx))
+    print('\n------------------------------------------------------------------------------\n')

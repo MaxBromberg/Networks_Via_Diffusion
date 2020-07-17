@@ -27,8 +27,11 @@ if __name__ == '__main__':
     # node_num = int(str(str(input_path).split('/')[-1]).split('_')[-1])
     # plotter.twoD_grid_search_plots(input_path, edge_conservation_range=edge_conservation_range, selectivity_range=selectivity_range, num_nodes=node_nums, output_dir=output_path,
     #                                node_plots=False, ave_nbr=False, cluster_coeff=False, shortest_path=False, degree_dist=True)  # edit directly here for desired more computationally cumbersome observables
-    source_reward = int(str(str(input_path).split('/')[-1]).split('_')[-1])  # assumes that the source reward is the last value after a _ in the directory name
+    source_reward = numpy.round(float(str(str(input_path).split('/')[-2]).split('_')[-1]), 1)  # assumes that the source reward is the last value after a _ in the directory name
     plotter.twoD_grid_search_plots(input_path, edge_conservation_range=edge_conservation_range, selectivity_range=selectivity_range,
-                                   num_nodes=node_num, output_dir=Path(output_path, f'source_reward_{source_reward}_plots'),
-                                   network_graphs=True, node_plots=False, ave_nbr=False, cluster_coeff=False, shortest_path=False, degree_dist=True)
+                                   num_nodes=node_num, source_reward=source_reward, output_dir=Path(output_path, f'source_reward_{source_reward}_plots'),
+                                   eff_dist=True, global_eff_dist=True, network_graphs=True, node_plots=False, ave_nbr=False, cluster_coeff=False, shortest_path=False, degree_dist=True)
+
+    # plotter.twoD_grid_search_meta_plots(path_to_data_dir=input_path, edge_conservation_range=edge_conservation_range, selectivity_range=selectivity_range,
+    #                                source_reward=source_reward, delta=1, output_dir=Path(output_path, f'source_reward_{source_reward}_plots'), verbose=True)
 

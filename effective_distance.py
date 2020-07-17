@@ -197,7 +197,7 @@ class EffectiveDistances:
                 Otherwise the integer has to correspond to a node index
                 
             parameter : float
-                compound parameter which includes the infection and recovery rate alpha and beta, respectively, 
+                compound delta which includes the infection and recovery rate alpha and beta, respectively,
                 the mobility rate kappa and the Euler-Mascheroni constant lambda:
                     log[ (alpha-beta)/kappa - lambda ]
         
@@ -261,7 +261,7 @@ class EffectiveDistances:
                 Otherwise the integer has to correspond to a node index
                 
             parameter : float
-                compound parameter which includes the infection and recovery rate alpha and beta, respectively, 
+                compound delta which includes the infection and recovery rate alpha and beta, respectively,
                 the mobility rate kappa and the Euler-Mascheroni constant lambda:
                     log[ (alpha-beta)/kappa - lambda ]
         
@@ -331,7 +331,7 @@ class EffectiveDistances:
                 Otherwise the integer has to correspond to a node index
                 
             parameter : float
-                compound parameter which includes the infection and recovery rate alpha and beta, respectively, 
+                compound delta which includes the infection and recovery rate alpha and beta, respectively,
                 the mobility rate kappa and the Euler-Mascheroni constant lambda:
                     log[ (alpha-beta)/kappa - lambda ]
         
@@ -474,7 +474,7 @@ class EffectiveDistances:
                 Otherwise the integer has to correspond to a node index
 
             parameter : float
-                compound parameter which includes the infection and recovery rate alpha and beta, respectively,
+                compound delta which includes the infection and recovery rate alpha and beta, respectively,
                 the mobility rate kappa and the Euler-Mascheroni constant lambda:
                     log[ (alpha-beta)/kappa - lambda ]
 

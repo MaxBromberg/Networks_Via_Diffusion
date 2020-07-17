@@ -35,7 +35,7 @@ if __name__ == '__main__':
     G = graph.Graph(num_nodes=num_nodes, edge_conservation_coefficient=edge_conservation_val, selectivity=selectivity_val,
                     reinforcement_info_score_coupling=True, positive_eff_dist_and_reinforcement_correlation=False)
     G.uniform_random_edge_init()
-    # G.simulate(num_runs, eff_dist_delta_param=parameter, constant_source_node=constant_source_node, num_shifts_of_source_node=num_shifts_of_source_node,
+    # G.simulate(num_runs, eff_dist_delta_param=delta, constant_source_node=constant_source_node, num_shifts_of_source_node=num_shifts_of_source_node,
     #            equilibrium_distance=equilibrium_distance, seeding_sigma_coeff=seeding_sigma_coeff, seeding_power_law_exponent=seeding_power_law_exponent, beta=beta, multiple_path=multiple_path)
     G.simulate_ensemble(num_simulations_per_parameter_combo, num_runs, eff_dist_delta_param=parameter, constant_source_node=constant_source_node, num_shifts_of_source_node=num_shifts_of_source_node,
                         equilibrium_distance=equilibrium_distance, seeding_sigma_coeff=seeding_sigma_coeff, seeding_power_law_exponent=seeding_power_law_exponent, beta=beta, multiple_path=multiple_path, verbose=False)

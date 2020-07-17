@@ -12,10 +12,10 @@ rounding = 3
 
 # edge_weighting_exp: tunes between only y (edge) dependence (at 0) and x (eff_dist) dependence at (at 1)
 
-G = graph.Graph(num_nodes, eff_dist_and_edge_response=0.2, fraction_info_score_redistributed=0.8, reinforcement_info_score_coupling=True)
+G = graph.Graph(num_nodes, edge_conservation_coefficient=0.2, selectivity=0.8, reinforcement_info_score_coupling=False, positive_eff_dist_and_reinforcement_correlation=False)
 # G.sparse_random_edge_init(outgoing_edges_per_node)
 G.uniform_random_edge_init()
-G.simulate(num_runs, eff_dist_delta_param=12, constant_source_node=1, equilibrium_distance=200, multiple_path=False, verbose=True)
+G.simulate(num_runs, eff_dist_delta_param=1, constant_source_node=1, equilibrium_distance=200, multiple_path=False, verbose=True)
 # plotter.plot_weight_histogram(G, num_bins=100, show=True)
 # plotter.plot_effective_distance_histogram(G.get_eff_dist(multiple_path=True), num_bins=100)
 # plotter.plot_adjacency_matrix_as_heatmap(G, show=True)
@@ -31,8 +31,8 @@ G.simulate(num_runs, eff_dist_delta_param=12, constant_source_node=1, equilibriu
 # plotter.plot_network(G, value_per_nugget, show=True, save_fig=False)
 # plotter.plot_single_network(G, num_runs, source_weighting=True)
 plotter.plot_network(G, nodes_sized_by_eff_distance=False)
-plotter.plot_degree_distribution(G)
-plotter.animate_network_evolution(G, num_runs_per_fig=5, gif_duration_in_sec=10, verbose=True)
+plotter.plot_degree_histogram(G)
+# plotter.animate_network_evolution(G, num_runs_per_fig=5, gif_duration_in_sec=10, verbose=True)
 
 print(f'G.eff_dist_diff: {G.eff_dist_diff()}')
 

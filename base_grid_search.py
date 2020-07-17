@@ -22,7 +22,7 @@ selectivity_range = np.arange(0, 1.05, 0.05)
 
 
 def process_wrapper(param_dic):
-    os.system('python single_run.py {output_directory} {num_nodes} {run_index} {edge_conservation_val} {selectivity_val}'.format(**param_dic))
+    os.system('python base_params_run.py {output_directory} {num_nodes} {run_index} {edge_conservation_val} {selectivity_val}'.format(**param_dic))
 
 
 if __name__ == '__main__':
