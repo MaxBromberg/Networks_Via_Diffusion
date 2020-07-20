@@ -22,6 +22,8 @@ from scipy.sparse.linalg import inv
 # from tqdm import tqdm
 from scipy.sparse import diags, eye
 
+import utility_funcs
+
 
 ###############################################################################
 
@@ -297,7 +299,22 @@ class EffectiveDistances:
         one = eye(self.nodes, format="csc")
         Z = inv(one - P * np.exp(-parameter))
         D = diags(1. / Z.diagonal(), format="csc")
-        RWED = -np.log(Z.dot(D).toarray())
+        ZdotD = Z.dot(D).toarray()
+        """
+        if np.any((Z.dot(D).toarray() == 0)):
+            np.set_printoptions(suppress=True)
+            print(f'A: \n {np.round(np.array(P.toarray()), 3)}')
+            print(f'Z: \n {np.round(np.array(Z.toarray()), 3)}')
+            print(f'D: \n {np.round(np.array(D.toarray()), 3)}')
+            print(f'Z.dot(D): \n {np.round(np.array(Z.dot(D).toarray()), 3)}')
+            utility_funcs.sum_matrix_signs(np.array(Z.toarray()))
+            utility_funcs.sum_matrix_signs(np.array(D.toarray()))
+            utility_funcs.sum_matrix_signs(np.array(Z.dot(D).toarray()))
+            ZdotD = np.where(ZdotD == 0, 1e-10, ZdotD)
+        """
+        # RWED = -np.log(Z.dot(D).toarray())
+        ZdotD = np.where(ZdotD == 0, 1e-100, ZdotD)
+        RWED = -np.log(ZdotD)
 
         if source is not None:
             if target is not None:
@@ -454,100 +471,6 @@ class EffectiveDistances:
             save(saveto, SPD)
         else:
             return SPD
-
-##############################################################################
-
-    def get_reweighted_multiple_path_distance(self, alpha=1, source=None, target=None, parameter=1, cutoff=0, saveto="", verbose=False):
-        """
-        Compute the multiple path effective distance:
-        Gautreau, A, Barrat, A. and Barthelemy, M., Global disease spread:
-        Statistics and estimation of arrival times, Journal of Theoretical Biology 251, 3, 509 (2008)
-
-        Parameters
-        ----------
-             source : int or None
-                If source is None, the distances from all nodes to the target is calculated
-                Otherwise the integer has to correspond to a node index
-
-            target : int or None
-                If target is None, the distances from the source to all other nodes is calculated
-                Otherwise the integer has to correspond to a node index
-
-            parameter : float
-                compound delta which includes the infection and recovery rate alpha and beta, respectively,
-                the mobility rate kappa and the Euler-Mascheroni constant lambda:
-                    log[ (alpha-beta)/kappa - lambda ]
-
-            save : string
-                If empty, the result is saved internally in self.dominant_path_distance
-
-            verbose : bool
-                Print progress if set as True (False by default)
-
-        Returns:
-        --------
-            dominant_path_distance : ndarray or float
-                If source and target are specified, a float value is returned that specifies the distance.
-
-                If either source or target is None a numpy array is returned.
-                The position corresponds to the node ID.
-                shape = (Nnodes,)
-
-                If both are None a numpy array is returned.
-                Each row corresponds to the node ID.
-                shape = (Nnodes,Nnodes)
-        """
-
-        assert (isinstance(parameter, float) or isinstance(parameter, int)) and parameter > 0
-        assert isinstance(saveto, str)
-        assert self.graph is not None, "Load graph first."
-
-        if source is None:
-            sources = range(self.nodes)
-        else:
-            sources = [source]
-        if target is None:
-            targets = range(self.nodes)
-        else:
-            targets = [target]
-
-        MPED_dic = {}
-        for s in sources:
-            if verbose:
-                print(s, "out of", self.nodes)
-            MPED_dic[s] = np.zeros((self.nodes,))
-            for t in targets:
-                if s != t:
-                    shortest = len(shortest_path(self.graph, source=s, target=t, weight=None)) - 1
-                    paths = all_simple_paths(self.graph, source=s, target=t, cutoff=shortest + cutoff)
-                    psum = 0
-                    for path in paths:
-                        n = len(path) - 1
-                        if hasattr(self.graph, "transition_rate"):
-                            prob = np.prod([self.graph[path[ii]][path[ii + 1]]["transition_rate"] for ii in range(n)])
-                        else:
-                            prob = np.prod([self.graph[path[ii]][path[ii + 1]]["weight"] for ii in range(n)])
-                            # EDITED: Assuming transition_rate is the same as weight for a simple directly converted np matrix
-                        psum += prob * exp(-parameter * n)
-                    MPED_dic[s][t] = -np.log(psum)
-
-        if source is not None and target is not None:
-            MPED = MPED_dic[source][target]
-        elif source is None and target is None:
-            MPED = np.array([MPED_dic[s] for s in range(self.nodes)]).transpose()
-            # MPED = np.array([MPED_dic[s] for s in xrange(self.nodes)]).transpose() EDITED: to be Python 3.7 compatible
-        else:
-            if target is None:
-                MPED = MPED_dic[source]
-            else:
-                MPED = np.array([MPED_dic[s][target] for s in range(self.nodes)])
-                # MPED = np.array([MPED_dic[s][target] for s in xrange(self.nodes)]) EDITED: to be Python 3.7 compatible
-
-        if saveto is not "":
-            save(saveto, MPED)
-        else:
-            return MPED
-
 
 ###############################################################################
 

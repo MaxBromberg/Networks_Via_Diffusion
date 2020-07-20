@@ -67,9 +67,12 @@ def plot_eff_dist(graph, all_to_all=False, difference=False, fit=False, normaliz
     else:
         y = mean_eff_dist_history
     plt.plot(x, y)
-    plt.title(f'Total Effective Distance history')
+    if all_to_all:
+        plt.title(f'All-to-All Effective Distance history')
+    else:
+        plt.title(f'Effective Distance history')
     plt.xlabel('Time step')
-    plt.ylabel(f'Total Effective distance')
+    plt.ylabel(f'Effective distance')
 
     if fit:
         if fit == 'log':
@@ -373,7 +376,7 @@ def plot_all_to_all_eff_dists_as_heatmap(graph, timestep=-1, source_reward=2.6, 
         plt.show()
 
 
-def plot_heatmap(TwoD_data, x_range=None, y_range=None, normalize=False, tick_scale=2, title=None, fig_title=None):
+def plot_heatmap(TwoD_data, x_range=None, y_range=None, normalize=False, tick_scale=2, title=None, fig_title=None, show=False):
     """
     Generalized heatmap plotter, used for post grid-search plots.
     :param TwoD_data: Requires data of the dimensionality of the resultant heatmap (thus 2d)
@@ -405,6 +408,8 @@ def plot_heatmap(TwoD_data, x_range=None, y_range=None, normalize=False, tick_sc
     if title:
         plt.savefig(f'{title}.png')
         plt.close()
+    if show:
+        plt.show()
 
 
 #  Histograms: -------------------------------------------------------------------------------------------------------
@@ -1324,3 +1329,4 @@ def ave_degree_diff(data_dir, initial_graph=0, final_graph=-1, ave_degree_at_tim
         initial_ave_degree = np.array(list(nx.average_degree_connectivity(G_initial.convert_to_nx_graph(timestep=ave_degree_at_timestep), weight='weight').values()))
         final_ave_degree = np.array(list(nx.average_degree_connectivity(G_final.convert_to_nx_graph(timestep=ave_degree_at_timestep), weight='weight').values()))
     return final_ave_degree - initial_ave_degree
+

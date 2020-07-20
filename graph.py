@@ -3,6 +3,7 @@ import random
 import utility_funcs
 import networkx as nx
 import effective_distance as ed
+from itertools import cycle
 import multiprocessing as mp
 import time
 np.random.seed(42)
@@ -42,17 +43,25 @@ class Graph:
         self.eff_dist_history = []
 
     # Edge Initialization: ------------------------------------------------------------------------------------------
-    def sparse_random_edge_init(self, nonzero_edges_per_node=1):
+    def sparse_random_edge_init(self, nonzero_edges_per_node=1, connected=True):
         """
         Randomly seeds Adjacency matrix with 1 fully weighted edge (or 2 0.5 weighted for nonzero_edges_per_node=2, etc)
         Presently allows for overlap of random edge assignment in the case of nonzero_edges_per_node > 1.
         :param nonzero_edges_per_node: int, number of edges per node
         """
+        seed_amount = np.round((1 / nonzero_edges_per_node), 15)
         for node in range(0, self.num_nodes):
             range_excluding_self = list(range(0, self.num_nodes))
             range_excluding_self.remove(node)  # eliminates A_ij diagonals (self-referential looping 'edges')
             for edge_assigned in range(0, nonzero_edges_per_node):
-                self.A[-1][node][random.choice(range_excluding_self)] += (1/nonzero_edges_per_node)
+                self.A[-1][node][random.choice(range_excluding_self)] += seed_amount
+        if connected:
+            for column in range(self.num_nodes):
+                if sum(self.A[-1][:, column]) == 0:
+                    self.A[-1][random.choice(range(self.num_nodes))][column] += seed_amount
+                    surplus_seeding = np.where(self.A[-1] > np.round((1 / nonzero_edges_per_node)))
+                    surplus_seeding_index = random.choice(range(surplus_seeding[0].shape[0]))
+                    self.A[-1][surplus_seeding[0][surplus_seeding_index]][surplus_seeding[1][surplus_seeding_index]] -= seed_amount
 
     def uniform_random_edge_init(self):
         """Most general case, fills Adjacency matrix with uniform random values and normalizes them"""
@@ -61,30 +70,72 @@ class Graph:
             self.A[-1][node][node] = 0  # eliminates looping edges (i.e. no edge refers to itself -> simple graph)
             self.A[-1][node] /= self.A[-1][node].sum()  # normalizes each node's total (incoming) weights to 1
 
-    def scale_free_edge_init(self, degree_exponent, min_k=1):
+    def scale_free_edge_init(self, degree_exponent, min_k=1, equal_edge_weights=True, connected=True):
         """
         Generates degree sequence based on probability of connecting to k nodes: p(k) = k^-degree_exponent,
         spreads connections uniformly across connections, with the number of connections per node dependant on above
         :param degree_exponent: determines scale for edge initialization, often written as \gamma in the literature
         As implemented, the range of k values in p(k) are given in line with indicies.
         """
-        degree_sequence = [pow(k, -degree_exponent) for k in range(1, self.A[-1].shape[0]+1)]
+        num_nodes = self.A.shape[1]
+        degree_sequence = [pow(k, -degree_exponent) for k in range(1, num_nodes+1)]
         degree_sequence = [degree_sequence[i] / sum(degree_sequence) for i in range(len(degree_sequence))]  # Normalization via Riemann Zeta function required?
-        print(f'deg-seq: {degree_sequence} sum: {sum(degree_sequence)}')
+        # print(f'deg-seq: {degree_sequence} sum: {sum(degree_sequence)}')
         if min_k > 0:
-            degree_sequence = [int(np.round(degree_sequence[node] * self.A[-1].shape[0])) if int(np.round(degree_sequence[node] * self.A[-1].shape[0])) > min_k else min_k for node in range(self.A[-1].shape[0])]
+            degree_sequence = [int(np.round(degree_sequence[node] * num_nodes)) if int(np.round(degree_sequence[node] * num_nodes)) > min_k else min_k for node in range(num_nodes)]
         else:
-            degree_sequence = [int(np.round(degree_sequence[node] * self.A[-1].shape[0])) for node in range(self.A[-1].shape[0])]
-        print(f'deg-seq: {degree_sequence} sum: {sum(degree_sequence)}')
+            degree_sequence = [int(np.round(degree_sequence[node] * num_nodes)) for node in range(num_nodes)]
+        # print(f'deg-seq: {degree_sequence} sum: {sum(degree_sequence)}')
 
         self.A = np.zeros((1, self.A[-1].shape[0], self.A[-1].shape[1]))  # Reinitialization to zeros for following:
-        for from_node in range(self.A[-1].shape[0]):
-            to_nodes = random.choices(list(set(range(self.A[-1].shape[0])) - {from_node}), k=degree_sequence[from_node])
+        columns_visited = set()
+        for from_node in range(num_nodes):
+            if connected:
+                if len(set(set(range(num_nodes)) - columns_visited.union({from_node}))) >= degree_sequence[from_node]:
+                    to_nodes = random.choices(list(set(range(num_nodes)) - {from_node}.union(columns_visited)), k=degree_sequence[from_node])
+                    columns_visited = columns_visited.union(to_nodes)
+                else:
+                    to_nodes = random.choices(list(set(range(num_nodes)) - {from_node}), k=degree_sequence[from_node])
+            else:
+                to_nodes = random.choices(list(set(range(num_nodes)) - {from_node}), k=degree_sequence[from_node])
             for to_node in to_nodes:
-                self.A[-1][from_node][to_node] = np.random.rand()
+                if equal_edge_weights:
+                    self.A[-1][from_node][to_node] = 1/degree_sequence[from_node]
+                else:
+                    self.A[-1][from_node][to_node] = np.random.rand()
+
+        # simply ensuring connectedness
+        if connected and np.any(np.where(np.sum(self.A[-1], axis=1) == 0)):
+            columns_with_multiple_edges = []
+            columns_without_any_edges = []
+            for column in range(self.num_nodes):
+                _column = np.array(np.where(self.A[-1][:, column] > 0))[0]
+                if _column.shape[0] > 1:
+                    _column.append(column)  # So that the first value indicates the index of the column, the next values its non-zero row indices
+                    columns_with_multiple_edges.append(_column)
+                elif _column.shape[0] == 0:
+                    columns_without_any_edges.append(column)
+
+            # Ensuring connectedness arises through shifting existing degree_sequence
+            index = 0
+            while len(columns_without_any_edges) > 0:
+                if len(columns_with_multiple_edges[index]) > 2:
+                    edge_column = columns_with_multiple_edges[index][0]
+                    edge_row = columns_with_multiple_edges[index][1]
+                    self.A[-1][edge_row][columns_without_any_edges[-index]] += self.A[-1][edge_row][edge_column]
+                    self.A[-1][edge_row][edge_column] = 0
+                    del columns_with_multiple_edges[index][1]
+                    del columns_without_any_edges[-index]
+                    index += 1
+                else:
+                    index += 1
+                if index > self.num_nodes:
+                    print(f'A too sparse to be connected, breaking out with A of {self.A[-1]} (try setting min_k >= 1)')
+                    break
+
+        for from_node in range(self.A[-1].shape[0]):
             if self.A[-1][from_node].sum() > 0:
                 self.A[-1][from_node] /= self.A[-1][from_node].sum()  # normalizes each node's total (incoming) weights to 1
-        print(self.A[-1])
 
     # Information Seeding: ------------------------------------------------------------------------------------------
     def seed_info_random(self):
@@ -234,7 +285,6 @@ class Graph:
             info_score /= np.sum(info_score)  # Optional info_score normalization. **Should be incompatible with simple positive power in next step, but isn't...
             info_scores[:, from_node] = self.reweight_info_score(info_score, 1)  # replace 1 with sum(info_score) if not normalized [below]
             # info_scores[:, from_node] = self.reweight_info_score(info_score, np.sum(info_score))  # replace 1 with sum(info_score) if not normalized
-        # print(np.round(info_scores, 3), '\n')
         self.A[-1] += info_scores
 
     def update_edges(self):
@@ -245,11 +295,9 @@ class Graph:
         The normalization (along incoming edges) is where the conservation of edge weight applies,
          negatively effecting those not reinforced.
         """
-        if self.fraction_infoscore_redistributed:
-            self.reweight_edges_via_info_score()
+        self.reweight_edges_via_info_score()
         
         # Normalization (columns of A, incoming edges)
-        # for node in range(0, self.A[-1][0].size):
         for node in range(0, self.A.shape[1]):
             incoming_edge_sum = self.A[-1][:, node].sum()
             if incoming_edge_sum > 0:
@@ -301,6 +349,7 @@ class Graph:
             row_sums = self.A[timestep].sum(axis=1)
             normalized_A = np.array([self.A[timestep][node, :]/row_sums[node] for node in range(self.A[timestep].shape[0])])
             # normalized_A = np.round(utility_funcs.matrix_normalize(self.A[timestep], row_normalize=True), 20)
+
             eff_dists = self.get_eff_dist(adjacency_matrix=normalized_A, multiple_path=False, source=source, parameter=parameter)
         if source is None:
             # if source is none, the eff_dist library defaults to an all-to-all eff_dist measure, making the
@@ -394,9 +443,7 @@ class Graph:
         :param timestep: point at which to evaluate the degree distribution of the graph.
         """
         return np.round(np.sum(self.A[timestep], axis=1), 20)
-
-    def ensemble_variance(self):
-        assert utility_funcs.arr_dimen(self.source_node_history) == 2, 'Ensemble must consist of more than one simulation to consider variance'
+        # return np.round(np.sum(self.A[timestep], axis=0), 20)
 
     # Run Functions: -------------------------------------------------------------------------------------------------
     def simulate(self, num_runs, update_interval=1, eff_dist_delta_param=1, source_reward=source_reward_val, constant_source_node=False,
@@ -416,7 +463,7 @@ class Graph:
         # Verbose functions:
         def print_run_methods():
             print(f'Parameter and Method Details:\nRan {num_runs} runs with {update_interval} seed steps per run, and sources were rewarded by a {source_reward} scaling')
-            if isinstance(constant_source_node, bool) & constant_source_node:
+            if isinstance(constant_source_node, bool) & constant_source_node is True:
                 print(f'All information was seeded to the 0th node. (Constant Source)')
             elif isinstance(constant_source_node, int):
                 print(f'All information was seeded to the {constant_source_node}th node. (constant source)')
@@ -462,6 +509,7 @@ class Graph:
     def simulate_ensemble(self, num_simulations, num_runs_per_sim, update_interval=1,
                           eff_dist_delta_param=1,
                           source_reward=source_reward_val,
+                          edge_init=None,
                           constant_source_node=False,
                           num_shifts_of_source_node=False, seeding_sigma_coeff=False, seeding_power_law_exponent=False, beta=None,
                           multiple_path=False, equilibrium_distance=equilibrium_distance_val, verbose=False):
@@ -473,6 +521,9 @@ class Graph:
         :param update_interval: Number of seed steps per run (times information is seeded and diffused before reweighing edges)
         :param eff_dist_delta_param: determines exponential suppression of higher order paths for both RWED and MPED
         :param source_reward: Determines how much the source node is scaled, recommended values \in (1,2)
+        :param edge_init: determines edge initialization. If None (default) uniform random edge initialization is used.
+        If an integer, then sparse edge initialization, with (int) num of non-zero edges per node.
+        If a float, then scale-free edge initialization, with the float determining the degree exponent.
         :param constant_source_node: Sets seed node to be a given node (the integer given).  True defaults to 0th node.
         :param multiple_path: if True, uses multiple path effective distance algorithm. Otherwise, defaults to random walker effective distance algorithm
         :param equilibrium_distance: length at which two nearly equal A matricies are constantly compared to break run loop
@@ -481,8 +532,15 @@ class Graph:
         """
         source_node_history = []
         for i in range(num_simulations):
-            self.uniform_random_edge_init()
-            self.simulate(num_runs_per_sim, update_interval, eff_dist_delta_param, source_reward, constant_source_node, num_shifts_of_source_node, seeding_sigma_coeff, seeding_power_law_exponent, beta, multiple_path, equilibrium_distance, verbose)
+            if edge_init is None:
+                self.uniform_random_edge_init()
+            if isinstance(edge_init, int):
+                self.sparse_random_edge_init(nonzero_edges_per_node=edge_init)
+            if isinstance(edge_init, float):
+                self.scale_free_edge_init(degree_exponent=edge_init, min_k=1)
+            self.simulate(num_runs_per_sim, update_interval, eff_dist_delta_param, source_reward, constant_source_node,
+                          num_shifts_of_source_node, seeding_sigma_coeff, seeding_power_law_exponent, beta,
+                          multiple_path, equilibrium_distance, verbose=False)
             if i == 0:
                 A = self.A
                 eff_dist_history = self.eff_dist_history
@@ -496,6 +554,8 @@ class Graph:
             self.A = np.zeros((1, self.num_nodes, self.num_nodes))  # Re-initializing
             self.eff_dist_history = []
             self.source_node_history = []
+            utility_funcs.print_run_percentage(i, num_simulations)
+
         self.A = A
         self.eff_dist_history = eff_dist_history
         self.source_node_history = source_node_history  # Makes final source node history 2d, with columns being the individual run histories.
