@@ -1,5 +1,7 @@
 import numpy as np
+import pandas as pd
 import itertools, collections
+from pathlib import Path
 
 rounding = 3
 
@@ -74,6 +76,26 @@ def sum_matrix_signs(matrix, verbose=True):
         else:
             print(f'Matrix has {positive_vals} positive values and {negative_vals} negative values')
     return vals_greater_than_one-matrix.shape[0], positive_vals, negative_vals
+
+
+def A_to_csv(matrix, output_dir, csv_name, delimiter=None):
+    Sources = [int(i/matrix.shape[0]) for i in range(matrix.shape[0]*matrix.shape[1])]
+    Targets = list(np.repeat([np.arange(matrix.shape[0])], matrix.shape[0], axis=0).flatten())
+    Fluxii = list(matrix.flatten())
+    network_dict = {
+        'SOURCE': Sources,
+        'TARGET': Targets,
+        'FLUX': Fluxii
+    }
+    print(f'SOURCE: {len(Sources)} {Sources}')
+    print(f'TARGET: {len(Targets)} {Targets}')
+    print(f'FLUX: {len(Fluxii)} {np.round(Fluxii, 2)}')
+    df = pd.DataFrame(network_dict)
+    column_order = ['SOURCE', 'TARGET', 'FLUX']
+    if delimiter is not None:
+        df[column_order].to_csv(Path(output_dir, csv_name), header=False, index=False, float_format='%.2f', sep=delimiter)
+    else:
+        df[column_order].to_csv(Path(output_dir, csv_name), header=False, index=False, float_format='%.2f')
 
 
 ## Other functions:

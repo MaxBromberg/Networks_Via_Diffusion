@@ -3,11 +3,15 @@ import random
 import utility_funcs
 import networkx as nx
 import effective_distance as ed
+
+from scipy.sparse.linalg import inv
+from scipy.sparse import diags, eye, csc_matrix
 from itertools import cycle
 import multiprocessing as mp
 import time
 np.random.seed(42)
 random.seed(42)
+
 
 # Global Variables for default run values
 update_interval_val = 1
@@ -62,6 +66,10 @@ class Graph:
                     surplus_seeding = np.where(self.A[-1] > np.round((1 / nonzero_edges_per_node)))
                     surplus_seeding_index = random.choice(range(surplus_seeding[0].shape[0]))
                     self.A[-1][surplus_seeding[0][surplus_seeding_index]][surplus_seeding[1][surplus_seeding_index]] -= seed_amount
+
+        for node in range(0, self.num_nodes):
+            self.A[-1][node][node] = 0  # eliminates looping edges (i.e. no edge refers to itself -> simple graph)
+            self.A[-1][node] /= self.A[-1][node].sum()  # normalizes each node's total (incoming) weights to 1
 
     def uniform_random_edge_init(self):
         """Most general case, fills Adjacency matrix with uniform random values and normalizes them"""
@@ -137,6 +145,40 @@ class Graph:
             if self.A[-1][from_node].sum() > 0:
                 self.A[-1][from_node] /= self.A[-1][from_node].sum()  # normalizes each node's total (incoming) weights to 1
 
+    def nx_scale_free_edge_init(self, degree_exponent, min_k=1):
+        # in and out degrees are considered to be the same by default
+        num_nodes = self.A.shape[1]
+        degree_sequence = [pow(k, -degree_exponent) for k in range(1, num_nodes+1)]
+        degree_sequence = [degree_sequence[i] / sum(degree_sequence) for i in range(len(degree_sequence))]  # Normalization via Riemann Zeta function required?
+        # print(f'deg-seq: {degree_sequence} sum: {sum(degree_sequence)}')
+        if min_k > 0:
+            degree_sequence = [int(np.round(degree_sequence[node] * num_nodes)) if int(np.round(degree_sequence[node] * num_nodes)) > min_k else min_k for node in range(num_nodes)]
+        else:
+            degree_sequence = [int(np.round(degree_sequence[node] * num_nodes)) for node in range(num_nodes)]
+
+        nx_graph = nx.directed_configuration_model(degree_sequence, degree_sequence)
+        self.A[-1] = nx.to_numpy_array(nx_graph)
+
+        for from_node in range(self.A[-1].shape[0]):
+            if self.A[-1][from_node].sum() > 0:
+                self.A[-1][from_node] /= self.A[-1][from_node].sum()  # normalizes each node's total (incoming) weights to 1
+
+    def nx_scale_free_edge_init_unconnected(self, alpha=0.41, beta=0.54, gamma=0.05, delta_in=0.2, delta_out=0, create_using=None, seed=None):
+        # in and out degrees are considered to be the same by default
+        nx_graph = nx.scale_free_graph(self.A.shape[1], alpha=0.41, beta=0.54, gamma=0.05, delta_in=0.2, delta_out=0, create_using=None, seed=None)
+        self.A[-1] = nx.to_numpy_array(nx_graph)
+
+        for from_node in range(self.A[-1].shape[0]):
+            if self.A[-1][from_node].sum() > 0:
+                self.A[-1][from_node] /= self.A[-1][from_node].sum()  # normalizes each node's total (incoming) weights to 1
+
+    def barabasi_albert_edge_init(self, num_edges_per_new_node, seed=42):
+        nx_graph = nx.barabasi_albert_graph(n=self.A[-1].shape[0], m=num_edges_per_new_node, seed=seed)
+        self.A[-1] = nx.to_numpy_array(nx_graph)
+        for from_node in range(self.A[-1].shape[0]):
+            if self.A[-1][from_node].sum() > 0:
+                self.A[-1][from_node] /= self.A[-1][from_node].sum()  # normalizes each node's total (incoming) weights to 1
+
     # Information Seeding: ------------------------------------------------------------------------------------------
     def seed_info_random(self):
         """
@@ -152,7 +194,7 @@ class Graph:
         Seeds the source as the indexed value
         :param constant_source_node: int, index of constant source
         """
-        assert isinstance(constant_source_node, int) & constant_source_node >= 0 & constant_source_node <= self.num_nodes, f'Please choose constant source node to be in range of num_nodes, i.e. in (0, {self.num_nodes})'
+        assert isinstance(constant_source_node, int) & constant_source_node >= 0 & constant_source_node <= self.nodes.shape[1], f'Please choose constant source node to be in range of num_nodes, i.e. in (0, {self.num_nodes})'
         self._source_node = constant_source_node
         self.source_node_history.append(constant_source_node)
 
@@ -305,6 +347,89 @@ class Graph:
             # For sparse networks, there will likely be some columns (outgoing edges) which sum to zero. (thus the conditional)
 
     # Effective Distance Evaluation: --------------------------------------------------------------------------------
+    def RWED(self, adjacency_matrix, source=None, target=None, parameter=1, via_numpy=True):
+        """
+        Compute the random walk effective distance:
+        F. Iannelli, A. Koher, P. Hoevel, I.M. Sokolov (in preparation)
+
+        Parameters
+        ----------
+             source : int or None
+                If source is None, the distances from all nodes to the target is calculated
+                Otherwise the integer has to correspond to a node index
+
+            target : int or None
+                If target is None, the distances from the source to all other nodes is calculated
+                Otherwise the integer has to correspond to a node index
+
+            parameter : float
+                compound delta which includes the infection and recovery rate alpha and beta, respectively,
+                the mobility rate kappa and the Euler-Mascheroni constant lambda:
+                    log[ (alpha-beta)/kappa - lambda ]
+
+            saveto : string
+                If empty, the result is saved internally in self.dominant_path_distance
+
+        Returns:
+        --------
+            random_walk_distance : ndarray or float
+                If source and target are specified, a float value is returned that specifies the distance.
+
+                If either source or target is None a numpy array is returned.
+                The position corresponds to the node ID.
+                shape = (Nnodes,)
+
+                If both are None a numpy array is returned.
+                Each row corresponds to the node ID.
+                shape = (Nnodes,Nnodes)
+        """
+
+        assert (isinstance(parameter, float) or isinstance(parameter, int)) and parameter > 0
+
+        # assert np.all(np.isclose(P.sum(axis=1), 1, rtol=1e-15, equal_nan=True)), "If there are dim incompatibility issues, as nan == nan is false."
+        A = adjacency_matrix
+        assert np.all(np.isclose(A.sum(axis=1), 1, rtol=1e-15)), "The transition matrix has to be row normalized"
+
+        if via_numpy:
+            one = np.identity(adjacency_matrix.shape[0])
+            Z = np.linalg.inv(one - A * np.exp(-parameter))
+            # D = np.diag(np.sum(adjacency_matrix, axis=1))  # as according to the definition
+            # print(np.round(D, 3))
+            D = np.diag(1. / Z.diagonal())
+            # print(np.round(D, 3))
+            # RWED = np.diag(-np.log(Z.dot(D)))
+            RWED = -np.log(Z.dot(D))
+        else:
+            one = eye(self.nodes.shape[1], format="csc")
+            Z = inv(csc_matrix(one - A * np.exp(-parameter)))
+            D = diags(1. / Z.diagonal(), format="csc")
+            """
+            if np.any((Z.dot(D).toarray() == 0)):
+                np.set_printoptions(suppress=True)
+                print(f'A: \n {np.round(np.array(P.toarray()), 3)}')
+                print(f'Z: \n {np.round(np.array(Z.toarray()), 3)}')
+                print(f'D: \n {np.round(np.array(D.toarray()), 3)}')
+                print(f'Z.dot(D): \n {np.round(np.array(Z.dot(D).toarray()), 3)}')
+                utility_funcs.sum_matrix_signs(np.array(Z.toarray()))
+                utility_funcs.sum_matrix_signs(np.array(D.toarray()))
+                utility_funcs.sum_matrix_signs(np.array(Z.dot(D).toarray()))
+                ZdotD = np.where(ZdotD == 0, 1e-10, ZdotD)
+            """
+            RWED = -np.log(Z.dot(D).toarray())
+            # ZdotD = Z.dot(D).toarray()
+            # ZdotD = np.where(ZdotD == 0, 1e-100, ZdotD)
+            # RWED = -np.log(ZdotD)
+
+        if source is not None:
+            if target is not None:
+                RWED = RWED[source, target]
+            else:
+                RWED = RWED[source, :]
+        elif target is not None:
+            RWED = RWED[:, target]
+
+        return RWED
+
     def get_eff_dist(self, adjacency_matrix=None, multiple_path=False, source=None, target=None, parameter=1, saveto=""):
         """
         Returns effective distance based on the effective distance library built by Andreas Koher. Random walk
@@ -349,7 +474,6 @@ class Graph:
             row_sums = self.A[timestep].sum(axis=1)
             normalized_A = np.array([self.A[timestep][node, :]/row_sums[node] for node in range(self.A[timestep].shape[0])])
             # normalized_A = np.round(utility_funcs.matrix_normalize(self.A[timestep], row_normalize=True), 20)
-
             eff_dists = self.get_eff_dist(adjacency_matrix=normalized_A, multiple_path=False, source=source, parameter=parameter)
         if source is None:
             # if source is none, the eff_dist library defaults to an all-to-all eff_dist measure, making the
@@ -554,7 +678,7 @@ class Graph:
             self.A = np.zeros((1, self.num_nodes, self.num_nodes))  # Re-initializing
             self.eff_dist_history = []
             self.source_node_history = []
-            utility_funcs.print_run_percentage(i, num_simulations)
+            if verbose: utility_funcs.print_run_percentage(i, num_simulations)
 
         self.A = A
         self.eff_dist_history = eff_dist_history
