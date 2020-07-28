@@ -17,6 +17,7 @@ random.seed(42)
 update_interval_val = 1
 source_reward_val = 2.6
 equilibrium_distance_val = 100
+equilibrium_span_val = 0
 
 
 class Graph:
@@ -38,7 +39,7 @@ class Graph:
         self.num_nodes = num_nodes
         self.eff_dist_and_edge_coupling = edge_conservation_coefficient  # tunes info score between 0 (pure eff. dist. dependence) and 1 (pure edge dependence)
         self.fraction_infoscore_redistributed = selectivity  # rescaling of all rewards in reweight_edges_via_info_score
-        self.reinforcement_infoscore_coupling = reinforcement_info_score_coupling
+        self.reinforcement_infoscore_coupling = reinforcement_info_score_coupling  # if False, sparse matricies divolve into
         self.positive_eff_dist_and_reinforcement_correlation = positive_eff_dist_and_reinforcement_correlation
 
         self.nodes = np.zeros((1, num_nodes))  # node values (and history of via the first dimension)
@@ -47,7 +48,7 @@ class Graph:
         self.eff_dist_history = []
 
     # Edge Initialization: ------------------------------------------------------------------------------------------
-    def sparse_random_edge_init(self, nonzero_edges_per_node=1, connected=True):
+    def sparse_random_edge_init(self, nonzero_edges_per_node=1, connected=True, even_distribution=True):
         """
         Randomly seeds Adjacency matrix with 1 fully weighted edge (or 2 0.5 weighted for nonzero_edges_per_node=2, etc)
         Presently allows for overlap of random edge assignment in the case of nonzero_edges_per_node > 1.
@@ -70,6 +71,8 @@ class Graph:
         for node in range(0, self.num_nodes):
             self.A[-1][node][node] = 0  # eliminates looping edges (i.e. no edge refers to itself -> simple graph)
             self.A[-1][node] /= self.A[-1][node].sum()  # normalizes each node's total (incoming) weights to 1
+        if even_distribution:
+            self.A[-1] = utility_funcs.evenly_distribute_matrix_values(self.A[-1], by_row=True)  # To ensure outgoing edges all have the same initial weight
 
     def uniform_random_edge_init(self):
         """Most general case, fills Adjacency matrix with uniform random values and normalizes them"""
@@ -78,7 +81,7 @@ class Graph:
             self.A[-1][node][node] = 0  # eliminates looping edges (i.e. no edge refers to itself -> simple graph)
             self.A[-1][node] /= self.A[-1][node].sum()  # normalizes each node's total (incoming) weights to 1
 
-    def scale_free_edge_init(self, degree_exponent, min_k=1, equal_edge_weights=True, connected=True):
+    def scale_free_edge_init(self, degree_exponent, min_k=1, equal_edge_weights=True, connected=True, even_distribution=True):
         """
         Generates degree sequence based on probability of connecting to k nodes: p(k) = k^-degree_exponent,
         spreads connections uniformly across connections, with the number of connections per node dependant on above
@@ -144,6 +147,9 @@ class Graph:
         for from_node in range(self.A[-1].shape[0]):
             if self.A[-1][from_node].sum() > 0:
                 self.A[-1][from_node] /= self.A[-1][from_node].sum()  # normalizes each node's total (incoming) weights to 1
+
+        if even_distribution:
+            self.A[-1] = utility_funcs.evenly_distribute_matrix_values(self.A[-1], by_row=True)  # To ensure outgoing edges all have the same initial weight
 
     def nx_scale_free_edge_init(self, degree_exponent, min_k=1):
         # in and out degrees are considered to be the same by default
@@ -308,9 +314,9 @@ class Graph:
             cutoff_val = sorted(info_score)[int(self.fraction_infoscore_redistributed * len(info_score))]
 
         if self.reinforcement_infoscore_coupling:
-            reduced_info_score = [val if val >= cutoff_val else 0 for val in info_score]
+            reduced_info_score = [val if val > cutoff_val else 0 for val in info_score]
         else:
-            reduced_info_score = [1 if val >= cutoff_val else 0 for val in info_score]
+            reduced_info_score = [1 if val > cutoff_val else 0 for val in info_score]
 
         reduced_info_score_sum = sum(reduced_info_score)
         return [info_score_sum * (val / reduced_info_score_sum) for val in reduced_info_score]
@@ -347,8 +353,9 @@ class Graph:
             # For sparse networks, there will likely be some columns (outgoing edges) which sum to zero. (thus the conditional)
 
     # Effective Distance Evaluation: --------------------------------------------------------------------------------
-    def RWED(self, adjacency_matrix, source=None, target=None, parameter=1, via_numpy=True):
+    def RWED(self, adjacency_matrix, source=None, target=None, parameter=1, via_numpy=False, sub_zeros=False):
         """
+        Directly Adapted from Dr. Koher's version, though by default uses scipy.sparse rather than numpy.linalg (much faster)
         Compute the random walk effective distance:
         F. Iannelli, A. Koher, P. Hoevel, I.M. Sokolov (in preparation)
 
@@ -393,12 +400,13 @@ class Graph:
         if via_numpy:
             one = np.identity(adjacency_matrix.shape[0])
             Z = np.linalg.inv(one - A * np.exp(-parameter))
-            # D = np.diag(np.sum(adjacency_matrix, axis=1))  # as according to the definition
-            # print(np.round(D, 3))
             D = np.diag(1. / Z.diagonal())
-            # print(np.round(D, 3))
-            # RWED = np.diag(-np.log(Z.dot(D)))
-            RWED = -np.log(Z.dot(D))
+            if sub_zeros:
+                ZdotD = Z.dot(D).toarray()
+                ZdotD = np.where(ZdotD == 0, 1e-100, ZdotD)
+                RWED = -np.log(ZdotD)
+            else:
+                RWED = -np.log(Z.dot(D))
         else:
             one = eye(self.nodes.shape[1], format="csc")
             Z = inv(csc_matrix(one - A * np.exp(-parameter)))
@@ -415,10 +423,12 @@ class Graph:
                 utility_funcs.sum_matrix_signs(np.array(Z.dot(D).toarray()))
                 ZdotD = np.where(ZdotD == 0, 1e-10, ZdotD)
             """
-            RWED = -np.log(Z.dot(D).toarray())
-            # ZdotD = Z.dot(D).toarray()
-            # ZdotD = np.where(ZdotD == 0, 1e-100, ZdotD)
-            # RWED = -np.log(ZdotD)
+            if sub_zeros:
+                ZdotD = Z.dot(D).toarray()
+                ZdotD = np.where(ZdotD == 0, 1e-100, ZdotD)
+                RWED = -np.log(ZdotD)
+            else:
+                RWED = -np.log(Z.dot(D).toarray())
 
         if source is not None:
             if target is not None:
@@ -445,7 +455,8 @@ class Graph:
         if multiple_path:
             return ed.EffectiveDistances(np_array=adjacency_matrix).get_multiple_path_distance(source=source, target=target, parameter=parameter, saveto=saveto)
         else:
-            return ed.EffectiveDistances(np_array=adjacency_matrix).get_random_walk_distance(source=source, target=target, parameter=parameter, saveto=saveto)
+            return self.RWED(adjacency_matrix, source=source, target=target, parameter=parameter, via_numpy=False)
+            # return ed.EffectiveDistances(np_array=adjacency_matrix).get_random_walk_distance(source=source, target=target, parameter=parameter, saveto=saveto)
 
     def evaluate_effective_distances(self, source_reward, parameter, multiple_path_eff_dist, source=None, timestep=-1, rounding=3):
         """
@@ -476,7 +487,7 @@ class Graph:
             # normalized_A = np.round(utility_funcs.matrix_normalize(self.A[timestep], row_normalize=True), 20)
             eff_dists = self.get_eff_dist(adjacency_matrix=normalized_A, multiple_path=False, source=source, parameter=parameter)
         if source is None:
-            # if source is none, the eff_dist library defaults to an all-to-all eff_dist measure, making the
+            # if source is none, the eff_dist library defaults to an all-to-all eff_dist measure
             for node_index in range(self.nodes[-1].size):
                 min_val = eff_dists[node_index][np.argpartition(eff_dists[node_index], 1)[1]]  # yields non-zero (non-source) min eff_dist
                 eff_dists[node_index][node_index] = (min_val / source_reward)
@@ -610,7 +621,7 @@ class Graph:
 
         # Body of run function
         self.A = np.vstack((self.A, [self.A[-1]]))  # so that initial values (before initial update) are preserved
-        equilibrium_span = 1  # if a greater range of values between equilibrium distance ought be compared
+        equilibrium_span = equilibrium_span_val  # if a greater range of values between equilibrium distance ought be compared
         for i in range(0, num_runs):
             self.seed_info_conditional(constant_source_node, num_shifts_of_source_node, num_runs=num_runs, sigma=seeding_sigma_coeff, power_law_exponent=seeding_power_law_exponent, beta=beta, index=i)
             self.nodes[-1] = np.array(self.evaluate_effective_distances(source_reward, eff_dist_delta_param, multiple_path, source=self._source_node))
@@ -621,8 +632,9 @@ class Graph:
                 self.A = np.vstack((self.A, [self.A[-1]]))
             if verbose:
                 utility_funcs.print_run_percentage(i, num_runs, 17)
-            if self.A.shape[0] > equilibrium_distance+equilibrium_span:
-                if np.all(np.array([np.allclose(self.A[-i], self.A[-(equilibrium_distance+i)], rtol=1e-5) for i in range(equilibrium_span)])):
+            if self.A.shape[0] > equilibrium_distance+equilibrium_span+1:  # +1 for range starting at 0 offset
+                # if np.all(np.array([np.allclose(self.A[-(ii+1)], self.A[-(equilibrium_distance+(ii+1))], rtol=1e-10) for ii in range(equilibrium_span)])):
+                if np.allclose(self.A[-1], self.A[-(equilibrium_distance + 1)], rtol=1e-10):
                     print(f'Equilibrium conditions met after {i} runs, run halted.')
                     break  # Automatic break if equilibrium is reached. Lets run times be arb. large for MC delta search
         self.A = np.delete(self.A, -1, axis=0)
@@ -656,6 +668,9 @@ class Graph:
         """
         source_node_history = []
         for i in range(num_simulations):
+            # TODO: Not sure if reseeding is required
+            np.random.seed(i)
+            random.seed(i)
             if edge_init is None:
                 self.uniform_random_edge_init()
             if isinstance(edge_init, int):

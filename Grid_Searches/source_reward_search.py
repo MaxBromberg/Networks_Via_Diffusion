@@ -1,9 +1,11 @@
 import numpy as np
 import os
-import multiprocessing as mp
 import utility_funcs
 from pathlib import Path
 import time
+import sys
+sys.path.append('../')
+import multiprocessing as mp
 
 import plotter
 
@@ -21,7 +23,7 @@ def process_wrapper(param_dic):
 
 total_start_time = time.time()
 for source_reward_val in source_reward_range:
-    data_directory = "/home/maqz/Desktop/data/diversity_seeding_beta_1"
+    data_directory = "/home/maqz/Desktop/data/contant_seeding"
     output_directory = Path(data_directory, f"source_reward_{source_reward_val}")
     try:
         os.mkdir(output_directory)

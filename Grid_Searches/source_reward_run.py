@@ -1,8 +1,9 @@
+from pathlib import Path
+import sys
+sys.path.append('../')
 import plotter
 import graph
 
-from pathlib import Path
-import sys
 
 """
 Arguments via terminal to be given in the following order:
@@ -28,7 +29,7 @@ constant_source_node = False
 num_shifts_of_source_node = False
 seeding_sigma_coeff = False
 seeding_power_law_exponent = False
-beta = 1
+beta = False
 multiple_path = False
 assert bool(constant_source_node) + bool(num_shifts_of_source_node) + bool(seeding_sigma_coeff) + bool(seeding_power_law_exponent) + bool(beta) < 2, 'Choose one seeding method, as all are mutually incompatible. If none, defaults to random seeding'
 

@@ -78,6 +78,48 @@ def sum_matrix_signs(matrix, verbose=True):
     return vals_greater_than_one-matrix.shape[0], positive_vals, negative_vals
 
 
+def print_row_column_sums(matrix):
+    assert matrix.shape[0] == matrix.shape[1], 'Use square numpy matrix'
+    row_sums = []
+    column_sums = []
+    for node in range(matrix.shape[0]):
+        row_sums.append(sum(matrix[node, :]))
+        column_sums.append(sum(matrix[:, node]))
+        if np.isclose(sum(matrix[node, :]), 0): print(f'Row {node} sums to zero')
+        if np.isclose(sum(matrix[:, node]), 0): print(f'Column {node} sums to zero')
+    print(f'Row sums:\n {np.array(row_sums)}')
+    print(f'Column sums:\n {np.round(np.array(column_sums), 2)}')
+
+
+def evenly_distribute_matrix_values(matrix, by_row=False, by_column=False):
+    # Defaults to evenly distributing row values (i.e. mean row value across the non-zero row values), can do columns
+    M, i = np.zeros(matrix.shape), 0
+    if by_column:
+        for column in matrix.T:
+            M[i] = np.array([np.sum(column) / len([1 for non_zero_val in column if non_zero_val != 0]) if non_zero_val != 0 else 0 for non_zero_val in column])
+            i += 1
+        return M.T
+    elif by_row:
+        for row in matrix:
+            M[i] = np.array([np.sum(row)/len([1 for non_zero_val in row if non_zero_val != 0]) if non_zero_val != 0 else 0 for non_zero_val in row])
+            i += 1
+        return M
+    else:
+        return np.where(matrix == 0, 0, np.mean(matrix))
+
+
+def undirectify(adjacency_matrix):
+    assert len(adjacency_matrix.shape) == 2 and adjacency_matrix.shape[0] == adjacency_matrix.shape[1], 'A must be square'
+    # returns an undirected version of a given Adjacency matrix, mirroring values over the diagonal axis
+    A_top = np.zeros(adjacency_matrix.shape)
+    A_bottom = np.zeros(adjacency_matrix.shape)
+    for i in range(adjacency_matrix.shape[0]):
+        A_top[i] = np.array([adjacency_matrix[i][j] if j > i else 0 for j in range(adjacency_matrix.shape[0])])  # >= to include diagonal
+        A_bottom[i] = np.array([adjacency_matrix[i][j] if j < i else 0 for j in range(adjacency_matrix.shape[0])])
+    A_bottom = np.where(A_bottom > A_top.T, A_bottom, 0)
+    return A_top + A_bottom.T + (A_top + A_bottom.T).T
+
+
 def A_to_csv(matrix, output_dir, csv_name, delimiter=None):
     Sources = [int(i/matrix.shape[0]) for i in range(matrix.shape[0]*matrix.shape[1])]
     Targets = list(np.repeat([np.arange(matrix.shape[0])], matrix.shape[0], axis=0).flatten())
@@ -98,8 +140,7 @@ def A_to_csv(matrix, output_dir, csv_name, delimiter=None):
         df[column_order].to_csv(Path(output_dir, csv_name), header=False, index=False, float_format='%.2f')
 
 
-## Other functions:
-
+# Other functions:
 def print_run_percentage(index, runs, fraction_intervals=10):
     if runs < fraction_intervals:
         print(f"Too few runs, set verbose to False (num runs [{runs}] must be divisible by [{fraction_intervals}])")

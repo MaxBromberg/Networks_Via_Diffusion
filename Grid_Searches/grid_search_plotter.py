@@ -1,7 +1,8 @@
-import plotter
-from pathlib import Path
 import numpy
+from pathlib import Path
 import sys
+sys.path.append('../')
+import plotter
 
 """
 Parallelizes plot creation across all node_num_## (or source_reward_##) datasets.
