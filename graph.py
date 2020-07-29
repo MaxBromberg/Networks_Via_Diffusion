@@ -17,13 +17,14 @@ random.seed(42)
 update_interval_val = 1
 source_reward_val = 2.6
 equilibrium_distance_val = 100
-equilibrium_span_val = 0
+equilibrium_span_val = 0  # virtually never triggers for val > 0
 
 
 class Graph:
     _source_node = None   # holds the source node for each run, reset after every run.
 
-    def __init__(self, num_nodes, edge_conservation_coefficient=None, selectivity=None, reinforcement_info_score_coupling=True, positive_eff_dist_and_reinforcement_correlation=False):
+    def __init__(self, num_nodes, edge_conservation_coefficient=None, selectivity=None, reinforcement_info_score_coupling=True,
+                 positive_eff_dist_and_reinforcement_correlation=False, eff_dist_is_towards_source=False, nodes_adapt_outgoing_edges=False, incoming_edges_conserved=True):
         """
         Initialization; the 'extra' dimensionality (i.e. 1 for nodes, A) are there to dynamically store their history
         via use of vstack later on. To minimize variables, many features are activated by specifying their relevant
@@ -41,6 +42,9 @@ class Graph:
         self.fraction_infoscore_redistributed = selectivity  # rescaling of all rewards in reweight_edges_via_info_score
         self.reinforcement_infoscore_coupling = reinforcement_info_score_coupling  # if False, sparse matricies divolve into
         self.positive_eff_dist_and_reinforcement_correlation = positive_eff_dist_and_reinforcement_correlation
+        self.eval_eff_dist_to_source = eff_dist_is_towards_source
+        self.nodes_adapt_outgoing_edges = nodes_adapt_outgoing_edges
+        self.conserve_incoming = incoming_edges_conserved
 
         self.nodes = np.zeros((1, num_nodes))  # node values (and history of via the first dimension)
         self.A = np.zeros((1, self.num_nodes, self.num_nodes))  # Adjacency matrix (and history of)
@@ -48,7 +52,7 @@ class Graph:
         self.eff_dist_history = []
 
     # Edge Initialization: ------------------------------------------------------------------------------------------
-    def sparse_random_edge_init(self, nonzero_edges_per_node=1, connected=True, even_distribution=True):
+    def sparse_random_edge_init(self, nonzero_edges_per_node=1, connected=True, even_distribution=True, undirectify=False):
         """
         Randomly seeds Adjacency matrix with 1 fully weighted edge (or 2 0.5 weighted for nonzero_edges_per_node=2, etc)
         Presently allows for overlap of random edge assignment in the case of nonzero_edges_per_node > 1.
@@ -73,15 +77,19 @@ class Graph:
             self.A[-1][node] /= self.A[-1][node].sum()  # normalizes each node's total (incoming) weights to 1
         if even_distribution:
             self.A[-1] = utility_funcs.evenly_distribute_matrix_values(self.A[-1], by_row=True)  # To ensure outgoing edges all have the same initial weight
+        if undirectify:
+            self.A[-1] = utility_funcs.undirectify(self.A[-1])
 
-    def uniform_random_edge_init(self):
+    def uniform_random_edge_init(self, undirectify=False):
         """Most general case, fills Adjacency matrix with uniform random values and normalizes them"""
         self.A[-1] = np.random.rand(self.num_nodes, self.num_nodes)  # makes latest A a n x n adjacency matrix filled with rand(0,1)
         for node in range(0, self.num_nodes):
             self.A[-1][node][node] = 0  # eliminates looping edges (i.e. no edge refers to itself -> simple graph)
             self.A[-1][node] /= self.A[-1][node].sum()  # normalizes each node's total (incoming) weights to 1
+        if undirectify:
+            self.A[-1] = utility_funcs.undirectify(self.A[-1])
 
-    def scale_free_edge_init(self, degree_exponent, min_k=1, equal_edge_weights=True, connected=True, even_distribution=True):
+    def scale_free_edge_init(self, degree_exponent, min_k=1, equal_edge_weights=True, connected=True, even_distribution=True, undirectify=False):
         """
         Generates degree sequence based on probability of connecting to k nodes: p(k) = k^-degree_exponent,
         spreads connections uniformly across connections, with the number of connections per node dependant on above
@@ -150,8 +158,10 @@ class Graph:
 
         if even_distribution:
             self.A[-1] = utility_funcs.evenly_distribute_matrix_values(self.A[-1], by_row=True)  # To ensure outgoing edges all have the same initial weight
+        if undirectify:
+            self.A[-1] = utility_funcs.undirectify(self.A[-1])
 
-    def nx_scale_free_edge_init(self, degree_exponent, min_k=1):
+    def nx_scale_free_edge_init(self, degree_exponent, min_k=1, undirectify=False):
         # in and out degrees are considered to be the same by default
         num_nodes = self.A.shape[1]
         degree_sequence = [pow(k, -degree_exponent) for k in range(1, num_nodes+1)]
@@ -168,6 +178,8 @@ class Graph:
         for from_node in range(self.A[-1].shape[0]):
             if self.A[-1][from_node].sum() > 0:
                 self.A[-1][from_node] /= self.A[-1][from_node].sum()  # normalizes each node's total (incoming) weights to 1
+        if undirectify:
+            self.A[-1] = utility_funcs.undirectify(self.A[-1])
 
     def nx_scale_free_edge_init_unconnected(self, alpha=0.41, beta=0.54, gamma=0.05, delta_in=0.2, delta_out=0, create_using=None, seed=None):
         # in and out degrees are considered to be the same by default
@@ -178,12 +190,26 @@ class Graph:
             if self.A[-1][from_node].sum() > 0:
                 self.A[-1][from_node] /= self.A[-1][from_node].sum()  # normalizes each node's total (incoming) weights to 1
 
-    def barabasi_albert_edge_init(self, num_edges_per_new_node, seed=42):
+    def barabasi_albert_edge_init(self, num_edges_per_new_node, seed=42, undirectify=False):
         nx_graph = nx.barabasi_albert_graph(n=self.A[-1].shape[0], m=num_edges_per_new_node, seed=seed)
         self.A[-1] = nx.to_numpy_array(nx_graph)
         for from_node in range(self.A[-1].shape[0]):
             if self.A[-1][from_node].sum() > 0:
                 self.A[-1][from_node] /= self.A[-1][from_node].sum()  # normalizes each node's total (incoming) weights to 1
+        if undirectify:
+            self.A[-1] = utility_funcs.undirectify(self.A[-1])
+
+    def edge_initialization_conditional(self, edge_init):
+        if edge_init is None:
+            self.uniform_random_edge_init()
+        if isinstance(edge_init, int):
+            self.sparse_random_edge_init(nonzero_edges_per_node=edge_init)
+        if isinstance(edge_init, float):
+            self.scale_free_edge_init(degree_exponent=edge_init, min_k=1)
+        if isinstance(edge_init, np.ndarray):
+            assert len(edge_init.shape) == 2 and edge_init.shape[0] == edge_init.shape[
+                1], f'edge_init as np.array must be a square (2d) matrix. Now edge_init is: \n {edge_init}'
+            self.A[-1] = edge_init
 
     # Information Seeding: ------------------------------------------------------------------------------------------
     def seed_info_random(self):
@@ -296,9 +322,15 @@ class Graph:
         # return [pow((self.A[-1][node_index][from_node_index] / (self.nodes[-1][node_index] / node_sum)), self.eff_dist_and_edge_response) for node_index in range(self.nodes.shape[1])]
         """
         if self.positive_eff_dist_and_reinforcement_correlation:
-            return [(pow((self.nodes[-1][node_index] / node_sum), (1 - self.eff_dist_and_edge_coupling)) * pow(self.A[-1][node_index][from_node_index], self.eff_dist_and_edge_coupling)) for node_index in range(self.nodes.shape[1])]
+            if not self.nodes_adapt_outgoing_edges:
+                return [(pow((self.nodes[-1][node_index] / node_sum), (1 - self.eff_dist_and_edge_coupling)) * pow(self.A[-1][node_index][from_node_index], self.eff_dist_and_edge_coupling)) for node_index in range(self.nodes.shape[1])]
+            else:
+                return [(pow((self.nodes[-1][node_index] / node_sum), (1 - self.eff_dist_and_edge_coupling)) * pow(self.A[-1][from_node_index][node_index], self.eff_dist_and_edge_coupling)) for node_index in range(self.nodes.shape[1])]
         else:
-            return [(pow((self.nodes[-1][node_index] / node_sum), (self.eff_dist_and_edge_coupling - 1)) * pow(self.A[-1][node_index][from_node_index], self.eff_dist_and_edge_coupling)) for node_index in range(self.nodes.shape[1])]
+            if not self.nodes_adapt_outgoing_edges:
+                return [(pow((self.nodes[-1][node_index] / node_sum), (self.eff_dist_and_edge_coupling - 1)) * pow(self.A[-1][node_index][from_node_index], self.eff_dist_and_edge_coupling)) for node_index in range(self.nodes.shape[1])]
+            else:
+                return [(pow((self.nodes[-1][node_index] / node_sum), (self.eff_dist_and_edge_coupling - 1)) * pow(self.A[-1][from_node_index][node_index], self.eff_dist_and_edge_coupling)) for node_index in range(self.nodes.shape[1])]
 
     def reweight_info_score(self, info_score, info_score_sum):
         """
@@ -308,15 +340,15 @@ class Graph:
         :param info_score_sum: simply passed to avoid recomputing sum, though only more efficient for larger node_numbers
         :param decoupled: if true, decouples edge value and reinforcement of edge value. (edge value only effects infoscore, and thus which edges are reinforced, not how much.)
         """
-        if self.fraction_infoscore_redistributed == 1:
-            cutoff_val = sorted(info_score)[-1]
-        else:
+        if not self.fraction_infoscore_redistributed == 1:
             cutoff_val = sorted(info_score)[int(self.fraction_infoscore_redistributed * len(info_score))]
+        else:
+            cutoff_val = sorted(info_score)[-1]
 
         if self.reinforcement_infoscore_coupling:
-            reduced_info_score = [val if val > cutoff_val else 0 for val in info_score]
+            reduced_info_score = [val if val >= cutoff_val else 0 for val in info_score]
         else:
-            reduced_info_score = [1 if val > cutoff_val else 0 for val in info_score]
+            reduced_info_score = [1 if val >= cutoff_val else 0 for val in info_score]
 
         reduced_info_score_sum = sum(reduced_info_score)
         return [info_score_sum * (val / reduced_info_score_sum) for val in reduced_info_score]
@@ -331,8 +363,11 @@ class Graph:
         for from_node in range(0, self.nodes[-1].size):
             info_score = self.evaluate_info_score(from_node, node_sum)
             info_score /= np.sum(info_score)  # Optional info_score normalization. **Should be incompatible with simple positive power in next step, but isn't...
-            info_scores[:, from_node] = self.reweight_info_score(info_score, 1)  # replace 1 with sum(info_score) if not normalized [below]
-            # info_scores[:, from_node] = self.reweight_info_score(info_score, np.sum(info_score))  # replace 1 with sum(info_score) if not normalized
+            if not self.nodes_adapt_outgoing_edges:
+                info_scores[:, from_node] = self.reweight_info_score(info_score, 1)  # replace 1 with sum(info_score) if not normalized [below]
+                # info_scores[:, from_node] = self.reweight_info_score(info_score, np.sum(info_score))  # replace 1 with sum(info_score) if not normalized
+            else:
+                info_scores[from_node, :] = self.reweight_info_score(info_score, 1)  # as updating outwardly directed nodes means updating rows.
         self.A[-1] += info_scores
 
     def update_edges(self):
@@ -347,10 +382,15 @@ class Graph:
         
         # Normalization (columns of A, incoming edges)
         for node in range(0, self.A.shape[1]):
-            incoming_edge_sum = self.A[-1][:, node].sum()
-            if incoming_edge_sum > 0:
-                self.A[-1][:, node] /= incoming_edge_sum  # normalizes each node's total INCOMING weights to 1
-            # For sparse networks, there will likely be some columns (outgoing edges) which sum to zero. (thus the conditional)
+            if self.conserve_incoming:
+                incoming_edge_sum = self.A[-1][:, node].sum()
+                if incoming_edge_sum > 0:
+                    self.A[-1][:, node] /= incoming_edge_sum  # normalizes each node's total INCOMING weights to 1
+                # For (unconnected) sparse networks, there will be some columns (outgoing edges) which sum to zero. (thus the conditional)
+            else:
+                outgoing_edge_sum = self.A[-1][node, :].sum()
+                if outgoing_edge_sum > 0:
+                    self.A[-1][node, :] /= outgoing_edge_sum  # normalizes each node's total OUTGOING weights to 1
 
     # Effective Distance Evaluation: --------------------------------------------------------------------------------
     def RWED(self, adjacency_matrix, source=None, target=None, parameter=1, via_numpy=False, sub_zeros=False):
@@ -485,7 +525,10 @@ class Graph:
             row_sums = self.A[timestep].sum(axis=1)
             normalized_A = np.array([self.A[timestep][node, :]/row_sums[node] for node in range(self.A[timestep].shape[0])])
             # normalized_A = np.round(utility_funcs.matrix_normalize(self.A[timestep], row_normalize=True), 20)
-            eff_dists = self.get_eff_dist(adjacency_matrix=normalized_A, multiple_path=False, source=source, parameter=parameter)
+            if not self.eval_eff_dist_to_source:
+                eff_dists = self.get_eff_dist(adjacency_matrix=normalized_A, multiple_path=False, source=source, parameter=parameter)  # Evaluates eff. dist. FROM source
+            else:
+                eff_dists = self.get_eff_dist(adjacency_matrix=normalized_A, multiple_path=False, target=source, parameter=parameter)   # Evaluates eff. dist. TO source
         if source is None:
             # if source is none, the eff_dist library defaults to an all-to-all eff_dist measure
             for node_index in range(self.nodes[-1].size):
@@ -581,8 +624,9 @@ class Graph:
         # return np.round(np.sum(self.A[timestep], axis=0), 20)
 
     # Run Functions: -------------------------------------------------------------------------------------------------
-    def simulate(self, num_runs, update_interval=1, eff_dist_delta_param=1, source_reward=source_reward_val, constant_source_node=False,
-                 num_shifts_of_source_node=False, seeding_sigma_coeff=False, seeding_power_law_exponent=False, beta=None, multiple_path=False, equilibrium_distance=equilibrium_distance_val, verbose=False):
+    def simulate(self, num_runs, eff_dist_delta_param=1, constant_source_node=False, num_shifts_of_source_node=False,
+                 seeding_sigma_coeff=False, seeding_power_law_exponent=False, beta=None, multiple_path=False,
+                 equilibrium_distance=equilibrium_distance_val, update_interval=1, source_reward=source_reward_val, verbose=False):
         """
         Run function. Sequentially seeds source node, sets node values to effective distance evaluation, updates edges and corresponding history.
         :param num_runs: Constant natural number, number of runs.
@@ -634,7 +678,7 @@ class Graph:
                 utility_funcs.print_run_percentage(i, num_runs, 17)
             if self.A.shape[0] > equilibrium_distance+equilibrium_span+1:  # +1 for range starting at 0 offset
                 # if np.all(np.array([np.allclose(self.A[-(ii+1)], self.A[-(equilibrium_distance+(ii+1))], rtol=1e-10) for ii in range(equilibrium_span)])):
-                if np.allclose(self.A[-1], self.A[-(equilibrium_distance + 1)], rtol=1e-10):
+                if np.allclose(self.A[-1], self.A[-(equilibrium_distance + 1)], rtol=1e-15):
                     print(f'Equilibrium conditions met after {i} runs, run halted.')
                     break  # Automatic break if equilibrium is reached. Lets run times be arb. large for MC delta search
         self.A = np.delete(self.A, -1, axis=0)
@@ -642,13 +686,9 @@ class Graph:
         if verbose:
             print_run_methods()
 
-    def simulate_ensemble(self, num_simulations, num_runs_per_sim, update_interval=1,
-                          eff_dist_delta_param=1,
-                          source_reward=source_reward_val,
-                          edge_init=None,
-                          constant_source_node=False,
+    def simulate_ensemble(self, num_simulations, num_runs_per_sim, eff_dist_delta_param=1, edge_init=None, constant_source_node=False,
                           num_shifts_of_source_node=False, seeding_sigma_coeff=False, seeding_power_law_exponent=False, beta=None,
-                          multiple_path=False, equilibrium_distance=equilibrium_distance_val, verbose=False):
+                          multiple_path=False, equilibrium_distance=equilibrium_distance_val, update_interval=1, source_reward=source_reward_val, verbose=False):
         """
         Keeps a running average of A, and eff_dist_history over num_simulations, while extending source history.
         This leaves observables which are not dependent on an averaged A requiring special reprogramming.
@@ -660,6 +700,7 @@ class Graph:
         :param edge_init: determines edge initialization. If None (default) uniform random edge initialization is used.
         If an integer, then sparse edge initialization, with (int) num of non-zero edges per node.
         If a float, then scale-free edge initialization, with the float determining the degree exponent.
+        If a numpy array
         :param constant_source_node: Sets seed node to be a given node (the integer given).  True defaults to 0th node.
         :param multiple_path: if True, uses multiple path effective distance algorithm. Otherwise, defaults to random walker effective distance algorithm
         :param equilibrium_distance: length at which two nearly equal A matricies are constantly compared to break run loop
@@ -671,12 +712,7 @@ class Graph:
             # TODO: Not sure if reseeding is required
             np.random.seed(i)
             random.seed(i)
-            if edge_init is None:
-                self.uniform_random_edge_init()
-            if isinstance(edge_init, int):
-                self.sparse_random_edge_init(nonzero_edges_per_node=edge_init)
-            if isinstance(edge_init, float):
-                self.scale_free_edge_init(degree_exponent=edge_init, min_k=1)
+            self.edge_initialization_conditional(edge_init=edge_init)
             self.simulate(num_runs_per_sim, update_interval, eff_dist_delta_param, source_reward, constant_source_node,
                           num_shifts_of_source_node, seeding_sigma_coeff, seeding_power_law_exponent, beta,
                           multiple_path, equilibrium_distance, verbose=False)

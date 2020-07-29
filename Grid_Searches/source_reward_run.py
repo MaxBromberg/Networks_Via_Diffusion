@@ -21,7 +21,7 @@ assert isinstance(run_index, int), "Run index records order of runs, and ought b
 # assert isinstance(num_nodes, int), "Number of nodes ought be an integer"
 
 num_nodes = 50
-# num_simulations_per_parameter_combo = 10
+# ensemble_size = 10
 num_runs = 1000
 delta = 1
 equilibrium_distance = 200

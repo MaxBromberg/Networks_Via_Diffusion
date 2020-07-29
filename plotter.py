@@ -607,7 +607,7 @@ def plot_single_network(graph, timestep, directed=True, node_size_scaling=None, 
                                node_color=node_colors,
                                widths=weights,
                                cmap=plt.get_cmap('viridis'))
-        plt.title(f"Nodes size proportional to incoming edge weights [timestep: {timestep}]")
+        plt.title(f"Nodes size proportional to outgoing edge weights [timestep: {timestep}]")
     if title:
         plt.savefig(f'{title}.png')
         plt.close(fig)
@@ -880,6 +880,7 @@ def parallellized_animate_network_evolution(graph, source_weighting=False, node_
         print(f'\n gif and mp4 of network grid search created in {vid_path} \n Stills stored in {fig_path} \n')
         print(f"Time lapsed {utility_funcs.time_lapsed_h_m_s(time.time() - start_time)}")
 """
+
 
 #  3D Plotting: ------------------------------------------------------------------------------------------------------
 def plot_3d(function, x_range, y_range=None, piecewise=False, z_limits=None, spacing=0.05):

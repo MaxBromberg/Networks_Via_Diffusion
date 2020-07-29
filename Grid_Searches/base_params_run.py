@@ -46,7 +46,7 @@ if __name__ == '__main__':
 
     G.simulate(num_runs, eff_dist_delta_param=delta, constant_source_node=constant_source_node, num_shifts_of_source_node=num_shifts_of_source_node,
                equilibrium_distance=equilibrium_distance, seeding_sigma_coeff=seeding_sigma_coeff, seeding_power_law_exponent=seeding_power_law_exponent, beta=beta, multiple_path=multiple_path)
-    # G.simulate_ensemble(num_simulations_per_parameter_combo, num_runs, eff_dist_delta_param=delta, constant_source_node=constant_source_node, num_shifts_of_source_node=num_shifts_of_source_node,
+    # G.simulate_ensemble(ensemble_size, num_runs, eff_dist_delta_param=delta, constant_source_node=constant_source_node, num_shifts_of_source_node=num_shifts_of_source_node,
     #                     equilibrium_distance=equilibrium_distance, seeding_sigma_coeff=seeding_sigma_coeff, seeding_power_law_exponent=seeding_power_law_exponent, beta=beta, multiple_path=multiple_path, verbose=False)
     plotter.save_object(G, Path(output_path, f'{run_index:04}_graph_obj.pkl'))
     print(f'Run {run_index}, [edge conservation: {edge_conservation_val}, selectivity: {selectivity_val}] complete ({utility_funcs.time_lapsed_h_m_s(time.time()-start_time)})')

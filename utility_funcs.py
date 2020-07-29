@@ -155,3 +155,8 @@ def consume(iterator, n):
 # just for debugging
 def rounded_print(num):
     print(np.round(num, rounding))
+
+
+def print_inventory(dct):
+    for item, amount in dct.items():
+        print("{} ({})".format(item, amount))
