@@ -7,13 +7,13 @@ import graph
 import utility_funcs
 import plotter
 
-num_nodes = 50
+num_nodes = 60
 
 G = graph.Graph(num_nodes=num_nodes, edge_conservation_coefficient=0.5, selectivity=0.5,
                 reinforcement_info_score_coupling=True, positive_eff_dist_and_reinforcement_correlation=False)
 # G.uniform_random_edge_init()
-G.sparse_random_edge_init(nonzero_edges_per_node=3, connected=True)
-# G.scale_free_edge_init(degree_exponent=1.4, min_k=1, equal_edge_weights=True, connected=True)
+# G.sparse_random_edge_init(nonzero_edges_per_node=3, connected=True)
+G.scale_free_edge_init(degree_exponent=1.2, min_k=1, equal_edge_weights=True, connected=True)
 # G.nx_scale_free_edge_init(degree_exponent=1.2, min_k=1)
 # G.nx_scale_free_edge_init_unconnected()
 # G.barabasi_albert_edge_init(num_edges_per_new_node=int(num_nodes/10))
@@ -29,6 +29,9 @@ print(f'{zeros} zeros in inverse initial 1-A')
 output_dir = "/home/maqz/Desktop/"
 csv_name = 'sparse.csv'
 # utility_funcs.A_to_csv(G.A[-1], output_dir=output_dir, csv_name=csv_name, delimiter=" ")
+
+utility_funcs.sum_matrix_signs(G.A[-1])
+utility_funcs.print_row_column_sums(G.A[-1])
 
 G.simulate(num_runs=1000, multiple_path=False)
 t = 1

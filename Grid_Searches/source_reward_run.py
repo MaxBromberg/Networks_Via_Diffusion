@@ -7,7 +7,7 @@ import graph
 
 """
 Arguments via terminal to be given in the following order:
-output_directory, num_nodes, run_index, edge_conservation_val, selectivity_val
+subdata_directory, num_nodes, run_index, edge_conservation_val, selectivity_val
 
 To be run with python3.6 or later. (includes fstrings)
 Required packages: numpy, random, matplotlib, networkx, [pickle, os, pathLib]

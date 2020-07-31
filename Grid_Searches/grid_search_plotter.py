@@ -7,7 +7,7 @@ import plotter
 """
 Parallelizes plot creation across all node_num_## (or source_reward_##) datasets.
 Arguments via terminal to be given in the following order:
-data_directory, edge_conservation_range, selectivity_range, output_directory
+data_directory, edge_conservation_range, selectivity_range, subdata_directory
 [Path,          list,           list,             Path]
 
 To be run with python3.6 or later. (includes fstrings)
@@ -33,6 +33,6 @@ if __name__ == '__main__':
                                    num_nodes=node_num, source_reward=source_reward, output_dir=Path(output_path, f'source_reward_{source_reward}_plots'),
                                    eff_dist=True, global_eff_dist=True, network_graphs=True, node_plots=False, ave_nbr=False, cluster_coeff=False, shortest_path=False, degree_dist=True)
 
-    # plotter.twoD_grid_search_meta_plots(path_to_data_dir=input_path, edge_conservation_range=edge_conservation_range, selectivity_range=selectivity_range,
+    # plotter.twoD_grid_search_meta_plots(data_directory=input_path, edge_conservation_range=edge_conservation_range, selectivity_range=selectivity_range,
     #                                source_reward=source_reward, delta=1, output_dir=Path(output_path, f'source_reward_{source_reward}_plots'), verbose=True)
 

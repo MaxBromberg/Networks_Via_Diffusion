@@ -40,7 +40,7 @@ if __name__ == '__main__':
                 while used_cores < left_over_selectivity_values:
                     # print(f'used_cores: {used_cores} | selectivity_val_index: {selectivity_val_index} | selectivity_range[selectivity_val_index + used_cores]: {np.round(selectivity_range[selectivity_val_index + used_cores], 2)}')
                     parameter_dictionary = {
-                        'output_directory': output_directory,
+                        'subdata_directory': output_directory,
                         'num_nodes': num_nodes,
                         'run_index': run_index,
                         'edge_conservation_val': np.round(coupling_val, 2),
@@ -55,7 +55,7 @@ if __name__ == '__main__':
             else:
                 while used_cores < num_cores_used:
                     parameter_dictionary = {
-                        'output_directory': output_directory,
+                        'subdata_directory': output_directory,
                         'num_nodes': num_nodes,
                         'run_index': run_index,
                         'edge_conservation_val': np.round(coupling_val, 2),
@@ -72,6 +72,6 @@ if __name__ == '__main__':
                 process.join()  # join's created processes to run simultaneously.
 
     print(f"Time lapsed for {num_nodes} node, {edge_conservation_range.size * selectivity_range.size} parameter combinations: {utility_funcs.time_lapsed_h_m_s(time.time()-start_time)}")
-# plotter.twoD_grid_search_plots(output_directory, edge_conservation_range=edge_conservation_range, selectivity_range=selectivity_range, num_nodes=num_nodes, network_graphs=True, node_plots=False, ave_nbr=False, cluster_coeff=False, shortest_path=False, degree_dist=True, output_dir=data_directory)
+# plotter.twoD_grid_search_plots(subdata_directory, edge_conservation_range=edge_conservation_range, selectivity_range=selectivity_range, num_nodes=num_nodes, network_graphs=True, node_plots=False, ave_nbr=False, cluster_coeff=False, shortest_path=False, degree_dist=True, output_dir=data_directory)
 # print(f"Time lapsed for all source reward values, {source_reward_range.size * edge_conservation_range.size * selectivity_range.size} total parameter combinations: {utility_funcs.time_lapsed_h_m_s(time.time() - total_start_time)}")
 

@@ -8,10 +8,9 @@ sys.path.append('../')
 import plotter
 import utility_funcs
 
-# data_directory = "/home/maqz/Desktop/data/sparse_tenth_nodes_constant_seeding/"
 data_directory = str(sys.argv[1])
 run_index, num_nodes = [int(arg) for arg in sys.argv[2:4]]  # eliminates name of file as initial input string
-output_directory = Path(data_directory, f"node_num_{num_nodes}")
+subdata_directory = Path(data_directory, f"node_num_{num_nodes}")
 
 
 edge_conservation_range = np.arange(*[float(arg) for arg in sys.argv[4].split('_')])
@@ -27,29 +26,39 @@ search_wide_dic = {
     'eff_dist_is_towards_source': sys.argv[8],
     'nodes_adapt_outgoing_edges': sys.argv[9],
     'incoming_edges_conserved': sys.argv[10],
-    'edge_init': sys.argv[11],
-    'ensemble_size': sys.argv[12],
-    'num_runs': sys.argv[13],
-    'delta': sys.argv[14],
-    'equilibrium_distance': sys.argv[15],
-    'constant_source_node': sys.argv[16],
-    'num_shifts_of_source_node': sys.argv[17],
-    'seeding_sigma_coeff': sys.argv[18],
-    'seeding_power_law_exponent': sys.argv[19],
-    'beta': sys.argv[20],
-    'multiple_path': sys.argv[21],
-    'update_interval':  sys.argv[22],
-    'source_reward': sys.argv[23]
+    'undirected': sys.argv[11],
+    'edge_init': sys.argv[12],
+    'ensemble_size': sys.argv[13],
+    'num_runs': sys.argv[14],
+    'delta': sys.argv[15],
+    'equilibrium_distance': sys.argv[16],
+    'constant_source_node': sys.argv[17],
+    'num_shifts_of_source_node': sys.argv[18],
+    'seeding_sigma_coeff': sys.argv[19],
+    'seeding_power_law_exponent': sys.argv[20],
+    'beta': sys.argv[21],
+    'multiple_path': sys.argv[22],
+    'update_interval':  sys.argv[23],
+    'source_reward': sys.argv[24],
+    'undirectify_init': sys.argv[25]
 }
 
-try: os.mkdir(output_directory)
+try:
+    os.mkdir(data_directory)
 except OSError:
-    print(f'{output_directory} already exists, adding or overwriting contents')
+    print(f'{data_directory} already exists, adding or overwriting contents')
+    pass
+
+
+try:
+    os.mkdir(subdata_directory)
+except OSError:
+    print(f'{subdata_directory} already exists, adding or overwriting contents')
     pass
 
 
 def process_wrapper(param_dic):
-    os.system('python simulate.py {output_directory} {run_index} {num_nodes} {edge_conservation_val} {selectivity_val} {reinforcement_info_score_coupling} {positive_eff_dist_and_reinforcement_correlation} {eff_dist_is_towards_source} {nodes_adapt_outgoing_edges} {incoming_edges_conserved} {edge_init} {ensemble_size} {num_runs} {delta} {equilibrium_distance} {constant_source_node} {num_shifts_of_source_node} {seeding_sigma_coeff} {seeding_power_law_exponent} {beta} {multiple_path} {update_interval} {source_reward}'.format(**param_dic))
+    os.system('python simulate.py {output_directory} {run_index} {num_nodes} {edge_conservation_val} {selectivity_val} {reinforcement_info_score_coupling} {positive_eff_dist_and_reinforcement_correlation} {eff_dist_is_towards_source} {nodes_adapt_outgoing_edges} {incoming_edges_conserved} {undirected} {edge_init} {ensemble_size} {num_runs} {delta} {equilibrium_distance} {constant_source_node} {num_shifts_of_source_node} {seeding_sigma_coeff} {seeding_power_law_exponent} {beta} {multiple_path} {update_interval} {source_reward} {undirectify_init}'.format(**param_dic))
 
 
 if __name__ == '__main__':
@@ -65,7 +74,7 @@ if __name__ == '__main__':
                 while used_cores < left_over_selectivity_values:
                     # print(f'used_cores: {used_cores} | selectivity_val_index: {selectivity_val_index} | selectivity_range[selectivity_val_index + used_cores]: {np.round(selectivity_range[selectivity_val_index + used_cores], 2)}')
                     parameter_dictionary = {
-                        'output_directory': output_directory,
+                        'output_directory': subdata_directory,
                         'run_index': run_index,
                         'num_nodes': num_nodes,
                         'edge_conservation_val': np.round(coupling_val, 2),
@@ -81,7 +90,7 @@ if __name__ == '__main__':
             else:
                 while used_cores < num_cores_used:
                     parameter_dictionary = {
-                        'output_directory': output_directory,
+                        'output_directory': subdata_directory,
                         'run_index': run_index,
                         'num_nodes': num_nodes,
                         'edge_conservation_val': np.round(coupling_val, 2),
@@ -99,6 +108,9 @@ if __name__ == '__main__':
                 process.join()  # join's created processes to run simultaneously.
 
     print(f"Time lapsed for {num_nodes} nodes, {edge_conservation_range.size * selectivity_range.size} parameter combinations: {utility_funcs.time_lapsed_h_m_s(time.time()-start_time)}")
-# plotter.twoD_grid_search_plots(output_directory, edge_conservation_range=edge_conservation_range, selectivity_range=selectivity_range, num_nodes=num_nodes, network_graphs=True, node_plots=False, ave_nbr=False, cluster_coeff=False, shortest_path=False, degree_dist=True, output_dir=data_directory)
+plotter.twoD_grid_search_plots(subdata_directory, edge_conservation_range=edge_conservation_range, selectivity_range=selectivity_range,
+                               num_nodes=num_nodes, network_graphs=True, node_plots=False, ave_nbr=False, cluster_coeff=False,
+                               eff_dist=True, global_eff_dist=True, shortest_path=False, degree_dist=True, edge_dist=True,
+                               output_dir=Path(data_directory, 'Plots'))
 # print(f"Time lapsed for all source reward values, {source_reward_range.size * edge_conservation_range.size * selectivity_range.size} total parameter combinations: {utility_funcs.time_lapsed_h_m_s(time.time() - total_start_time)}")
 

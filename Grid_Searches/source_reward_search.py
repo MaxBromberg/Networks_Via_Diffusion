@@ -43,7 +43,7 @@ for source_reward_val in source_reward_range:
             if left_over_selectivity_values < num_cores_used:  # To ensure that parallelization persists when there are fewer tasks than cores
                 while used_cores < left_over_selectivity_values:
                     parameter_dictionary = {
-                        'output_directory': output_directory,
+                        'subdata_directory': output_directory,
                         'source_reward': source_reward_val,
                         'run_index': run_index,
                         'edge_conservation_val': np.round(coupling_val, 2),
@@ -58,7 +58,7 @@ for source_reward_val in source_reward_range:
             else:
                 while used_cores < num_cores_used:
                     parameter_dictionary = {
-                        'output_directory': output_directory,
+                        'subdata_directory': output_directory,
                         'source_reward': source_reward_val,
                         'run_index': run_index,
                         'edge_conservation_val': np.round(coupling_val, 2),
@@ -76,5 +76,5 @@ for source_reward_val in source_reward_range:
 
     print(f"Time lapsed for {source_reward_val} source reward grid search: {utility_funcs.time_lapsed_h_m_s(time.time()-start_time)}")
 print(f"Time lapsed for all source reward values, {source_reward_range.size * edge_conservation_range.size * selectivity_range.size} total parameter combinations: {utility_funcs.time_lapsed_h_m_s(time.time()-total_start_time)}")
-# plotter.twoD_grid_search_plots(output_directory, edge_conservation_range=edge_conservation_range, selectivity_range=selectivity_range, num_nodes=num_nodes, network_graphs=True, node_plots=False, ave_nbr=False, cluster_coeff=False, shortest_path=False, degree_dist=True, output_dir=data_directory)
+# plotter.twoD_grid_search_plots(subdata_directory, edge_conservation_range=edge_conservation_range, selectivity_range=selectivity_range, num_nodes=num_nodes, network_graphs=True, node_plots=False, ave_nbr=False, cluster_coeff=False, shortest_path=False, degree_dist=True, output_dir=data_directory)
 

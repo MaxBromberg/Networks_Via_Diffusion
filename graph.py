@@ -6,8 +6,6 @@ import effective_distance as ed
 
 from scipy.sparse.linalg import inv
 from scipy.sparse import diags, eye, csc_matrix
-from itertools import cycle
-import multiprocessing as mp
 import time
 np.random.seed(42)
 random.seed(42)
@@ -24,18 +22,18 @@ class Graph:
     _source_node = None   # holds the source node for each run, reset after every run.
 
     def __init__(self, num_nodes, edge_conservation_coefficient=None, selectivity=None, reinforcement_info_score_coupling=True,
-                 positive_eff_dist_and_reinforcement_correlation=False, eff_dist_is_towards_source=False, nodes_adapt_outgoing_edges=False, incoming_edges_conserved=True):
+                 positive_eff_dist_and_reinforcement_correlation=False, eff_dist_is_towards_source=False, nodes_adapt_outgoing_edges=False,
+                 incoming_edges_conserved=True, undirected=False):
         """
         Initialization; the 'extra' dimensionality (i.e. 1 for nodes, A) are there to dynamically store their history
         via use of vstack later on. To minimize variables, many features are activated by specifying their relevant
         macro delta, e.g. diversity based seeding by setting beta != None
         :param num_nodes: Number of nodes in network. Remains constant
-        :param eff_dist_and_edge_response: Tune between 0 (edge reinforcement is entirely based on eff_dist) and 1 (edge reinforcement is entirely based on extant edge values)
-        :param fraction_info_score_redistributed: Determines if reweight_edges_via_info_score is used.
+        :param edge_conservation_coefficient: Tune between 0 (edge reinforcement is entirely based on eff_dist) and 1 (edge reinforcement is entirely based on extant edge values)
+        :param selectivity: Determines if reweight_edges_via_info_score is used.
         Takes the lowest fraction \in (0,1) of edge values for each node and rather than reinforcing them, redistributes
          their reward to that node's oher edges proportional to their standing value.
         :param reinforcement_info_score_coupling if False decouples the above, leading to the same constant reward for the remaining node's edges
-        :param beta: Determines if info is seeded by diversity of connexions, how much (exponential factor, \in (0,1) )
         """
         self.num_nodes = num_nodes
         self.eff_dist_and_edge_coupling = edge_conservation_coefficient  # tunes info score between 0 (pure eff. dist. dependence) and 1 (pure edge dependence)
@@ -45,6 +43,7 @@ class Graph:
         self.eval_eff_dist_to_source = eff_dist_is_towards_source
         self.nodes_adapt_outgoing_edges = nodes_adapt_outgoing_edges
         self.conserve_incoming = incoming_edges_conserved
+        self.undirected = undirected
 
         self.nodes = np.zeros((1, num_nodes))  # node values (and history of via the first dimension)
         self.A = np.zeros((1, self.num_nodes, self.num_nodes))  # Adjacency matrix (and history of)
@@ -199,13 +198,13 @@ class Graph:
         if undirectify:
             self.A[-1] = utility_funcs.undirectify(self.A[-1])
 
-    def edge_initialization_conditional(self, edge_init):
+    def edge_initialization_conditional(self, edge_init, undirectify=False):
         if edge_init is None:
-            self.uniform_random_edge_init()
+            self.uniform_random_edge_init(undirectify=undirectify)
         if isinstance(edge_init, int):
-            self.sparse_random_edge_init(nonzero_edges_per_node=edge_init)
+            self.sparse_random_edge_init(nonzero_edges_per_node=edge_init, undirectify=undirectify)
         if isinstance(edge_init, float):
-            self.scale_free_edge_init(degree_exponent=edge_init, min_k=1)
+            self.scale_free_edge_init(degree_exponent=edge_init, min_k=1, undirectify=undirectify)
         if isinstance(edge_init, np.ndarray):
             assert len(edge_init.shape) == 2 and edge_init.shape[0] == edge_init.shape[
                 1], f'edge_init as np.array must be a square (2d) matrix. Now edge_init is: \n {edge_init}'
@@ -338,7 +337,6 @@ class Graph:
         fraction of highest info_scores proportional to their respective percentage of total remaining info_score value
         By default, only redistributes the base info_score_sum value, but through coefficient could be more/less
         :param info_score_sum: simply passed to avoid recomputing sum, though only more efficient for larger node_numbers
-        :param decoupled: if true, decouples edge value and reinforcement of edge value. (edge value only effects infoscore, and thus which edges are reinforced, not how much.)
         """
         if not self.fraction_infoscore_redistributed == 1:
             cutoff_val = sorted(info_score)[int(self.fraction_infoscore_redistributed * len(info_score))]
@@ -391,6 +389,8 @@ class Graph:
                 outgoing_edge_sum = self.A[-1][node, :].sum()
                 if outgoing_edge_sum > 0:
                     self.A[-1][node, :] /= outgoing_edge_sum  # normalizes each node's total OUTGOING weights to 1
+        if self.undirected:
+            self.A[-1] = utility_funcs.undirectify(self.A[-1], average_connections=True)  # averages reciprocal connections (e_ji, e_ji --> (e_ij + e_ji)/2))
 
     # Effective Distance Evaluation: --------------------------------------------------------------------------------
     def RWED(self, adjacency_matrix, source=None, target=None, parameter=1, via_numpy=False, sub_zeros=False):
@@ -413,9 +413,6 @@ class Graph:
                 compound delta which includes the infection and recovery rate alpha and beta, respectively,
                 the mobility rate kappa and the Euler-Mascheroni constant lambda:
                     log[ (alpha-beta)/kappa - lambda ]
-
-            saveto : string
-                If empty, the result is saved internally in self.dominant_path_distance
 
         Returns:
         --------
@@ -646,7 +643,7 @@ class Graph:
                 print(f'All information was seeded to the 0th node. (Constant Source)')
             elif isinstance(constant_source_node, int):
                 print(f'All information was seeded to the {constant_source_node}th node. (constant source)')
-            elif self.beta:
+            elif beta:
                 print(f'Information seeded proportional to diversity of connections, with partition exponent of beta = {self.beta}')
             elif not constant_source_node or self.beta:
                 print(f'All information was seeded randomly.')
@@ -688,12 +685,12 @@ class Graph:
 
     def simulate_ensemble(self, num_simulations, num_runs_per_sim, eff_dist_delta_param=1, edge_init=None, constant_source_node=False,
                           num_shifts_of_source_node=False, seeding_sigma_coeff=False, seeding_power_law_exponent=False, beta=None,
-                          multiple_path=False, equilibrium_distance=equilibrium_distance_val, update_interval=1, source_reward=source_reward_val, verbose=False):
+                          multiple_path=False, equilibrium_distance=equilibrium_distance_val, update_interval=1, source_reward=source_reward_val, undirectify=False, verbose=False):
         """
         Keeps a running average of A, and eff_dist_history over num_simulations, while extending source history.
         This leaves observables which are not dependent on an averaged A requiring special reprogramming.
         :param num_simulations: number of simulations over which the end result will be averaged
-        :param num_runs: Constant natural number, number of runs.
+        :param num_runs_per_sim: Constant natural number, number of runs.
         :param update_interval: Number of seed steps per run (times information is seeded and diffused before reweighing edges)
         :param eff_dist_delta_param: determines exponential suppression of higher order paths for both RWED and MPED
         :param source_reward: Determines how much the source node is scaled, recommended values \in (1,2)
@@ -712,10 +709,12 @@ class Graph:
             # TODO: Not sure if reseeding is required
             np.random.seed(i)
             random.seed(i)
-            self.edge_initialization_conditional(edge_init=edge_init)
-            self.simulate(num_runs_per_sim, update_interval, eff_dist_delta_param, source_reward, constant_source_node,
-                          num_shifts_of_source_node, seeding_sigma_coeff, seeding_power_law_exponent, beta,
-                          multiple_path, equilibrium_distance, verbose=False)
+            self.edge_initialization_conditional(edge_init=edge_init, undirectify=undirectify)
+            self.simulate(num_runs=num_runs_per_sim, update_interval=update_interval, eff_dist_delta_param=eff_dist_delta_param,
+                          source_reward=source_reward, constant_source_node=constant_source_node,
+                          num_shifts_of_source_node=num_shifts_of_source_node, seeding_sigma_coeff=seeding_sigma_coeff,
+                          seeding_power_law_exponent=seeding_power_law_exponent, beta=beta, multiple_path=multiple_path,
+                          equilibrium_distance=equilibrium_distance, verbose=False)
             if i == 0:
                 A = self.A
                 eff_dist_history = self.eff_dist_history

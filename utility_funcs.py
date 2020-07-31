@@ -108,16 +108,22 @@ def evenly_distribute_matrix_values(matrix, by_row=False, by_column=False):
         return np.where(matrix == 0, 0, np.mean(matrix))
 
 
-def undirectify(adjacency_matrix):
+def undirectify(adjacency_matrix, average_connections=True):
     assert len(adjacency_matrix.shape) == 2 and adjacency_matrix.shape[0] == adjacency_matrix.shape[1], 'A must be square'
-    # returns an undirected version of a given Adjacency matrix, mirroring values over the diagonal axis
+    # returns an undirected version of a given Adjacency matrix, mirroring values over the diagonal axis, and optionally averaging them
     A_top = np.zeros(adjacency_matrix.shape)
     A_bottom = np.zeros(adjacency_matrix.shape)
-    for i in range(adjacency_matrix.shape[0]):
-        A_top[i] = np.array([adjacency_matrix[i][j] if j > i else 0 for j in range(adjacency_matrix.shape[0])])  # >= to include diagonal
-        A_bottom[i] = np.array([adjacency_matrix[i][j] if j < i else 0 for j in range(adjacency_matrix.shape[0])])
-    A_bottom = np.where(A_bottom > A_top.T, A_bottom, 0)
-    return A_top + A_bottom.T + (A_top + A_bottom.T).T
+    if average_connections:
+        A = np.zeros(adjacency_matrix.shape)
+        for i in range(adjacency_matrix.shape[0]):
+            A[i] = np.array([((adjacency_matrix[i][j] + adjacency_matrix[j][i]) / 2) if j > i else 0 for j in range(adjacency_matrix.shape[0])])  # >= to include diagonal
+        return A + A.T
+    else:
+        for i in range(adjacency_matrix.shape[0]):
+            A_top[i] = np.array([adjacency_matrix[i][j] if j > i else 0 for j in range(adjacency_matrix.shape[0])])  # >= to include diagonal
+            A_bottom[i] = np.array([adjacency_matrix[i][j] if j < i else 0 for j in range(adjacency_matrix.shape[0])])
+        A_bottom = np.where(A_bottom > A_top.T, A_bottom, 0)
+        return A_top + A_bottom.T + (A_top + A_bottom.T).T
 
 
 def A_to_csv(matrix, output_dir, csv_name, delimiter=None):

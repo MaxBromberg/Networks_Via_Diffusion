@@ -832,7 +832,7 @@ def parallellized_animate_network_evolution(graph, source_weighting=False, node_
         print(f'\n gif and mp4 of network evolution created in {vid_path} \n Stills stored in {fig_path} \n')
         print(f"Time lapsed {int((time.time()-start_time) / 60)} minutes, {np.round((time.time()-start_time) % 60, 2)} seconds")
 
-# def animate_grid_search_results(graph, by_edge_conservation=True, data_directory=None, output_directory=None, gif_duration_in_sec=5, num_runs_per_fig=None, verbose=False):
+# def animate_grid_search_results(graph, by_edge_conservation=True, data_directory=None, subdata_directory=None, gif_duration_in_sec=5, num_runs_per_fig=None, verbose=False):
     """
     # Creates a gif and mp4 of the end networks running through parameter values and stores them in a folder with the individual frames, using all system cores for frame generation individually.
     # :param gif_duration_in_sec: int, determines the mp4 and gif's eventual duration in seconds.
@@ -842,8 +842,8 @@ def parallellized_animate_network_evolution(graph, source_weighting=False, node_
     assert num_runs_per_fig != 0, 'Number of runs per figure must be larger than 0, or else omitted for graph every run'
     start_time = time.time()
 
-    if output_directory is None:
-        output_directory = data_directory
+    if subdata_directory is None:
+        subdata_directory = data_directory
         print(f'No output directory given, defaulting to output_dir same as data directory at: \n {data_directory}')
     vid_path = Path(data_directory, 'grid_search_animations')
     try:
@@ -1034,11 +1034,11 @@ def open_figure(path, filename):
 
 
 #  Grid Search: ------------------------------------------------------------------------------------------------------
-def twoD_grid_search_plots(path_to_data_dir, edge_conservation_range, selectivity_range, num_nodes, source_reward=2.6, eff_dist=False, global_eff_dist=False, network_graphs=False, node_plots=False, ave_nbr=False, cluster_coeff=False, shortest_path=False, degree_dist=False, edge_dist=False, meta_plots=True, output_dir=None):
+def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_range, num_nodes, source_reward=2.6, eff_dist=False, global_eff_dist=False, network_graphs=False, node_plots=False, ave_nbr=False, cluster_coeff=False, shortest_path=False, degree_dist=False, edge_dist=False, meta_plots=True, output_dir=None):
     """
     Runs grid-search, and then creates all plots for a given dataset (sub)directory, and puts the results in new appropriately named subdirectories.
     # Parallelization implementation ensures completion of all plots per dataset (or as many as supportable by the number of cpu cores) before continuing to the following set
-    :param path_to_data_dir: string; Path obj, path to data directory
+    :param data_directory: string; Path obj, path to data directory
     :param edge_conservation_range: float; np.arange, full sequence of edge_conservation values
     :param selectivity_range: float; np.arange, full sequence of selectivity values
     :param num_nodes: int  number of nodes used in simulation -> graph generation. (iterated over via shell command for node num grid-search)
@@ -1051,7 +1051,7 @@ def twoD_grid_search_plots(path_to_data_dir, edge_conservation_range, selectivit
     start_time = time.time()
     assert eff_dist or global_eff_dist or network_graphs or node_plots or ave_nbr or cluster_coeff or shortest_path or degree_dist, 'Choose something to plot'
     if output_dir is None:
-        output_dir = path_to_data_dir
+        output_dir = data_directory
     # grid_search_plots_dir = Path(output_dir, f'plots_for_{num_nodes}_nodes')
     grid_search_plots_dir = output_dir
     if eff_dist: eff_dist_path = Path(grid_search_plots_dir, 'eff_dist_plots')
@@ -1089,7 +1089,7 @@ def twoD_grid_search_plots(path_to_data_dir, edge_conservation_range, selectivit
     ave_nbr_var_flattened = []
     log_degree_dist_var_flattened = []
 
-    for root, dirs, files in os.walk(path_to_data_dir):
+    for root, dirs, files in os.walk(data_directory):
         f = sorted(files)  # Order preserved due to 0 padding.
     assert len(f) == edge_conservation_range.size * selectivity_range.size, f"Not as many files as parameter combinations: \n num_files: {len(f)}, edge_conservation_range.size * selectivity_range.size {edge_conservation_range.size * selectivity_range.size}"
     for edge_conservation_val in edge_conservation_range:
@@ -1103,7 +1103,7 @@ def twoD_grid_search_plots(path_to_data_dir, edge_conservation_range, selectivit
             # print(f'selectivity_val_index: {selectivity_val_index} | mp.cpu_count(): {mp.cpu_count()} | selectivity_range.size: {selectivity_range.size}')
             if left_over_selectivity_values < cores_used:  # To ensure that parallelization persists when there are fewer tasks than cores
                 while selectivity_vals_per_full_cpu < left_over_selectivity_values:
-                    with open(Path(path_to_data_dir, f[run_counter]), 'rb') as data:
+                    with open(Path(data_directory, f[run_counter]), 'rb') as data:
                         G = pickle.load(data)
                         data.close()
                     # all args must be given for Process runs.
@@ -1183,7 +1183,7 @@ def twoD_grid_search_plots(path_to_data_dir, edge_conservation_range, selectivit
                 utility_funcs.consume(selectivity_range_iter, left_over_selectivity_values - 1)  # -1 because the iteration forwards 1 step still proceeds directly after
             else:
                 while selectivity_vals_per_full_cpu < cores_used:
-                    with open(Path(path_to_data_dir, f[run_counter]), 'rb') as data:
+                    with open(Path(data_directory, f[run_counter]), 'rb') as data:
                         G = pickle.load(data)
                         data.close()
 
