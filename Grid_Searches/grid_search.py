@@ -15,8 +15,8 @@ subdata_directory = Path(data_directory, f"node_num_{num_nodes}")
 
 edge_conservation_range = np.arange(*[float(arg) for arg in sys.argv[4].split('_')])
 selectivity_range = np.arange(*[float(arg) for arg in sys.argv[5].split('_')])
-print(f'Edge_conservation_range: {edge_conservation_range}')
-print(f'Selectivity_range: {selectivity_range}')
+# print(f'Edge_conservation_range: {edge_conservation_range}')
+# print(f'Selectivity_range: {selectivity_range}')
 
 num_cores_used = mp.cpu_count() - 3
 
@@ -42,6 +42,13 @@ search_wide_dic = {
     'source_reward': sys.argv[24],
     'undirectify_init': sys.argv[25]
 }
+
+try:
+    super_data_dir = data_directory[:-len(data_directory.split('/')[-1])] if data_directory[-1] != '/' else data_directory[:-(len(data_directory.split('/')[-2]) + 1)]
+    os.mkdir(super_data_dir)
+except OSError:
+    print(f'{super_data_dir} already exists, adding to contents')
+    pass
 
 try:
     os.mkdir(data_directory)
@@ -112,5 +119,6 @@ plotter.twoD_grid_search_plots(subdata_directory, edge_conservation_range=edge_c
                                num_nodes=num_nodes, network_graphs=True, node_plots=False, ave_nbr=False, cluster_coeff=False,
                                eff_dist=True, global_eff_dist=True, shortest_path=False, degree_dist=True, edge_dist=True,
                                output_dir=Path(data_directory, 'Plots'))
+os.rmdir(subdata_directory)
 # print(f"Time lapsed for all source reward values, {source_reward_range.size * edge_conservation_range.size * selectivity_range.size} total parameter combinations: {utility_funcs.time_lapsed_h_m_s(time.time() - total_start_time)}")
 

@@ -1,7 +1,6 @@
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib import cm
-from mpl_toolkits.mplot3d import Axes3D
 import networkx as nx
 import multiprocessing as mp
 
@@ -1078,7 +1077,7 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
         print(f'{grid_search_plots_dir} already exists, adding or overwriting contents')
         pass
 
-    cores_used = mp.cpu_count() - 2
+    cores_used = mp.cpu_count() - 3
 
     run_counter = 0
     f = []
@@ -1089,7 +1088,7 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
     ave_nbr_var_flattened = []
     log_degree_dist_var_flattened = []
 
-    for root, dirs, files in os.walk(data_directory):
+    for __, __, files in os.walk(data_directory):
         f = sorted(files)  # Order preserved due to 0 padding.
     assert len(f) == edge_conservation_range.size * selectivity_range.size, f"Not as many files as parameter combinations: \n num_files: {len(f)}, edge_conservation_range.size * selectivity_range.size {edge_conservation_range.size * selectivity_range.size}"
     for edge_conservation_val in edge_conservation_range:
@@ -1313,7 +1312,7 @@ def twoD_grid_search_meta_plots(path_to_data_dir, edge_conservation_range, selec
     ave_nbr_var_flattened = []
     degree_dist_var_flattened = []
 
-    for root, dirs, files in os.walk(path_to_data_dir):
+    for __, __, files in os.walk(path_to_data_dir):
         f = sorted(files)  # Order preserved due to 0 padding.
     assert len(f) == edge_conservation_range.size * selectivity_range.size, f"Not as many files as delta combinations: \n num_files: {len(f)}, edge_conservation_range.size * selectivity_range.size {edge_conservation_range.size * selectivity_range.size}"
     for file in f:

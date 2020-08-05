@@ -26,7 +26,6 @@ run_index, num_nodes = [int(arg) for arg in sys.argv[2:4]]  # eliminates name of
 edge_conservation_val, selectivity_val = [float(arg) for arg in sys.argv[4:6]]
 assert isinstance(run_index, int), "Run index records order of runs, and ought be an integer"
 assert isinstance(num_nodes, int), "Number of nodes ought be an integer"
-print(f'[int(arg) for arg in sys.argv[6:12]]: {[arg for arg in sys.argv[6:12]]}')
 assert set([int(arg) for arg in sys.argv[6:12]]).union({0, 1}) == {0, 1}, "All values should be integer castable booleans, i.e. (0, 1)"
 r_i_s_c, p_ed_and_r_c, ed_to_s, n_a_o_e, i_e_c, undirected_run = [bool(int(arg)) for arg in sys.argv[6:12]]  # the bool cast is a bit much,
 
@@ -72,4 +71,4 @@ if __name__ == '__main__':
                             seeding_power_law_exponent=seeding_power_law_exponent, beta=beta, multiple_path=multiple_path,
                             update_interval=update_interval, source_reward=source_reward, undirectify=undirectify_init, verbose=False)
     plotter.save_object(G, Path(output_path, f'{run_index:04}_graph_obj.pkl'))
-    print(f'Run {run_index}, [edge conservation: {edge_conservation_val}, selectivity: {selectivity_val}] complete ({utility_funcs.time_lapsed_h_m_s(time.time()-start_time)})')
+    print(f'Run {run_index}, [edge conservation: {edge_conservation_val}, selectivity: {selectivity_val}] complete. {G.get_num_errors()} errors, ({utility_funcs.time_lapsed_h_m_s(time.time()-start_time)})')

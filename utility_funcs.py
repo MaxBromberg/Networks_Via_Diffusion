@@ -1,7 +1,9 @@
+import collections
+import itertools
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-import itertools, collections
-from pathlib import Path
 
 rounding = 3
 
@@ -156,6 +158,10 @@ def print_run_percentage(index, runs, fraction_intervals=10):
 
 def consume(iterator, n):
     collections.deque(itertools.islice(iterator, n))
+
+
+def argmax(iterable):
+    return max(enumerate(iterable), key=lambda x: x[1])[0]
 
 
 # just for debugging

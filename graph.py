@@ -20,6 +20,8 @@ equilibrium_span_val = 0  # virtually never triggers for val > 0
 
 class Graph:
     _source_node = None   # holds the source node for each run, reset after every run.
+    _singular_fundamental_matrix_errors = 0  # keeps running count of would be below errors (and replacees 0s with 1e-100):
+    # RuntimeWarning: divide by zero encountered in log: RWED = -np.log(Z.dot(D).toarray()) Errors
 
     def __init__(self, num_nodes, edge_conservation_coefficient=None, selectivity=None, reinforcement_info_score_coupling=True,
                  positive_eff_dist_and_reinforcement_correlation=False, eff_dist_is_towards_source=False, nodes_adapt_outgoing_edges=False,
@@ -349,6 +351,10 @@ class Graph:
             reduced_info_score = [1 if val >= cutoff_val else 0 for val in info_score]
 
         reduced_info_score_sum = sum(reduced_info_score)
+        if reduced_info_score_sum == 0:
+            print(f'reduced_info_score: {reduced_info_score}')
+            reduced_info_score = [0] * len(info_score)
+            reduced_info_score[utility_funcs.argmax(info_score)] = sorted(info_score)[-1]
         return [info_score_sum * (val / reduced_info_score_sum) for val in reduced_info_score]
 
     # Edge Reweighing: ----------------------------------------------------------------------------------------------
@@ -448,22 +454,12 @@ class Graph:
             one = eye(self.nodes.shape[1], format="csc")
             Z = inv(csc_matrix(one - A * np.exp(-parameter)))
             D = diags(1. / Z.diagonal(), format="csc")
-            """
-            if np.any((Z.dot(D).toarray() == 0)):
-                np.set_printoptions(suppress=True)
-                print(f'A: \n {np.round(np.array(P.toarray()), 3)}')
-                print(f'Z: \n {np.round(np.array(Z.toarray()), 3)}')
-                print(f'D: \n {np.round(np.array(D.toarray()), 3)}')
-                print(f'Z.dot(D): \n {np.round(np.array(Z.dot(D).toarray()), 3)}')
-                utility_funcs.sum_matrix_signs(np.array(Z.toarray()))
-                utility_funcs.sum_matrix_signs(np.array(D.toarray()))
-                utility_funcs.sum_matrix_signs(np.array(Z.dot(D).toarray()))
-                ZdotD = np.where(ZdotD == 0, 1e-10, ZdotD)
-            """
-            if sub_zeros:
-                ZdotD = Z.dot(D).toarray()
+            ZdotD = Z.dot(D).toarray()
+            if np.any(ZdotD == 0) or sub_zeros:
+                # ZdotD = Z.dot(D).toarray()
                 ZdotD = np.where(ZdotD == 0, 1e-100, ZdotD)
                 RWED = -np.log(ZdotD)
+                self._singular_fundamental_matrix_errors += 1
             else:
                 RWED = -np.log(Z.dot(D).toarray())
 
@@ -591,6 +587,9 @@ class Graph:
             print(f'Effective distance and edge reinforcement correlation is reversed (i.e. Effective distance is positively correlated with edge reinforcement, eschewing the source)')
         else:
             print('Effective distance and edge reinforcement correlation is NOT reversed')
+
+    def get_num_errors(self):
+        return self._singular_fundamental_matrix_errors
 
     # Observables: --------------------------------------------------------------------------------------------------
     def eff_dist_diff(self, all_to_all_eff_dist=False, overall_average=False, MPED=False, source_reward=2.6, delta=10):

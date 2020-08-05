@@ -56,54 +56,26 @@ node_adapt_outgoing_edges = {'nodes_adapt_outgoing_edges': 1}
 outgoing_edges_conserved = {'incoming_edges_conserved': 0}
 
 # higgly_default_data_directory = '/home/maqz/Desktop/data/Mechanic_Mods/'
-sparse_data_directory = '/home/maqz/Desktop/data/Mechanic_Mods/sparse_1.2'
-pwr_law_data_directory = '/home/maqz/Desktop/data/Mechanic_Mods/power_law_8'
-sparse_pwr_law_data_directory = '/home/maqz/Desktop/data/Mechanic_Mods/sparse_power_law_8'
-
-# higgly_default_parameters = {**parameter_dictionary, **search_wide_dic, **edge_init, **ensemble_params}  # Order matters!
+undirected_sparse_data_directory = '/home/maqz/Desktop/data/Mechanic_Mods/undirected_init_sparse_1.2'
 default_sparse_init = {**parameter_dictionary, **search_wide_dic, 'edge_init': 1.2, **ensemble_params, 'num_nodes': 60, 'constant_source_node': 4}
-default_pwr_seeding = {**parameter_dictionary, **search_wide_dic, **edge_init, **ensemble_params, 'seeding_power_law_exponent': 8, 'constant_source_node': 0}
-default_sparse_pwr_seeding = {**parameter_dictionary, **search_wide_dic, 'edge_init': 1.2, **ensemble_params, 'seeding_power_law_exponent': 8, 'constant_source_node': 0}
+undirected_sparse_init = {**default_sparse_init, 'undirectify_init': 1}
 
+undirected_sparse_run_data_directory = '/home/maqz/Desktop/data/Mechanic_Mods/undirected_run_sparse_1.2'
+undirected_sparse_run = {**undirected_sparse_init, 'undirected': 1}
+undirected_run_sparse_base_case = {**default_sparse_init, 'data_directory': Path(undirected_sparse_run_data_directory, "base_case")}
+undirected_run_sparse_reversed_source_edge_conservation = {**default_sparse_init, **eff_dist_to_source, **node_adapt_outgoing_edges, **outgoing_edges_conserved, 'data_directory': Path(undirected_sparse_run_data_directory, "switched_ED_Adaptation_Conservation")}
+undirected_run_sparse_reversed_edge_conservation = {**default_sparse_init, **node_adapt_outgoing_edges, **outgoing_edges_conserved, 'data_directory': Path(undirected_sparse_run_data_directory, "switched_Adaptation_Conservation")}
+undirected_run_sparse_reversed_source_conservation = {**default_sparse_init, **eff_dist_to_source, **outgoing_edges_conserved, 'data_directory': Path(undirected_sparse_run_data_directory, "switched_ED_Conservation")}
+undirected_run_sparse_reversed_source_edge = {**default_sparse_init, **eff_dist_to_source, **node_adapt_outgoing_edges, 'data_directory': Path(undirected_sparse_run_data_directory, "switched_ED_Adaptation")}
+undirected_run_sparse_reversed_source = {**default_sparse_init, **eff_dist_to_source, 'data_directory': Path(undirected_sparse_run_data_directory, "switched_ED")}
+undirected_run_sparse_reversed_edge = {**default_sparse_init, **node_adapt_outgoing_edges, 'data_directory': Path(undirected_sparse_run_data_directory, "switched_Adaptation")}
+undirected_run_sparse_reversed_conservation = {**default_sparse_init, **outgoing_edges_conserved, 'data_directory': Path(undirected_sparse_run_data_directory, "switched_Conservation")}
 
-# The following is a series of binary modifications to the model's core mechanics, with relations of eff_dist_direction | edge_adaption_direction | out/in_edges_conserved
-nice_dictionary_print(default_sparse_init)
-print('\n\n\n')
-nice_dictionary_print(default_pwr_seeding)
-pwr_law_base_case = {**default_pwr_seeding, 'data_directory': Path(pwr_law_data_directory, "base_case")}
-run_grid_search(pwr_law_base_case)
-"""
-pwr_law_reversed_source_edge_conservation = {**default_pwr_seeding, **eff_dist_to_source, **node_adapt_outgoing_edges, **outgoing_edges_conserved, 'data_directory': Path(pwr_law_data_directory, "switched_ED_Adaptation_Conservation")}
-pwr_law_reversed_edge_conservation = {**default_pwr_seeding, **node_adapt_outgoing_edges, **outgoing_edges_conserved, 'data_directory': Path(pwr_law_data_directory, "switched_Adaptation_Conservation")}
-pwr_law_reversed_source_conservation = {**default_pwr_seeding, **eff_dist_to_source, **outgoing_edges_conserved, 'data_directory': Path(pwr_law_data_directory, "switched_ED_Conservation")}
-pwr_law_reversed_source_edge = {**default_pwr_seeding, **eff_dist_to_source, **node_adapt_outgoing_edges, 'data_directory': Path(pwr_law_data_directory, "switched_ED_Adaptation")}
-pwr_law_reversed_source = {**default_pwr_seeding, **eff_dist_to_source, 'data_directory': Path(pwr_law_data_directory, "switched_ED")}
-pwr_law_reversed_edge = {**default_pwr_seeding, **node_adapt_outgoing_edges, 'data_directory': Path(pwr_law_data_directory, "switched_Adaptation")}
-pwr_law_reversed_conservation = {**default_pwr_seeding, **outgoing_edges_conserved, 'data_directory': Path(pwr_law_data_directory, "switched_Conservation")}
-
-run_grid_search(pwr_law_reversed_source_edge_conservation)
-run_grid_search(pwr_law_reversed_edge_conservation)
-run_grid_search(pwr_law_reversed_source_conservation)
-run_grid_search(pwr_law_reversed_source_edge)
-run_grid_search(pwr_law_reversed_source)
-run_grid_search(pwr_law_reversed_edge)
-run_grid_search(pwr_law_reversed_conservation)
-
-sparse_pwr_law_base_case = {**default_sparse_pwr_seeding, 'data_directory': Path(sparse_pwr_law_data_directory, "base_case")}
-sparse_pwr_law_reversed_source_edge_conservation = {**default_sparse_pwr_seeding, **eff_dist_to_source, **node_adapt_outgoing_edges, **outgoing_edges_conserved, 'data_directory': Path(sparse_pwr_law_data_directory, "switched_ED_Adaptation_Conservation")}
-sparse_pwr_law_reversed_edge_conservation = {**default_sparse_pwr_seeding, **node_adapt_outgoing_edges, **outgoing_edges_conserved, 'data_directory': Path(sparse_pwr_law_data_directory, "switched_Adaptation_Conservation")}
-sparse_pwr_law_reversed_source_conservation = {**default_sparse_pwr_seeding, **eff_dist_to_source, **outgoing_edges_conserved, 'data_directory': Path(sparse_pwr_law_data_directory, "switched_ED_Conservation")}
-sparse_pwr_law_reversed_source_edge = {**default_sparse_pwr_seeding, **eff_dist_to_source, **node_adapt_outgoing_edges, 'data_directory': Path(sparse_pwr_law_data_directory, "switched_ED_Adaptation")}
-sparse_pwr_law_reversed_source = {**default_sparse_pwr_seeding, **eff_dist_to_source, 'data_directory': Path(sparse_pwr_law_data_directory, "switched_ED")}
-sparse_pwr_law_reversed_edge = {**default_sparse_pwr_seeding, **node_adapt_outgoing_edges, 'data_directory': Path(sparse_pwr_law_data_directory, "switched_Adaptation")}
-sparse_pwr_law_reversed_conservation = {**default_sparse_pwr_seeding, **outgoing_edges_conserved, 'data_directory': Path(sparse_pwr_law_data_directory, "switched_Conservation")}
-
-run_grid_search(sparse_pwr_law_base_case)
-run_grid_search(sparse_pwr_law_reversed_source_edge_conservation)
-run_grid_search(sparse_pwr_law_reversed_edge_conservation)
-run_grid_search(sparse_pwr_law_reversed_source_conservation)
-run_grid_search(sparse_pwr_law_reversed_source_edge)
-run_grid_search(sparse_pwr_law_reversed_source)
-run_grid_search(sparse_pwr_law_reversed_edge)
-run_grid_search(sparse_pwr_law_reversed_conservation)
-"""
+# run_grid_search(undirected_run_sparse_base_case)
+# run_grid_search(undirected_run_sparse_reversed_source_edge_conservation)
+# run_grid_search(undirected_run_sparse_reversed_edge_conservation)
+# run_grid_search(undirected_run_sparse_reversed_source_conservation)
+# run_grid_search(undirected_run_sparse_reversed_source_edge)
+# run_grid_search(undirected_run_sparse_reversed_source)
+# run_grid_search(undirected_run_sparse_reversed_edge)
+run_grid_search(undirected_run_sparse_reversed_conservation)
