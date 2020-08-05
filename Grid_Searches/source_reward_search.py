@@ -18,7 +18,7 @@ selectivity_range = np.arange(0, 1.05, 0.1)
 
 
 def process_wrapper(param_dic):
-    os.system('python source_reward_run.py {output_directory} {source_reward} {run_index} {edge_conservation_val} {selectivity_val}'.format(**param_dic))
+    os.system('python3 source_reward_run.py {output_directory} {source_reward} {run_index} {edge_conservation_val} {selectivity_val}'.format(**param_dic))
 
 
 total_start_time = time.time()
