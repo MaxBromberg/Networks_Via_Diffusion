@@ -456,7 +456,7 @@ class EffectiveDistances:
         """
 
         assert isinstance(saveto, str)
-        assert self.graph != None, "Load graph first."
+        assert self.graph is not None, "Load graph first."
 
         SPD_dic = shortest_path_length(self.graph, source=source, target=target)
 
@@ -464,7 +464,7 @@ class EffectiveDistances:
             SPD = np.array([SPD_dic[s].values() for s in range(self.nodes)]).transpose()
             # SPD = np.array([SPD_dic[s].values() for s in xrange(self.nodes)]).transpose() EDITED: to be Python 3.7 compatible
         elif (source is None) != (target is None):
-            SPD = array(SPD_dic.values())
+            SPD = np.array(SPD_dic.values())
         else:
             SPD = SPD_dic
         if saveto is not "":

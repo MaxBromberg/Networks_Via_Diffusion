@@ -3,13 +3,14 @@ import random
 import utility_funcs
 import networkx as nx
 import effective_distance as ed
+import hierarchy_coordinates as hc
 
 from scipy.sparse.linalg import inv
 from scipy.sparse import diags, eye, csc_matrix
 import time
+
 np.random.seed(42)
 random.seed(42)
-
 
 # Global Variables for default run values
 update_interval_val = 1
@@ -19,12 +20,15 @@ equilibrium_span_val = 0  # virtually never triggers for val > 0
 
 
 class Graph:
-    _source_node = None   # holds the source node for each run, reset after every run.
+    _source_node = None  # holds the source node for each run, reset after every run.
     _singular_fundamental_matrix_errors = 0  # keeps running count of would be below errors (and replacees 0s with 1e-100):
+
     # RuntimeWarning: divide by zero encountered in log: RWED = -np.log(Z.dot(D).toarray()) Errors
 
-    def __init__(self, num_nodes, edge_conservation_coefficient=None, selectivity=None, reinforcement_info_score_coupling=True,
-                 positive_eff_dist_and_reinforcement_correlation=False, eff_dist_is_towards_source=False, nodes_adapt_outgoing_edges=False,
+    def __init__(self, num_nodes, edge_conservation_coefficient=None, selectivity=None,
+                 reinforcement_info_score_coupling=True,
+                 positive_eff_dist_and_reinforcement_correlation=False, eff_dist_is_towards_source=False,
+                 nodes_adapt_outgoing_edges=False,
                  incoming_edges_conserved=True, undirected=False):
         """
         Initialization; the 'extra' dimensionality (i.e. 1 for nodes, A) are there to dynamically store their history
@@ -53,7 +57,8 @@ class Graph:
         self.eff_dist_history = []
 
     # Edge Initialization: ------------------------------------------------------------------------------------------
-    def sparse_random_edge_init(self, nonzero_edges_per_node=1, connected=True, even_distribution=True, undirectify=False):
+    def sparse_random_edge_init(self, nonzero_edges_per_node=1, connected=True, even_distribution=True,
+                                undirectify=False):
         """
         Randomly seeds Adjacency matrix with 1 fully weighted edge (or 2 0.5 weighted for nonzero_edges_per_node=2, etc)
         Presently allows for overlap of random edge assignment in the case of nonzero_edges_per_node > 1.
@@ -65,32 +70,39 @@ class Graph:
             range_excluding_self.remove(node)  # eliminates A_ij diagonals (self-referential looping 'edges')
             for edge_assigned in range(0, nonzero_edges_per_node):
                 self.A[-1][node][random.choice(range_excluding_self)] += seed_amount
+
         if connected:
-            for column in range(self.num_nodes):
-                if sum(self.A[-1][:, column]) == 0:
-                    self.A[-1][random.choice(range(self.num_nodes))][column] += seed_amount
-                    surplus_seeding = np.where(self.A[-1] > np.round((1 / nonzero_edges_per_node)))
-                    surplus_seeding_index = random.choice(range(surplus_seeding[0].shape[0]))
-                    self.A[-1][surplus_seeding[0][surplus_seeding_index]][surplus_seeding[1][surplus_seeding_index]] -= seed_amount
+            zero_column_indices = np.where(self.A[-1].sum(axis=0) == 0)[0]
+            for zero_column in zero_column_indices:
+                max_column = np.argmax(
+                    self.A[-1].sum(axis=0))  # Necessarily re-evaluated for every replacement, as the row sums change
+                row_chosen = random.choice(
+                    [row for row in np.where(self.A[-1][:, max_column] > 0)[0] if row != zero_column])
+                self.A[-1][row_chosen][zero_column] += seed_amount
+                self.A[-1][row_chosen][max_column] -= seed_amount
 
         for node in range(0, self.num_nodes):
             self.A[-1][node][node] = 0  # eliminates looping edges (i.e. no edge refers to itself -> simple graph)
             self.A[-1][node] /= self.A[-1][node].sum()  # normalizes each node's total (incoming) weights to 1
+
         if even_distribution:
-            self.A[-1] = utility_funcs.evenly_distribute_matrix_values(self.A[-1], by_row=True)  # To ensure outgoing edges all have the same initial weight
+            self.A[-1] = utility_funcs.evenly_distribute_matrix_values(self.A[-1],
+                                                                       by_row=True)  # To ensure outgoing edges all have the same initial weight
         if undirectify:
             self.A[-1] = utility_funcs.undirectify(self.A[-1])
 
     def uniform_random_edge_init(self, undirectify=False):
         """Most general case, fills Adjacency matrix with uniform random values and normalizes them"""
-        self.A[-1] = np.random.rand(self.num_nodes, self.num_nodes)  # makes latest A a n x n adjacency matrix filled with rand(0,1)
+        self.A[-1] = np.random.rand(self.num_nodes,
+                                    self.num_nodes)  # makes latest A a n x n adjacency matrix filled with rand(0,1)
         for node in range(0, self.num_nodes):
             self.A[-1][node][node] = 0  # eliminates looping edges (i.e. no edge refers to itself -> simple graph)
             self.A[-1][node] /= self.A[-1][node].sum()  # normalizes each node's total (incoming) weights to 1
         if undirectify:
             self.A[-1] = utility_funcs.undirectify(self.A[-1])
 
-    def scale_free_edge_init(self, degree_exponent, min_k=1, equal_edge_weights=True, connected=True, even_distribution=True, undirectify=False):
+    def scale_free_edge_init(self, degree_exponent, min_k=1, equal_edge_weights=True, connected=True,
+                             even_distribution=True, undirectify=False):
         """
         Generates degree sequence based on probability of connecting to k nodes: p(k) = k^-degree_exponent,
         spreads connections uniformly across connections, with the number of connections per node dependant on above
@@ -98,11 +110,13 @@ class Graph:
         As implemented, the range of k values in p(k) are given in line with indicies.
         """
         num_nodes = self.A.shape[1]
-        degree_sequence = [pow(k, -degree_exponent) for k in range(1, num_nodes+1)]
-        degree_sequence = [degree_sequence[i] / sum(degree_sequence) for i in range(len(degree_sequence))]  # Normalization via Riemann Zeta function required?
+        degree_sequence = [pow(k, -degree_exponent) for k in range(1, num_nodes + 1)]
+        degree_sequence = [degree_sequence[i] / sum(degree_sequence) for i in
+                           range(len(degree_sequence))]  # Normalization via Riemann Zeta function required?
         # print(f'deg-seq: {degree_sequence} sum: {sum(degree_sequence)}')
         if min_k > 0:
-            degree_sequence = [int(np.round(degree_sequence[node] * num_nodes)) if int(np.round(degree_sequence[node] * num_nodes)) > min_k else min_k for node in range(num_nodes)]
+            degree_sequence = [int(np.round(degree_sequence[node] * num_nodes)) if int(
+                np.round(degree_sequence[node] * num_nodes)) > min_k else min_k for node in range(num_nodes)]
         else:
             degree_sequence = [int(np.round(degree_sequence[node] * num_nodes)) for node in range(num_nodes)]
         # print(f'deg-seq: {degree_sequence} sum: {sum(degree_sequence)}')
@@ -112,7 +126,8 @@ class Graph:
         for from_node in range(num_nodes):
             if connected:
                 if len(set(set(range(num_nodes)) - columns_visited.union({from_node}))) >= degree_sequence[from_node]:
-                    to_nodes = random.choices(list(set(range(num_nodes)) - {from_node}.union(columns_visited)), k=degree_sequence[from_node])
+                    to_nodes = random.choices(list(set(range(num_nodes)) - {from_node}.union(columns_visited)),
+                                              k=degree_sequence[from_node])
                     columns_visited = columns_visited.union(to_nodes)
                 else:
                     to_nodes = random.choices(list(set(range(num_nodes)) - {from_node}), k=degree_sequence[from_node])
@@ -120,7 +135,7 @@ class Graph:
                 to_nodes = random.choices(list(set(range(num_nodes)) - {from_node}), k=degree_sequence[from_node])
             for to_node in to_nodes:
                 if equal_edge_weights:
-                    self.A[-1][from_node][to_node] = 1/degree_sequence[from_node]
+                    self.A[-1][from_node][to_node] = 1 / degree_sequence[from_node]
                 else:
                     self.A[-1][from_node][to_node] = np.random.rand()
 
@@ -131,7 +146,8 @@ class Graph:
             for column in range(self.num_nodes):
                 _column = np.array(np.where(self.A[-1][:, column] > 0))[0]
                 if _column.shape[0] > 1:
-                    _column.append(column)  # So that the first value indicates the index of the column, the next values its non-zero row indices
+                    _column.append(
+                        column)  # So that the first value indicates the index of the column, the next values its non-zero row indices
                     columns_with_multiple_edges.append(_column)
                 elif _column.shape[0] == 0:
                     columns_without_any_edges.append(column)
@@ -155,21 +171,25 @@ class Graph:
 
         for from_node in range(self.A[-1].shape[0]):
             if self.A[-1][from_node].sum() > 0:
-                self.A[-1][from_node] /= self.A[-1][from_node].sum()  # normalizes each node's total (incoming) weights to 1
+                self.A[-1][from_node] /= self.A[-1][
+                    from_node].sum()  # normalizes each node's total (incoming) weights to 1
 
         if even_distribution:
-            self.A[-1] = utility_funcs.evenly_distribute_matrix_values(self.A[-1], by_row=True)  # To ensure outgoing edges all have the same initial weight
+            self.A[-1] = utility_funcs.evenly_distribute_matrix_values(self.A[-1],
+                                                                       by_row=True)  # To ensure outgoing edges all have the same initial weight
         if undirectify:
             self.A[-1] = utility_funcs.undirectify(self.A[-1])
 
     def nx_scale_free_edge_init(self, degree_exponent, min_k=1, undirectify=False):
         # in and out degrees are considered to be the same by default
         num_nodes = self.A.shape[1]
-        degree_sequence = [pow(k, -degree_exponent) for k in range(1, num_nodes+1)]
-        degree_sequence = [degree_sequence[i] / sum(degree_sequence) for i in range(len(degree_sequence))]  # Normalization via Riemann Zeta function required?
+        degree_sequence = [pow(k, -degree_exponent) for k in range(1, num_nodes + 1)]
+        degree_sequence = [degree_sequence[i] / sum(degree_sequence) for i in
+                           range(len(degree_sequence))]  # Normalization via Riemann Zeta function required?
         # print(f'deg-seq: {degree_sequence} sum: {sum(degree_sequence)}')
         if min_k > 0:
-            degree_sequence = [int(np.round(degree_sequence[node] * num_nodes)) if int(np.round(degree_sequence[node] * num_nodes)) > min_k else min_k for node in range(num_nodes)]
+            degree_sequence = [int(np.round(degree_sequence[node] * num_nodes)) if int(
+                np.round(degree_sequence[node] * num_nodes)) > min_k else min_k for node in range(num_nodes)]
         else:
             degree_sequence = [int(np.round(degree_sequence[node] * num_nodes)) for node in range(num_nodes)]
 
@@ -178,25 +198,30 @@ class Graph:
 
         for from_node in range(self.A[-1].shape[0]):
             if self.A[-1][from_node].sum() > 0:
-                self.A[-1][from_node] /= self.A[-1][from_node].sum()  # normalizes each node's total (incoming) weights to 1
+                self.A[-1][from_node] /= self.A[-1][
+                    from_node].sum()  # normalizes each node's total (incoming) weights to 1
         if undirectify:
             self.A[-1] = utility_funcs.undirectify(self.A[-1])
 
-    def nx_scale_free_edge_init_unconnected(self, alpha=0.41, beta=0.54, gamma=0.05, delta_in=0.2, delta_out=0, create_using=None, seed=None):
+    def nx_scale_free_edge_init_unconnected(self, alpha=0.41, beta=0.54, gamma=0.05, delta_in=0.2, delta_out=0,
+                                            create_using=None, seed=None):
         # in and out degrees are considered to be the same by default
-        nx_graph = nx.scale_free_graph(self.A.shape[1], alpha=0.41, beta=0.54, gamma=0.05, delta_in=0.2, delta_out=0, create_using=None, seed=None)
+        nx_graph = nx.scale_free_graph(self.A.shape[1], alpha=0.41, beta=0.54, gamma=0.05, delta_in=0.2, delta_out=0,
+                                       create_using=None, seed=None)
         self.A[-1] = nx.to_numpy_array(nx_graph)
 
         for from_node in range(self.A[-1].shape[0]):
             if self.A[-1][from_node].sum() > 0:
-                self.A[-1][from_node] /= self.A[-1][from_node].sum()  # normalizes each node's total (incoming) weights to 1
+                self.A[-1][from_node] /= self.A[-1][
+                    from_node].sum()  # normalizes each node's total (incoming) weights to 1
 
     def barabasi_albert_edge_init(self, num_edges_per_new_node, seed=42, undirectify=False):
         nx_graph = nx.barabasi_albert_graph(n=self.A[-1].shape[0], m=num_edges_per_new_node, seed=seed)
         self.A[-1] = nx.to_numpy_array(nx_graph)
         for from_node in range(self.A[-1].shape[0]):
             if self.A[-1][from_node].sum() > 0:
-                self.A[-1][from_node] /= self.A[-1][from_node].sum()  # normalizes each node's total (incoming) weights to 1
+                self.A[-1][from_node] /= self.A[-1][
+                    from_node].sum()  # normalizes each node's total (incoming) weights to 1
         if undirectify:
             self.A[-1] = utility_funcs.undirectify(self.A[-1])
 
@@ -227,7 +252,9 @@ class Graph:
         Seeds the source as the indexed value
         :param constant_source_node: int, index of constant source
         """
-        assert isinstance(constant_source_node, int) & constant_source_node >= 0 & constant_source_node <= self.nodes.shape[1], f'Please choose constant source node to be in range of num_nodes, i.e. in (0, {self.num_nodes})'
+        assert isinstance(constant_source_node, int) & constant_source_node >= 0 & constant_source_node <= \
+               self.nodes.shape[
+                   1], f'Please choose constant source node to be in range of num_nodes, i.e. in (0, {self.num_nodes})'
         self._source_node = constant_source_node
         self.source_node_history.append(constant_source_node)
 
@@ -244,7 +271,7 @@ class Graph:
         std_partition = sum(exp_stds)
         while self._source_node is None:
             seeded_node = np.random.randint(0, self.nodes[-1].size)
-            if random.uniform(0, std_partition) < exp_stds[seeded_node]/std_partition:
+            if random.uniform(0, std_partition) < exp_stds[seeded_node] / std_partition:
                 self._source_node = seeded_node
                 self.source_node_history.append(seeded_node)
 
@@ -270,11 +297,12 @@ class Graph:
         :param power_law_exponent: Determines degree of power law weight.
         """
         self._source_node = None
-        seeded_node = int(np.round(np.random.power(power_law_exponent, 1)*self.nodes[-1].size) + 0.5) - 1
+        seeded_node = int(np.round(np.random.power(power_law_exponent, 1) * self.nodes[-1].size) + 0.5) - 1
         self._source_node = seeded_node
         self.source_node_history.append(seeded_node)
 
-    def seed_info_conditional(self, constant_source_node, num_shifts_of_source_node, num_runs, sigma, power_law_exponent, beta, index):
+    def seed_info_conditional(self, constant_source_node, num_shifts_of_source_node, num_runs, sigma,
+                              power_law_exponent, beta, index):
         """
         Determines which info_seeding function is selected. Used to abbreviate run function.
         Arguments are all mutually incompatible, save num_runs and index.
@@ -286,7 +314,9 @@ class Graph:
         :param beta: float, determines beta.
         :param index: int, run index
         """
-        assert bool(constant_source_node) + bool(num_shifts_of_source_node) + bool(sigma) + bool(power_law_exponent) + bool(beta) < 2, 'Incompatible arguments for info_seeding conditional, choose one method only per run call'
+        assert bool(constant_source_node) + bool(num_shifts_of_source_node) + bool(sigma) + bool(
+            power_law_exponent) + bool(
+            beta) < 2, 'Incompatible arguments for info_seeding conditional, choose one method only per run call'
         if beta:
             self.seed_info_by_diversity_of_connections(beta)
         elif num_shifts_of_source_node:
@@ -295,7 +325,8 @@ class Graph:
                 if num_shifts_of_source_node > self.num_nodes:
                     self.seed_info_random()
                 else:
-                    self.seed_info_constant_source(random.choice(list(set(range(len(self.nodes[-1]))) - set(self.source_node_history))))
+                    self.seed_info_constant_source(
+                        random.choice(list(set(range(len(self.nodes[-1]))) - set(self.source_node_history))))
             else:
                 self.source_node_history.append(self._source_node)
         elif sigma:
@@ -305,7 +336,8 @@ class Graph:
         elif not constant_source_node or sigma or power_law_exponent:
             self.seed_info_random()
         elif isinstance(constant_source_node, bool) & constant_source_node:
-            self.seed_info_constant_source(0)  # Just to ensure seeding if set == True, it'll work without setting the constant seed to be a specific node
+            self.seed_info_constant_source(
+                0)  # Just to ensure seeding if set == True, it'll work without setting the constant seed to be a specific node
         else:
             self.seed_info_constant_source(constant_source_node)
 
@@ -324,14 +356,22 @@ class Graph:
         """
         if self.positive_eff_dist_and_reinforcement_correlation:
             if not self.nodes_adapt_outgoing_edges:
-                return [(pow((self.nodes[-1][node_index] / node_sum), (1 - self.eff_dist_and_edge_coupling)) * pow(self.A[-1][node_index][from_node_index], self.eff_dist_and_edge_coupling)) for node_index in range(self.nodes.shape[1])]
+                return [(pow((self.nodes[-1][node_index] / node_sum), (1 - self.eff_dist_and_edge_coupling)) * pow(
+                    self.A[-1][node_index][from_node_index], self.eff_dist_and_edge_coupling)) for node_index in
+                        range(self.nodes.shape[1])]
             else:
-                return [(pow((self.nodes[-1][node_index] / node_sum), (1 - self.eff_dist_and_edge_coupling)) * pow(self.A[-1][from_node_index][node_index], self.eff_dist_and_edge_coupling)) for node_index in range(self.nodes.shape[1])]
+                return [(pow((self.nodes[-1][node_index] / node_sum), (1 - self.eff_dist_and_edge_coupling)) * pow(
+                    self.A[-1][from_node_index][node_index], self.eff_dist_and_edge_coupling)) for node_index in
+                        range(self.nodes.shape[1])]
         else:
             if not self.nodes_adapt_outgoing_edges:
-                return [(pow((self.nodes[-1][node_index] / node_sum), (self.eff_dist_and_edge_coupling - 1)) * pow(self.A[-1][node_index][from_node_index], self.eff_dist_and_edge_coupling)) for node_index in range(self.nodes.shape[1])]
+                return [(pow((self.nodes[-1][node_index] / node_sum), (self.eff_dist_and_edge_coupling - 1)) * pow(
+                    self.A[-1][node_index][from_node_index], self.eff_dist_and_edge_coupling)) for node_index in
+                        range(self.nodes.shape[1])]
             else:
-                return [(pow((self.nodes[-1][node_index] / node_sum), (self.eff_dist_and_edge_coupling - 1)) * pow(self.A[-1][from_node_index][node_index], self.eff_dist_and_edge_coupling)) for node_index in range(self.nodes.shape[1])]
+                return [(pow((self.nodes[-1][node_index] / node_sum), (self.eff_dist_and_edge_coupling - 1)) * pow(
+                    self.A[-1][from_node_index][node_index], self.eff_dist_and_edge_coupling)) for node_index in
+                        range(self.nodes.shape[1])]
 
     def reweight_info_score(self, info_score, info_score_sum):
         """
@@ -366,12 +406,14 @@ class Graph:
         node_sum = self.nodes[-1].sum()
         for from_node in range(0, self.nodes[-1].size):
             info_score = self.evaluate_info_score(from_node, node_sum)
-            info_score /= np.sum(info_score)  # Optional info_score normalization. **Should be incompatible with simple positive power in next step, but isn't...
+            info_score /= np.sum(info_score)  # Optional info_score normalization.
             if not self.nodes_adapt_outgoing_edges:
-                info_scores[:, from_node] = self.reweight_info_score(info_score, 1)  # replace 1 with sum(info_score) if not normalized [below]
+                info_scores[:, from_node] = self.reweight_info_score(info_score,
+                                                                     1)  # replace 1 with sum(info_score) if not normalized [below]
                 # info_scores[:, from_node] = self.reweight_info_score(info_score, np.sum(info_score))  # replace 1 with sum(info_score) if not normalized
             else:
-                info_scores[from_node, :] = self.reweight_info_score(info_score, 1)  # as updating outwardly directed nodes means updating rows.
+                info_scores[from_node, :] = self.reweight_info_score(info_score,
+                                                                     1)  # as updating outwardly directed nodes means updating rows.
         self.A[-1] += info_scores
 
     def update_edges(self):
@@ -383,7 +425,7 @@ class Graph:
          negatively effecting those not reinforced.
         """
         self.reweight_edges_via_info_score()
-        
+
         # Normalization (columns of A, incoming edges)
         for node in range(0, self.A.shape[1]):
             if self.conserve_incoming:
@@ -396,7 +438,8 @@ class Graph:
                 if outgoing_edge_sum > 0:
                     self.A[-1][node, :] /= outgoing_edge_sum  # normalizes each node's total OUTGOING weights to 1
         if self.undirected:
-            self.A[-1] = utility_funcs.undirectify(self.A[-1], average_connections=True)  # averages reciprocal connections (e_ji, e_ji --> (e_ij + e_ji)/2))
+            self.A[-1] = utility_funcs.undirectify(self.A[-1],
+                                                   average_connections=True)  # averages reciprocal connections (e_ji, e_ji --> (e_ij + e_ji)/2))
 
     # Effective Distance Evaluation: --------------------------------------------------------------------------------
     def RWED(self, adjacency_matrix, source=None, target=None, parameter=1, via_numpy=False, sub_zeros=False):
@@ -456,8 +499,8 @@ class Graph:
             D = diags(1. / Z.diagonal(), format="csc")
             ZdotD = Z.dot(D).toarray()
             if np.any(ZdotD == 0) or sub_zeros:
-                # ZdotD = Z.dot(D).toarray()
-                ZdotD = np.where(ZdotD == 0, 1e-100, ZdotD)
+                ZdotD = np.where(ZdotD == 0, 1e-100,
+                                 ZdotD)  # Substitute zero with low value (10^-100) for subsequent log evaluation
                 RWED = -np.log(ZdotD)
                 self._singular_fundamental_matrix_errors += 1
             else:
@@ -473,7 +516,8 @@ class Graph:
 
         return RWED
 
-    def get_eff_dist(self, adjacency_matrix=None, multiple_path=False, source=None, target=None, parameter=1, saveto=""):
+    def get_eff_dist(self, adjacency_matrix=None, multiple_path=False, source=None, target=None, parameter=1,
+                     saveto=""):
         """
         Returns effective distance based on the effective distance library built by Andreas Koher. Random walk
         estimations require row normalized adjacency matrix values.
@@ -486,12 +530,16 @@ class Graph:
         if adjacency_matrix is None:
             adjacency_matrix = self.A[-1]
         if multiple_path:
-            return ed.EffectiveDistances(np_array=adjacency_matrix).get_multiple_path_distance(source=source, target=target, parameter=parameter, saveto=saveto)
+            return ed.EffectiveDistances(np_array=adjacency_matrix).get_multiple_path_distance(source=source,
+                                                                                               target=target,
+                                                                                               parameter=parameter,
+                                                                                               saveto=saveto)
         else:
             return self.RWED(adjacency_matrix, source=source, target=target, parameter=parameter, via_numpy=False)
             # return ed.EffectiveDistances(np_array=adjacency_matrix).get_random_walk_distance(source=source, target=target, parameter=parameter, saveto=saveto)
 
-    def evaluate_effective_distances(self, source_reward, parameter, multiple_path_eff_dist, source=None, timestep=-1, rounding=3):
+    def evaluate_effective_distances(self, source_reward, parameter, multiple_path_eff_dist, source=None, timestep=-1,
+                                     rounding=3):
         """
         Defaults to random walker effective distance metric unless given MPED=True
         returns array of effective distances to each node (from source) according to effective dist library´methods
@@ -511,27 +559,34 @@ class Graph:
             """
             inv_A = utility_funcs.return_one_over_2d_matrix(np.round(self.A[timestep], rounding))
             # inv_A = self.A[timestep] + 1  # alternate method for making el in A > 1 for MPED, doesn't nonlinearly penalize low probabilities.
-            eff_dists = self.get_eff_dist(adjacency_matrix=inv_A, multiple_path=True, source=source, parameter=parameter)
+            eff_dists = self.get_eff_dist(adjacency_matrix=inv_A, multiple_path=True, source=source,
+                                          parameter=parameter)
             # should be negative of end result eff dist(as algorithm uses - log? Or not inverted, if so...)
         else:
             # pre-normalize rows (as both columns and rows must be normalized for RWED)
             row_sums = self.A[timestep].sum(axis=1)
-            normalized_A = np.array([self.A[timestep][node, :]/row_sums[node] for node in range(self.A[timestep].shape[0])])
+            normalized_A = np.array(
+                [self.A[timestep][node, :] / row_sums[node] for node in range(self.A[timestep].shape[0])])
             # normalized_A = np.round(utility_funcs.matrix_normalize(self.A[timestep], row_normalize=True), 20)
             if not self.eval_eff_dist_to_source:
-                eff_dists = self.get_eff_dist(adjacency_matrix=normalized_A, multiple_path=False, source=source, parameter=parameter)  # Evaluates eff. dist. FROM source
+                eff_dists = self.get_eff_dist(adjacency_matrix=normalized_A, multiple_path=False, source=source,
+                                              parameter=parameter)  # Evaluates eff. dist. FROM source
             else:
-                eff_dists = self.get_eff_dist(adjacency_matrix=normalized_A, multiple_path=False, target=source, parameter=parameter)   # Evaluates eff. dist. TO source
+                eff_dists = self.get_eff_dist(adjacency_matrix=normalized_A, multiple_path=False, target=source,
+                                              parameter=parameter)  # Evaluates eff. dist. TO source
         if source is None:
             # if source is none, the eff_dist library defaults to an all-to-all eff_dist measure
             for node_index in range(self.nodes[-1].size):
-                min_val = eff_dists[node_index][np.argpartition(eff_dists[node_index], 1)[1]]  # yields non-zero (non-source) min eff_dist
+                min_val = eff_dists[node_index][
+                    np.argpartition(eff_dists[node_index], 1)[1]]  # yields non-zero (non-source) min eff_dist
                 eff_dists[node_index][node_index] = (min_val / source_reward)
             return eff_dists
         else:
-            assert np.isclose(eff_dists[source], 0, rtol=1e-10), f'Source has nonzero effective distance of {eff_dists[source]}'
-            eff_dists = np.delete(eff_dists, source)  # awkward deletion/insertion to ensure min search of remaining eff_distances
-            eff_dists = np.insert(eff_dists, source, min(eff_dists)/source_reward)
+            assert np.isclose(eff_dists[source], 0,
+                              rtol=1e-10), f'Source has nonzero effective distance of {eff_dists[source]}'
+            eff_dists = np.delete(eff_dists,
+                                  source)  # awkward deletion/insertion to ensure min search of remaining eff_distances
+            eff_dists = np.insert(eff_dists, source, min(eff_dists) / source_reward)
             self.eff_dist_history.append(eff_dists)  # Must come before normalization otherwise sum will always be 1
             return eff_dists / np.sum(eff_dists)
 
@@ -567,7 +622,8 @@ class Graph:
             for i in range(self.A.shape[0]):
                 nx_graph_history.append(self.convert_to_nx_graph(i))
                 utility_funcs.print_run_percentage(index=i, runs=self.A.shape[0])
-            print(f'Conversion of all graphs to nx_graphs completed. It took {int((time.time()-start_time) / 60)} minutes, {np.round((time.time()-start_time) % 60, 2)}')
+            print(
+                f'Conversion of all graphs to nx_graphs completed. It took {int((time.time() - start_time) / 60)} minutes, {np.round((time.time() - start_time) % 60, 2)}')
             return nx_graph_history
         else:
             return [self.convert_to_nx_graph(i) for i in range(self.A.shape[0])]
@@ -578,13 +634,16 @@ class Graph:
         """
         print(f'Num_nodes: {self.num_nodes}')
         print(f'Edge conservation coefficient: {self.eff_dist_and_edge_coupling}')
-        print(f'Selectivity: {self.fraction_infoscore_redistributed}')  # rescaling of all rewards in reweight_edges_via_info_score
+        print(
+            f'Selectivity: {self.fraction_infoscore_redistributed}')  # rescaling of all rewards in reweight_edges_via_info_score
         if self.reinforcement_infoscore_coupling:
             print(f'Edge reinforcement is proportional to their info score')
         else:
-            print(f'Edge reinforcement is NOT proportional to their info score values (they simply have to be in the remaining {1-self.fraction_infoscore_redistributed} fraction of info scores to be reinforced)')
+            print(
+                f'Edge reinforcement is NOT proportional to their info score values (they simply have to be in the remaining {1 - self.fraction_infoscore_redistributed} fraction of info scores to be reinforced)')
         if self.positive_eff_dist_and_reinforcement_correlation:
-            print(f'Effective distance and edge reinforcement correlation is reversed (i.e. Effective distance is positively correlated with edge reinforcement, eschewing the source)')
+            print(
+                f'Effective distance and edge reinforcement correlation is reversed (i.e. Effective distance is positively correlated with edge reinforcement, eschewing the source)')
         else:
             print('Effective distance and edge reinforcement correlation is NOT reversed')
 
@@ -603,11 +662,14 @@ class Graph:
         :param delta: float/int.
         """
         if all_to_all_eff_dist:
-            initial = self.evaluate_effective_distances(source_reward=source_reward, parameter=delta, multiple_path_eff_dist=MPED, source=None, timestep=0)
-            final = self.evaluate_effective_distances(source_reward=source_reward, parameter=delta, multiple_path_eff_dist=MPED, source=None, timestep=-1)
+            initial = self.evaluate_effective_distances(source_reward=source_reward, parameter=delta,
+                                                        multiple_path_eff_dist=MPED, source=None, timestep=0)
+            final = self.evaluate_effective_distances(source_reward=source_reward, parameter=delta,
+                                                      multiple_path_eff_dist=MPED, source=None, timestep=-1)
             return np.mean(final - initial)
         if overall_average:
-            return np.mean(np.mean(self.eff_dist_history, axis=1))  # of course same as simply np.mean(eff_dist_history), but written so for clarity
+            return np.mean(np.mean(self.eff_dist_history,
+                                   axis=1))  # of course same as simply np.mean(eff_dist_history), but written so for clarity
         else:
             return np.mean(self.eff_dist_history[0]) - np.mean(self.eff_dist_history[-1])
 
@@ -619,10 +681,100 @@ class Graph:
         return np.round(np.sum(self.A[timestep], axis=1), 20)
         # return np.round(np.sum(self.A[timestep], axis=0), 20)
 
+    def shortest_path(self, timestep=-1, source=None, target=None, reversed_directions=False):
+        inverted_weights_nx_graph = nx.to_directed(nx.from_numpy_matrix(np.array(1 - self.A[timestep]),
+                                                                        create_using=nx.DiGraph))  # might be better ot simply accept a pre-converted nx_graph
+        if reversed_directions:
+            inverted_weights_nx_graph = inverted_weights_nx_graph.reverse(copy=False)
+        SPD_dic = dict(
+            nx.shortest_path_length(inverted_weights_nx_graph, source=source, target=target, weight='weight'))
+
+        if source is None and target is None:
+            SPD = np.array([list(SPD_dic[s].values()) for s in
+                            range(self.nodes.shape[1])])  # TODO:  .transpose()  # why the transpose?
+        elif (source is None) != (target is None):
+            SPD = np.array(list(SPD_dic.values()))
+        else:
+            SPD = SPD_dic.values()
+        return SPD
+
+    """
+    def routing_efficiency(self, nx_graph):
+        The initial algorithm from [*] gives quotient of the sum of the inverted shortest path distances between points and n(n-1),
+        i.e. E_routing =  ( \sum_{i, j} \frac{1}{\phi_{ij}} ) / (n(n-1)), where \phi = shortest path from i to j and n = num_nodes,
+        but as the shortest path is evaluated via dijkstra, counting larger edge values negatively, this requires an inversion
+        before finding the \phi-s (as in shortest_path function). However this is effectively counteracted by the
+        subsequent inversion in the E_routing sum, which as it often yields 1/0=Nan, we simply perform the average_shortest_path_length
+        function. Afterall; it is a good mathematician who makes an even number of sign-errors. ;)
+        (The need to invert the edge values and the subsequent shortest path cancel, to give a notion of E_routing)
+        ..but this does not perform as E_routing below, which it should if these influences canceled...
+        [*] Latora V & Marchiori M (2001) Efficient behavior of small-world networks: Structure and Dynamics
+        return nx.average_shortest_path_length(nx_graph, weight='weight')
+    """
+
+    def E_routing(self, timestep=-1, source=None, target=None, reversed_directions=False):
+        # To avoid divide by 0 errors, we add the 'average' edge weight 1/self.nodes.shape[1] to the inverted weight shortest paths
+        shortest_paths = self.shortest_path(timestep=timestep, source=source, target=target,
+                                            reversed_directions=reversed_directions)
+        return np.sum(1 / (shortest_paths + (1 / self.nodes.shape[1]))) / (
+                    self.nodes.shape[1] * (self.nodes.shape[1] - 1))
+
+    def E_diff(self, timestep=-1):  # Diffusion Efficiency
+        return np.sum(1 / self.evaluate_effective_distances(source_reward=source_reward_val, parameter=1,
+                                                            multiple_path_eff_dist=False, source=None,
+                                                            timestep=timestep)) / (
+                           self.nodes.shape[1] * (self.nodes.shape[1] - 1))
+
+    def node_weighted_condense(self, timestep, num_thresholds=5, exp_threshold_distribution=False):
+        """
+        returns a series of node_weighted condensed graphs [*]
+        [*] Hierarchy in Complex Networks: the possible and the actual: Supporting information. Corominas-Murtra et al. [2013]
+        :param timestep: timestep for conversion
+        :param num_thresholds: Number of thresholds and resultant sets of node-weighted Directed Acyclic Graphs
+        :param exp_threshold_distribution: if true or float, distributes the thresholds exponentially, with an exponent equal to the float input.
+        :return condensed graphs, a list of node_weighted condensed nx_graphs, one for every threshold and corresponding binary A
+        An exponent of 0 results in a linear distribution, otherwise the exp distribution is sampled from e^(exp_float)*2e - e^(exp_float)*e
+        """
+        # Establishing Thresholds
+        if not exp_threshold_distribution:
+            thresholds = list(np.round(np.arange(np.min(self.A[timestep]), np.max(self.A[timestep]), (np.max(self.A[timestep] - np.min(self.A[timestep]))) / num_thresholds), 4))
+        else:
+            thresholds = utility_funcs.exponentially_distribute(exponent=exp_threshold_distribution,
+                                                                dist_max=np.max(self.A[timestep]),
+                                                                dist_min=np.min(self.A[timestep]),
+                                                                num_exp_distributed_values=num_thresholds)
+
+        # Converting to binary nx_graphs according to thresholds:
+        nx_graphs = [nx.from_numpy_matrix(np.where(self.A[timestep] > threshold, 1, 0), create_using=nx.DiGraph) for
+                     threshold in thresholds]
+        # base_binary_graphs = [nx.to_numpy_array(nx_graphs[val]) for val in range(len(nx_graphs))]  # yes, it's silly to reconvert if this is actually needed.
+
+        condensed_graphs = [nx.condensation(nx_graphs[index]) for index in range(len(nx_graphs))]
+        for condensed_graph in condensed_graphs:
+            members = nx.get_node_attributes(condensed_graph, 'members')
+            node_weights = [len(w) for w in members.values()]
+            for node_index in range(len(node_weights)):
+                condensed_graph.nodes[node_index]["weight"] = node_weights[node_index]
+
+        return condensed_graphs, nx_graphs
+
+    def average_hierarchy_coordinates(self, timestep=-1, num_thresholds=5, exp_threshold_distribution=False):
+        o, f, t = 0, 0, 0
+        condensed_graphs, original_graphs = self.node_weighted_condense(timestep=timestep,
+                                                                        num_thresholds=num_thresholds,
+                                                                        exp_threshold_distribution=exp_threshold_distribution)
+        for index in range(len(condensed_graphs)):
+            o += hc.orderability(original_graphs[index], condensed_graphs[index])
+            f += hc.feedforwardness(condensed_graphs[index])
+            t += hc.treeness(condensed_graphs[index])
+        o /= len(condensed_graphs); f /= len(condensed_graphs); t /= len(condensed_graphs)
+        return o, f, t
+
     # Run Functions: -------------------------------------------------------------------------------------------------
     def simulate(self, num_runs, eff_dist_delta_param=1, constant_source_node=False, num_shifts_of_source_node=False,
                  seeding_sigma_coeff=False, seeding_power_law_exponent=False, beta=None, multiple_path=False,
-                 equilibrium_distance=equilibrium_distance_val, update_interval=1, source_reward=source_reward_val, verbose=False):
+                 equilibrium_distance=equilibrium_distance_val, update_interval=1, source_reward=source_reward_val,
+                 verbose=False):
         """
         Run function. Sequentially seeds source node, sets node values to effective distance evaluation, updates edges and corresponding history.
         :param num_runs: Constant natural number, number of runs.
@@ -635,36 +787,47 @@ class Graph:
         :param verbose: if True, details approximate completion percentage and run parameters, methods.
         :return: Returns nothing, updates graph values. Use plotter library to evaluate and graph observables
         """
+
         # Verbose functions:
         def print_run_methods():
-            print(f'Parameter and Method Details:\nRan {num_runs} runs with {update_interval} seed steps per run, and sources were rewarded by a {source_reward} scaling')
+            print(
+                f'Parameter and Method Details:\nRan {num_runs} runs with {update_interval} seed steps per run, and sources were rewarded by a {source_reward} scaling')
             if isinstance(constant_source_node, bool) & constant_source_node is True:
                 print(f'All information was seeded to the 0th node. (Constant Source)')
             elif isinstance(constant_source_node, int):
                 print(f'All information was seeded to the {constant_source_node}th node. (constant source)')
             elif beta:
-                print(f'Information seeded proportional to diversity of connections, with partition exponent of beta = {self.beta}')
+                print(
+                    f'Information seeded proportional to diversity of connections, with partition exponent of beta = {self.beta}')
             elif not constant_source_node or self.beta:
                 print(f'All information was seeded randomly.')
 
             if multiple_path:
-                print(f'The Multiple Path Effective Distance (MPED) was used, with higher order paths suppressed by a eff_dist_delta_param of {eff_dist_delta_param}')
+                print(
+                    f'The Multiple Path Effective Distance (MPED) was used, with higher order paths suppressed by a eff_dist_delta_param of {eff_dist_delta_param}')
             else:
-                print(f'The (analytic) Random Walker Effective Distance (RWED) was used, with an eff_dist_delta_param of {eff_dist_delta_param}.')
+                print(
+                    f'The (analytic) Random Walker Effective Distance (RWED) was used, with an eff_dist_delta_param of {eff_dist_delta_param}.')
 
             print('Edge Update algorithm:')
-            print(f'Edges were reweighted via Info score values, with edge conservation and selectivity values of {self.eff_dist_and_edge_coupling}, {self.fraction_infoscore_redistributed}, respectively.')
+            print(
+                f'Edges were reweighted via Info score values, with edge conservation and selectivity values of {self.eff_dist_and_edge_coupling}, {self.fraction_infoscore_redistributed}, respectively.')
             if self.reinforcement_infoscore_coupling:
                 print(f'Reinforcement of edges was coupled to the edges\' info score values')
             if self.positive_eff_dist_and_reinforcement_correlation:
-                print('There was a positive effective distance and edge reinforcement correlation, the opposite of the usual relation.')
+                print(
+                    'There was a positive effective distance and edge reinforcement correlation, the opposite of the usual relation.')
 
         # Body of run function
         self.A = np.vstack((self.A, [self.A[-1]]))  # so that initial values (before initial update) are preserved
         equilibrium_span = equilibrium_span_val  # if a greater range of values between equilibrium distance ought be compared
         for i in range(0, num_runs):
-            self.seed_info_conditional(constant_source_node, num_shifts_of_source_node, num_runs=num_runs, sigma=seeding_sigma_coeff, power_law_exponent=seeding_power_law_exponent, beta=beta, index=i)
-            self.nodes[-1] = np.array(self.evaluate_effective_distances(source_reward, eff_dist_delta_param, multiple_path, source=self._source_node))
+            self.seed_info_conditional(constant_source_node, num_shifts_of_source_node, num_runs=num_runs,
+                                       sigma=seeding_sigma_coeff, power_law_exponent=seeding_power_law_exponent,
+                                       beta=beta, index=i)
+            self.nodes[-1] += np.array(
+                self.evaluate_effective_distances(source_reward, eff_dist_delta_param, multiple_path,
+                                                  source=self._source_node))
             if i % update_interval == 0:
                 self.update_edges()
                 # so the next values may be overwritten, we start each run with 0 node values.
@@ -672,7 +835,7 @@ class Graph:
                 self.A = np.vstack((self.A, [self.A[-1]]))
             if verbose:
                 utility_funcs.print_run_percentage(i, num_runs, 17)
-            if self.A.shape[0] > equilibrium_distance+equilibrium_span+1:  # +1 for range starting at 0 offset
+            if self.A.shape[0] > equilibrium_distance + equilibrium_span + 1:  # +1 for range starting at 0 offset
                 # if np.all(np.array([np.allclose(self.A[-(ii+1)], self.A[-(equilibrium_distance+(ii+1))], rtol=1e-10) for ii in range(equilibrium_span)])):
                 if np.allclose(self.A[-1], self.A[-(equilibrium_distance + 1)], rtol=1e-15):
                     print(f'Equilibrium conditions met after {i} runs, run halted.')
@@ -682,9 +845,12 @@ class Graph:
         if verbose:
             print_run_methods()
 
-    def simulate_ensemble(self, num_simulations, num_runs_per_sim, eff_dist_delta_param=1, edge_init=None, constant_source_node=False,
-                          num_shifts_of_source_node=False, seeding_sigma_coeff=False, seeding_power_law_exponent=False, beta=None,
-                          multiple_path=False, equilibrium_distance=equilibrium_distance_val, update_interval=1, source_reward=source_reward_val, undirectify=False, verbose=False):
+    def simulate_ensemble(self, num_simulations, num_runs_per_sim, eff_dist_delta_param=1, edge_init=None,
+                          constant_source_node=False,
+                          num_shifts_of_source_node=False, seeding_sigma_coeff=False, seeding_power_law_exponent=False,
+                          beta=None,
+                          multiple_path=False, equilibrium_distance=equilibrium_distance_val, update_interval=1,
+                          source_reward=source_reward_val, undirectify=False, verbose=False):
         """
         Keeps a running average of A, and eff_dist_history over num_simulations, while extending source history.
         This leaves observables which are not dependent on an averaged A requiring special reprogramming.
@@ -709,7 +875,8 @@ class Graph:
             np.random.seed(i)
             random.seed(i)
             self.edge_initialization_conditional(edge_init=edge_init, undirectify=undirectify)
-            self.simulate(num_runs=num_runs_per_sim, update_interval=update_interval, eff_dist_delta_param=eff_dist_delta_param,
+            self.simulate(num_runs=num_runs_per_sim, update_interval=update_interval,
+                          eff_dist_delta_param=eff_dist_delta_param,
                           source_reward=source_reward, constant_source_node=constant_source_node,
                           num_shifts_of_source_node=num_shifts_of_source_node, seeding_sigma_coeff=seeding_sigma_coeff,
                           seeding_power_law_exponent=seeding_power_law_exponent, beta=beta, multiple_path=multiple_path,
@@ -719,7 +886,8 @@ class Graph:
                 eff_dist_history = self.eff_dist_history
             else:
                 A = utility_funcs.element_wise_array_average([A, self.A])
-                eff_dist_history = utility_funcs.element_wise_array_average([np.array(eff_dist_history), np.array(self.eff_dist_history)])
+                eff_dist_history = utility_funcs.element_wise_array_average(
+                    [np.array(eff_dist_history), np.array(self.eff_dist_history)])
             source_node_history.append(self.source_node_history)
             # A = self.A if i == 0 else A = utility_funcs.element_wise_array_average([A, self.A])
             # eff_dist_history = self.eff_dist_history if i == 0 else eff_dist_history = utility_funcs.element_wise_array_average([np.array(eff_dist_history), np.array(self.eff_dist_history)])

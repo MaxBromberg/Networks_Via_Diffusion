@@ -1,6 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib import cm
+from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
 import networkx as nx
 import multiprocessing as mp
 
@@ -551,6 +552,28 @@ def plot_effective_distance_histogram(eff_dists, num_bins=False, timestep=-1, sh
 
 
 #  Network Illustrations: --------------------------------------------------------------------------------------------
+def plot_nx_network(nx_graph, show=True, save_fig=False, title=None):
+    fig = plt.figure(figsize=(10, 10))
+    pos = nx.spring_layout(nx_graph, k=0.5, scale=0.5, weight='weight', seed=42)
+    labels = nx.draw_networkx_labels(nx_graph, pos=pos, font_color='blue', font_size=20)  # For use in debugging
+    # node_weights = [node_weight[1] for node_weight in nx_graph.nodes(data="weight")]
+    node_weights = [1]*len(nx_graph.nodes())
+    weights = [1.6 for u, v in nx_graph.edges()]  # Simple binary weights
+    nx.draw_networkx_edges(nx_graph, pos, nodelist=['0'], alpha=0.8, width=weights, arrowsize=4, edge_color=None, connectionstyle='arc3, rad=0.2', edge_cmap='winter')
+    node_colors = ['grey' for _ in nx_graph]
+    edge_colors = 'black'
+    nx.draw_networkx_nodes(nx_graph, pos, arrowstyle='->', edge_color=edge_colors, node_size=node_weights, node_color=node_colors, widths=weights, labels=labels, cmap=plt.get_cmap('viridis'))
+    plt.title(f"Network Graph")
+
+    if title:
+        plt.savefig(f'{title}.png')
+    if show:
+        plt.show()
+    if save_fig and not title:
+        plt.savefig(f'Network Structures.png')
+    plt.close(fig)
+
+
 def plot_single_network(graph, timestep, directed=True, node_size_scaling=None, source_weighting=False, position=None, show=True, save_fig=False, title=None):
     """
     :param timestep: Point at which the network's structure is to be graphed.
@@ -573,6 +596,8 @@ def plot_single_network(graph, timestep, directed=True, node_size_scaling=None, 
     if node_size_scaling is None:
         node_size_scaling = 2*graph.nodes.shape[0]  # So that nodes are sized proportional to the number of times they *could've* been the source
 
+    labels = nx.draw_networkx_labels(nx_G, pos=pos, font_color='blue', font_size=20)  # For use in debugging
+
     # pos = nx.drawing.layout.spring_layout(nx_G, k=0.5, pos=pos, weight='weight', fixed=list(nx_G.nodes))
     weights = [np.round((nx_G[u][v]['weight'] * 2.5), 10) for u, v in nx_G.edges()]
     nx.draw_networkx_edges(nx_G, pos, nodelist=['0'], alpha=0.8, width=weights, arrowsize=4, edge_color=None,
@@ -594,6 +619,7 @@ def plot_single_network(graph, timestep, directed=True, node_size_scaling=None, 
                                node_size=source_weights,
                                node_color=node_colors,
                                widths=weights,
+                               labels=labels,
                                cmap=plt.get_cmap('viridis'))
         plt.title(f"Nodes size proportional to number of times they've been the source [timestep: {timestep}]")
     else:
@@ -605,6 +631,7 @@ def plot_single_network(graph, timestep, directed=True, node_size_scaling=None, 
                                node_size=incoming_edge_sum,
                                node_color=node_colors,
                                widths=weights,
+                               labels=labels,
                                cmap=plt.get_cmap('viridis'))
         plt.title(f"Nodes size proportional to outgoing edge weights [timestep: {timestep}]")
     if title:
@@ -916,6 +943,15 @@ def plot_3d(function, x_range, y_range=None, piecewise=False, z_limits=None, spa
     # ax.set_xlabel('x')
     # ax.set_ylabel('y')
     # ax.set_zlabel('z')
+    plt.show()
+
+
+def general_3d_data_plot(data):
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection='3d')
+    xdata, ydata, zdata, color = data[:, 0], data[:, 1], data[:, 2], np.array([1 / val for val in np.arange(data.shape[0])]) * 100
+    print(xdata)
+    ax.scatter(xdata, ydata, zdata, c=color, cmap='Greens')
     plt.show()
 
 
@@ -1423,3 +1459,12 @@ def ave_degree_diff(data_dir, initial_graph=0, final_graph=-1, ave_degree_at_tim
         final_ave_degree = np.array(list(nx.average_degree_connectivity(G_final.convert_to_nx_graph(timestep=ave_degree_at_timestep), weight='weight').values()))
     return final_ave_degree - initial_ave_degree
 
+
+# Hierarchy Coordinates: ---------------------------------------------------------------------------------------------
+def plot_hierarchy_evolution(graph, time_between_sampling):
+    coordinates = np.zeros((1, 3))
+    for timestep in range(0, graph.A.shape[0], time_between_sampling):
+        coordinates[-1] = graph.average_hierarchy_coordinates(timestep=timestep)
+        coordinates = np.vstack((coordinates, [coordinates[-1]]))
+    print(coordinates)
+    general_3d_data_plot(coordinates)

@@ -26,7 +26,6 @@ def count(iterable, val):
 
 
 #################  Matrix Operations  #####################
-
 def element_wise_array_average(list_of_np_arrays):
     """
     returns single array with every element the average of all input arrays respective element
@@ -48,12 +47,10 @@ def return_one_over_2d_matrix(matrix):
 def matrix_normalize(matrix, row_normalize=False):
     if row_normalize:
         row_sums = matrix.sum(axis=1)
-        return np.array([matrix[index, :] / row_sums[index] for index in range(row_sums.size) if
-                         row_sums[index] is not np.isclose(row_sums[index], 0, 1e-15)])
+        return np.array([matrix[index, :] / row_sums[index] if row_sums[index] != 0 else [0] * row_sums.size for index in range(row_sums.size)])
     else:
         column_sums = matrix.sum(axis=0)
-        return np.array([matrix[:, index] / column_sums[index] for index in range(column_sums.size) if
-                         column_sums[index] is not np.isclose(column_sums[index], 0, 1e-15)]).T
+        return np.array([matrix[:, index] / column_sums[index] if column_sums[index] != 0 else [0]*column_sums.size for index in range(column_sums.size)]).T
 
 
 def sum_matrix_signs(matrix, verbose=True):
@@ -162,6 +159,19 @@ def consume(iterator, n):
 
 def argmax(iterable):
     return max(enumerate(iterable), key=lambda x: x[1])[0]
+
+
+def exponentially_distribute(exponent, dist_max, dist_min, num_exp_distributed_values):
+    """
+    :param exponent: An exponent of 0 results in a linear distribution,
+    otherwise the exp distribution is sampled from e^(exponent)*2e - e^(exponent)*e
+    :param dist_max: Maximum of newly exponential distribution
+    :param dist_min: Minimum of newly exponential distribution
+    :param num_exp_distributed_values: Number of values in the eventual distribution
+    """
+    total_exp_range = np.exp(exponent * 2 * np.e) - np.exp(exponent * np.e)
+    exponential_proportions = [(np.exp(exponent * (np.e + (np.e / (num_exp_distributed_values - threshold_index)))) - np.exp(exponent * np.e)) / total_exp_range for threshold_index in range(num_exp_distributed_values)]
+    return np.array(exponential_proportions) * (dist_max - dist_min)
 
 
 # just for debugging

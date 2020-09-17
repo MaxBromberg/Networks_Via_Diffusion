@@ -7,8 +7,7 @@ Central program to order sequential grid-searches based on total parameter dicti
 
 
 def run_grid_search(param_dic):
-    # os.system('python grid_search.py {data_directory} {run_index} {num_nodes} {edge_conservation_range} {selectivity_range} {reinforcement_info_score_coupling} {positive_eff_dist_and_reinforcement_correlation} {eff_dist_is_towards_source} {nodes_adapt_outgoing_edges} {incoming_edges_conserved} {undirected} {edge_init} {ensemble_size} {num_runs} {delta} {equilibrium_distance} {constant_source_node} {num_shifts_of_source_node} {seeding_sigma_coeff} {seeding_power_law_exponent} {beta} {multiple_path} {update_interval} {source_reward} {undirectify_init}'.format(**param_dic))
-    os.system('python3 grid_search.py {data_directory} {run_index} {num_nodes} {edge_conservation_range} {selectivity_range} {reinforcement_info_score_coupling} {positive_eff_dist_and_reinforcement_correlation} {eff_dist_is_towards_source} {nodes_adapt_outgoing_edges} {incoming_edges_conserved} {undirected} {edge_init} {ensemble_size} {num_runs} {delta} {equilibrium_distance} {constant_source_node} {num_shifts_of_source_node} {seeding_sigma_coeff} {seeding_power_law_exponent} {beta} {multiple_path} {update_interval} {source_reward} {undirectify_init}'.format(**param_dic))
+    os.system('python grid_search.py {data_directory} {run_index} {num_nodes} {edge_conservation_range} {selectivity_range} {reinforcement_info_score_coupling} {positive_eff_dist_and_reinforcement_correlation} {eff_dist_is_towards_source} {nodes_adapt_outgoing_edges} {incoming_edges_conserved} {undirected} {edge_init} {ensemble_size} {num_runs} {delta} {equilibrium_distance} {constant_source_node} {num_shifts_of_source_node} {seeding_sigma_coeff} {seeding_power_law_exponent} {beta} {multiple_path} {update_interval} {source_reward} {undirectify_init}'.format(**param_dic))
     print(f'Simulation with the following parameters complete:')
     nice_dictionary_print(param_dic)
 
@@ -63,20 +62,20 @@ undirected_sparse_init = {**default_sparse_init, 'undirectify_init': 1}
 
 undirected_sparse_run_data_directory = '/home/maqz/Desktop/data/Mechanic_Mods/undirected_run_sparse_1.2'
 undirected_sparse_run = {**undirected_sparse_init, 'undirected': 1}
-undirected_run_sparse_base_case = {**default_sparse_init, 'data_directory': Path(undirected_sparse_run_data_directory, "base_case")}
-undirected_run_sparse_reversed_source_edge_conservation = {**default_sparse_init, **eff_dist_to_source, **node_adapt_outgoing_edges, **outgoing_edges_conserved, 'data_directory': Path(undirected_sparse_run_data_directory, "switched_ED_Adaptation_Conservation")}
-undirected_run_sparse_reversed_edge_conservation = {**default_sparse_init, **node_adapt_outgoing_edges, **outgoing_edges_conserved, 'data_directory': Path(undirected_sparse_run_data_directory, "switched_Adaptation_Conservation")}
-undirected_run_sparse_reversed_source_conservation = {**default_sparse_init, **eff_dist_to_source, **outgoing_edges_conserved, 'data_directory': Path(undirected_sparse_run_data_directory, "switched_ED_Conservation")}
-undirected_run_sparse_reversed_source_edge = {**default_sparse_init, **eff_dist_to_source, **node_adapt_outgoing_edges, 'data_directory': Path(undirected_sparse_run_data_directory, "switched_ED_Adaptation")}
-undirected_run_sparse_reversed_source = {**default_sparse_init, **eff_dist_to_source, 'data_directory': Path(undirected_sparse_run_data_directory, "switched_ED")}
-undirected_run_sparse_reversed_edge = {**default_sparse_init, **node_adapt_outgoing_edges, 'data_directory': Path(undirected_sparse_run_data_directory, "switched_Adaptation")}
-undirected_run_sparse_reversed_conservation = {**default_sparse_init, **outgoing_edges_conserved, 'data_directory': Path(undirected_sparse_run_data_directory, "switched_Conservation")}
+undirected_run_sparse_base_case = {**undirected_sparse_run, 'data_directory': Path(undirected_sparse_run_data_directory, "base_case")}
+undirected_run_sparse_reversed_source_edge_conservation = {**undirected_sparse_run, **eff_dist_to_source, **node_adapt_outgoing_edges, **outgoing_edges_conserved, 'data_directory': Path(undirected_sparse_run_data_directory, "switched_ED_Adaptation_Conservation")}
+undirected_run_sparse_reversed_edge_conservation = {**undirected_sparse_run, **node_adapt_outgoing_edges, **outgoing_edges_conserved, 'data_directory': Path(undirected_sparse_run_data_directory, "switched_Adaptation_Conservation")}
+undirected_run_sparse_reversed_source_conservation = {**undirected_sparse_run, **eff_dist_to_source, **outgoing_edges_conserved, 'data_directory': Path(undirected_sparse_run_data_directory, "switched_ED_Conservation")}
+undirected_run_sparse_reversed_source_edge = {**undirected_sparse_run, **eff_dist_to_source, **node_adapt_outgoing_edges, 'data_directory': Path(undirected_sparse_run_data_directory, "switched_ED_Adaptation")}
+undirected_run_sparse_reversed_source = {**undirected_sparse_run, **eff_dist_to_source, 'data_directory': Path(undirected_sparse_run_data_directory, "switched_ED")}
+undirected_run_sparse_reversed_edge = {**undirected_sparse_run, **node_adapt_outgoing_edges, 'data_directory': Path(undirected_sparse_run_data_directory, "switched_Adaptation")}
+undirected_run_sparse_reversed_conservation = {**undirected_sparse_run, **outgoing_edges_conserved, 'data_directory': Path(undirected_sparse_run_data_directory, "switched_Conservation")}
 
-# run_grid_search(undirected_run_sparse_base_case)
-# run_grid_search(undirected_run_sparse_reversed_source_edge_conservation)
-# run_grid_search(undirected_run_sparse_reversed_edge_conservation)
-# run_grid_search(undirected_run_sparse_reversed_source_conservation)
-# run_grid_search(undirected_run_sparse_reversed_source_edge)
-# run_grid_search(undirected_run_sparse_reversed_source)
-# run_grid_search(undirected_run_sparse_reversed_edge)
+run_grid_search(undirected_run_sparse_base_case)
+run_grid_search(undirected_run_sparse_reversed_source_edge_conservation)
+run_grid_search(undirected_run_sparse_reversed_edge_conservation)
+run_grid_search(undirected_run_sparse_reversed_source_conservation)
+run_grid_search(undirected_run_sparse_reversed_source_edge)
+run_grid_search(undirected_run_sparse_reversed_source)
+run_grid_search(undirected_run_sparse_reversed_edge)
 run_grid_search(undirected_run_sparse_reversed_conservation)

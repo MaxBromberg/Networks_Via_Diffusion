@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import shutil
 import multiprocessing as mp
 from pathlib import Path
 import time
@@ -119,6 +120,4 @@ plotter.twoD_grid_search_plots(subdata_directory, edge_conservation_range=edge_c
                                num_nodes=num_nodes, network_graphs=True, node_plots=False, ave_nbr=False, cluster_coeff=False,
                                eff_dist=True, global_eff_dist=True, shortest_path=False, degree_dist=True, edge_dist=True,
                                output_dir=Path(data_directory, 'Plots'))
-os.rmdir(subdata_directory)
-# print(f"Time lapsed for all source reward values, {source_reward_range.size * edge_conservation_range.size * selectivity_range.size} total parameter combinations: {utility_funcs.time_lapsed_h_m_s(time.time() - total_start_time)}")
-
+shutil.rmtree(subdata_directory)
