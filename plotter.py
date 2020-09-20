@@ -1,5 +1,6 @@
 import numpy as np
 from matplotlib import pyplot as plt
+from matplotlib import gridspec
 from matplotlib import cm
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
 import networkx as nx
@@ -403,13 +404,13 @@ def plot_heatmap(TwoD_data, x_range=None, y_range=None, normalize=False, tick_sc
     plt.colorbar()
     plt.xlabel('Selectivity')
     plt.ylabel('Edge Conservation')
+    if show:
+        plt.show()
     if fig_title:
         plt.title(f'{fig_title}')
     if title:
         plt.savefig(f'{title}.png')
         plt.close()
-    if show:
-        plt.show()
 
 
 #  Histograms: -------------------------------------------------------------------------------------------------------
@@ -552,17 +553,18 @@ def plot_effective_distance_histogram(eff_dists, num_bins=False, timestep=-1, sh
 
 
 #  Network Illustrations: --------------------------------------------------------------------------------------------
-def plot_nx_network(nx_graph, show=True, save_fig=False, title=None):
+def plot_nx_network(nx_graph, node_size_scaling=100, show=True, save_fig=False, title=None):
     fig = plt.figure(figsize=(10, 10))
     pos = nx.spring_layout(nx_graph, k=0.5, scale=0.5, weight='weight', seed=42)
     labels = nx.draw_networkx_labels(nx_graph, pos=pos, font_color='blue', font_size=20)  # For use in debugging
-    # node_weights = [node_weight[1] for node_weight in nx_graph.nodes(data="weight")]
-    node_weights = [1]*len(nx_graph.nodes())
+    # labels = nx.draw_networkx_labels(nx_graph, pos=pos, font_color='blue', font_size=0)  # For use in debugging
+    # node_weights = [1]*len(nx_graph.nodes())
+    node_weights = [weight*node_size_scaling for weight in nx.get_node_attributes(nx_graph, "weight").values()]
     weights = [1.6 for u, v in nx_graph.edges()]  # Simple binary weights
-    nx.draw_networkx_edges(nx_graph, pos, nodelist=['0'], alpha=0.8, width=weights, arrowsize=4, edge_color=None, connectionstyle='arc3, rad=0.2', edge_cmap='winter')
-    node_colors = ['grey' for _ in nx_graph]
     edge_colors = 'black'
-    nx.draw_networkx_nodes(nx_graph, pos, arrowstyle='->', edge_color=edge_colors, node_size=node_weights, node_color=node_colors, widths=weights, labels=labels, cmap=plt.get_cmap('viridis'))
+    nx.draw_networkx_edges(nx_graph, pos, nodelist=['0'], alpha=0.8, width=weights, arrowsize=4, edge_color=edge_colors, connectionstyle='arc3, rad=0.2', edge_cmap='winter')
+    node_colors = ['grey' for _ in nx_graph]
+    nx.draw_networkx_nodes(nx_graph, pos, node_size=node_weights, node_color=node_colors, linewidths=weights, label=labels, cmap=plt.get_cmap('viridis'))
     plt.title(f"Network Graph")
 
     if title:
@@ -614,24 +616,22 @@ def plot_single_network(graph, timestep, directed=True, node_size_scaling=None, 
         source_weights = [weight if weight > 0 else 1 for weight in source_weights]
 
         nx.draw_networkx_nodes(nx_G, pos,
-                               arrowstyle='->',
-                               edge_color=edge_colors,
+                               edgecolors=edge_colors,
                                node_size=source_weights,
                                node_color=node_colors,
-                               widths=weights,
-                               labels=labels,
+                               linewidths=weights,
+                               label=labels,
                                cmap=plt.get_cmap('viridis'))
         plt.title(f"Nodes size proportional to number of times they've been the source [timestep: {timestep}]")
     else:
         incoming_edge_sum = graph.A[timestep].sum(axis=1)
         incoming_edge_sum = [node_size_scaling * node / sum(incoming_edge_sum) for node in incoming_edge_sum]
         nx.draw_networkx_nodes(nx_G, pos,
-                               arrowstyle='->',
-                               edge_color=edge_colors,
+                               edgecolors=edge_colors,
                                node_size=incoming_edge_sum,
                                node_color=node_colors,
-                               widths=weights,
-                               labels=labels,
+                               linewidths=weights,
+                               label=labels,
                                cmap=plt.get_cmap('viridis'))
         plt.title(f"Nodes size proportional to outgoing edge weights [timestep: {timestep}]")
     if title:
@@ -908,6 +908,27 @@ def parallellized_animate_network_evolution(graph, source_weighting=False, node_
 """
 
 
+#  2D Plotting: ------------------------------------------------------------------------------------------------------
+def plot_2d_data(data, xlabel=None, ylabel=None, show=False, fig_title=None, title=False):
+    fig = plt.figure(figsize=(10, 8))
+
+    if xlabel is not None:
+        plt.xlabel(xlabel)
+    if ylabel is not None:
+        plt.ylabel(ylabel)
+    x, y = data[:, 0], data[:, 1]
+    color = np.log(np.array([1 / val for val in np.arange(int(data.shape[0]/3), data.shape[0]+int(data.shape[0]/3))]) * 100)
+    # plt.scatter(x, y, c=color, cmap='BuPu')
+    plt.scatter(x, y)
+    if show:
+        plt.show()
+    if fig_title:
+        plt.title(f'{fig_title}')
+    if title:
+        plt.savefig(f'{title}.png')
+        plt.close(fig)
+
+
 #  3D Plotting: ------------------------------------------------------------------------------------------------------
 def plot_3d(function, x_range, y_range=None, piecewise=False, z_limits=None, spacing=0.05):
     """
@@ -946,13 +967,75 @@ def plot_3d(function, x_range, y_range=None, piecewise=False, z_limits=None, spa
     plt.show()
 
 
-def general_3d_data_plot(data):
-    fig = plt.figure(figsize=(10, 8))
-    ax = fig.add_subplot(111, projection='3d')
-    xdata, ydata, zdata, color = data[:, 0], data[:, 1], data[:, 2], np.array([1 / val for val in np.arange(data.shape[0])]) * 100
-    print(xdata)
-    ax.scatter(xdata, ydata, zdata, c=color, cmap='Greens')
-    plt.show()
+def general_3d_data_plot(data, xlabel=None, ylabel=None, zlabel=None, plot_projections=False, projections=False, fig_title=None, show=False, title=False):
+    xdata, ydata, zdata = data[:, 2], data[:, 1], data[:, 0]
+    fig = plt.figure(figsize=(10, 10))
+    if xlabel is not None:
+        x_label = xlabel
+    else:
+        x_label = 'X'
+    if ylabel is not None:
+        y_label = ylabel
+    else:
+        y_label = 'Y'
+    if zlabel is not None:
+        z_label = zlabel
+    else:
+        z_label = 'Z'
+
+    if plot_projections:
+        gs = gridspec.GridSpec(3, 3, wspace=0.3)
+        ax = fig.add_subplot(gs[:2, :], projection='3d')
+        ax.scatter(xdata, ydata, zdata, cmap='BuPu')  # , c=color)
+        ax.set_xlabel(x_label)
+        ax.set_ylabel(y_label)
+        ax.set_zlabel(z_label)
+
+        ax1 = fig.add_subplot(gs[2, 0])
+        ax1.scatter(xdata, ydata)
+        plt.grid(True)
+        ax1.set_xlabel(x_label)
+        ax1.set_ylabel(y_label)
+
+        ax2 = fig.add_subplot(gs[2, 1])
+        ax2.scatter(xdata, zdata)
+        plt.grid(True)
+        ax2.set_xlabel(x_label)
+        ax2.set_ylabel(z_label)
+
+        ax3 = fig.add_subplot(gs[2, 2])
+        ax3.scatter(ydata, zdata)
+        plt.grid(True)
+        ax3.set_xlabel(y_label)
+        ax3.set_ylabel(z_label)
+
+        fig.align_labels()
+        if fig_title:
+            plt.title(f'{fig_title}')
+        if title:
+            plt.savefig(f'{title}.png')
+        if show:
+            plt.show()
+        if show and title:
+            plt.close()
+    else:
+        ax = fig.add_subplot(111, projection='3d')
+        # color = np.array([1 / val for val in np.arange(1+int((data.shape[0]+1) / 3), data.shape[0]+1)]) * 100
+        ax.scatter(xdata, ydata, zdata, cmap='BuPu')  #, c=color)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        ax.set_zlabel(zlabel)
+        if projections:
+            ax.plot(xdata, zdata, 'r+', zdir='y', zs=1)
+            ax.plot(ydata, zdata, 'g+', zdir='x', zs=0)
+            ax.plot(xdata, ydata, 'k+', zdir='z', zs=-1)
+        if show:
+            plt.show()
+        if fig_title:
+            plt.title(f'{fig_title}')
+        if title:
+            plt.savefig(f'{title}.png')
+            plt.close()
 
 
 def plot_3d_data(three_d_data, x_range=None, y_range=None, z_range=None, show=True, raw_fig_title=None):
@@ -1084,7 +1167,7 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
     :param output_dir: string; path obj. Determines output directory, defaults to data directory
     """
     start_time = time.time()
-    assert eff_dist or global_eff_dist or network_graphs or node_plots or ave_nbr or cluster_coeff or shortest_path or degree_dist, 'Choose something to plot'
+    assert eff_dist or global_eff_dist or network_graphs or node_plots or ave_nbr or cluster_coeff or shortest_path or degree_dist or edge_dist, 'Choose something to plot'
     if output_dir is None:
         output_dir = data_directory
     # grid_search_plots_dir = Path(output_dir, f'plots_for_{num_nodes}_nodes')
@@ -1123,6 +1206,9 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
     ave_neighbor_diffs_flattened = []
     ave_nbr_var_flattened = []
     log_degree_dist_var_flattened = []
+    hierarchy_coordinates = []
+    efficiency_coordinates = []
+    exp_threshold_hierarchy_coordinates = []
 
     for __, __, files in os.walk(data_directory):
         f = sorted(files)  # Order preserved due to 0 padding.
@@ -1135,7 +1221,6 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
             selectivity_vals_per_full_cpu = 0
             processes = []
             left_over_selectivity_values = selectivity_range.size - selectivity_val_index
-            # print(f'selectivity_val_index: {selectivity_val_index} | mp.cpu_count(): {mp.cpu_count()} | selectivity_range.size: {selectivity_range.size}')
             if left_over_selectivity_values < cores_used:  # To ensure that parallelization persists when there are fewer tasks than cores
                 while selectivity_vals_per_full_cpu < left_over_selectivity_values:
                     with open(Path(data_directory, f[run_counter]), 'rb') as data:
@@ -1214,6 +1299,9 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
                         ave_neighbor_diffs_flattened.append((lambda x: max(x) - min(x))(last_ave_nbr_deg))
                         ave_nbr_var_flattened.append(np.array(last_ave_nbr_deg).var())
                         log_degree_dist_var_flattened.append(np.var(G.degree_distribution(timestep=-1)))
+                        hierarchy_coordinates.append(np.array(G.average_hierarchy_coordinates(timestep=-1)))
+                        exp_threshold_hierarchy_coordinates.append(np.array(G.average_hierarchy_coordinates(timestep=-1, exp_threshold_distribution=True)))
+                        efficiency_coordinates.append(np.array([G.E_diff(timestep=-1), G.E_routing(timestep=-1)]))
 
                 utility_funcs.consume(selectivity_range_iter, left_over_selectivity_values - 1)  # -1 because the iteration forwards 1 step still proceeds directly after
             else:
@@ -1293,6 +1381,9 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
                         ave_neighbor_diffs_flattened.append((lambda x: max(x) - min(x))(last_ave_nbr_deg))
                         ave_nbr_var_flattened.append(np.array(last_ave_nbr_deg).var())
                         log_degree_dist_var_flattened.append(np.var(G.degree_distribution(timestep=-1)))
+                        hierarchy_coordinates.append(np.array(G.average_hierarchy_coordinates(timestep=-1)))
+                        exp_threshold_hierarchy_coordinates.append(np.array(G.average_hierarchy_coordinates(timestep=-1, exp_threshold_distribution=True)))
+                        efficiency_coordinates.append(np.array([G.E_diff(timestep=-1), G.E_routing(timestep=-1)]))
 
                 utility_funcs.consume(selectivity_range_iter, cores_used - 1)  # Advances skew iter cpu count iterations
 
@@ -1315,6 +1406,9 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
         plot_heatmap(np.array(log_degree_dist_var_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'log_degree_var'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='Final Degree Distribution Variance')
         plot_heatmap(np.log(ave_nbr_diffs), title=Path(grid_search_plots_dir, 'log_ave_neighbor_diff'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='log_ave_nbr_diffs')
         plot_heatmap(np.log(ave_nbr_vars), title=Path(grid_search_plots_dir, 'log_ave_neighbor_var'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='log_ave_nbr_var')
+        general_3d_data_plot(data=np.array(hierarchy_coordinates), xlabel="Treeness", ylabel="Feedforwardness", zlabel="Orderability", plot_projections=True, fig_title='Hierarchy Coordinates (Linear Thresholds)', title=Path(grid_search_plots_dir, 'Hierarchy_Coordinates'))
+        general_3d_data_plot(data=np.array(exp_threshold_hierarchy_coordinates), xlabel="Treeness", ylabel="Feedforwardness", zlabel="Orderability", plot_projections=True, fig_title='Hierarchy Coordinates (Exponential Thresholds)', title=Path(grid_search_plots_dir, 'Exp_Thresholds_Hierarchy_Coordinates'))
+        plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency", fig_title="Diffusion vs Routing Efficiency", title=Path(grid_search_plots_dir, 'Efficiency_Scores'))
     print(f"Time lapsed for plotting {num_nodes} nodes, {run_counter} parameter combinations: {utility_funcs.time_lapsed_h_m_s(time.time()-start_time)}")
 
 
@@ -1344,9 +1438,12 @@ def twoD_grid_search_meta_plots(path_to_data_dir, edge_conservation_range, selec
     eff_dist_diffs_flattened = []
     mean_eff_dist_flattened = []
     global_eff_dist_diffs_flattened = []
-    ave_neighbor_diffs_flattened = []
+    # ave_neighbor_diffs_flattened = []
     ave_nbr_var_flattened = []
     degree_dist_var_flattened = []
+    hierarchy_coordinates = []
+    exp_threshold_hierarchy_coordinates = []
+    efficiency_coordinates = []
 
     for __, __, files in os.walk(path_to_data_dir):
         f = sorted(files)  # Order preserved due to 0 padding.
@@ -1359,30 +1456,38 @@ def twoD_grid_search_meta_plots(path_to_data_dir, edge_conservation_range, selec
             last_ave_nbr_deg = list(nx.average_neighbor_degree(G.convert_to_nx_graph(timestep=-1), source='in', target='in', weight='weight').values())
             eff_dist_diffs_flattened.append(G.eff_dist_diff(MPED=False, overall_average=False, source_reward=source_reward, delta=delta))  # Compares first and last eff_dist values
             mean_eff_dist_flattened.append(G.eff_dist_diff(MPED=False, overall_average=True, source_reward=source_reward, delta=delta))  # Averages all eff_dist_history
-            ave_neighbor_diffs_flattened.append((lambda x: np.log(max(x) - min(x)))(last_ave_nbr_deg))
+            # ave_neighbor_diffs_flattened.append((lambda x: np.log(max(x) - min(x)))(last_ave_nbr_deg))
             global_eff_dist_diffs_flattened.append(G.eff_dist_diff(all_to_all_eff_dist=True, MPED=False, source_reward=source_reward, delta=delta))  # Compares first and last eff_dist values
             ave_nbr_var_flattened.append(np.log(np.array(last_ave_nbr_deg).var()))
             degree_dist_var_flattened.append(np.var(G.degree_distribution(timestep=-1)))
+            hierarchy_coordinates.append(np.array(G.average_hierarchy_coordinates(timestep=-1)))
+            exp_threshold_hierarchy_coordinates.append(np.array(G.average_hierarchy_coordinates(timestep=-1, exp_threshold_distribution=True)))
+            efficiency_coordinates.append(np.array([G.E_diff(timestep=-1), G.E_routing(timestep=-1)]))
             if verbose:
                 num_nodes = G.num_nodes
                 run_counter += 1
                 utility_funcs.print_run_percentage(run_counter, len(f))
 
-    ave_nbr_diffs, ave_nbr_vars = np.array(ave_neighbor_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size), np.array(ave_nbr_var_flattened).reshape(edge_conservation_range.size, selectivity_range.size)
-    if np.argmin(ave_nbr_diffs) < 0:  # To avoid errors with taking the log of negative values
-        ave_nbr_diffs += np.abs(np.min(ave_nbr_diffs))
-        min_nbr_diff = np.min([val > 0 for val in ave_nbr_diffs])
-        ave_nbr_diffs = [el if el > 0 else min_nbr_diff for el in ave_nbr_diffs]  # to avoid rounding errors leading to missed-data.
+    # ave_nbr_diffs = np.array(ave_neighbor_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size)
+    ave_nbr_vars = np.array(ave_nbr_var_flattened).reshape(edge_conservation_range.size, selectivity_range.size)
+    # if np.argmin(ave_nbr_diffs) < 0:  # To avoid errors with taking the log of negative values
+    #     ave_nbr_diffs += np.abs(np.min(ave_nbr_diffs))
+    #     min_nbr_diff = np.min([val > 0 for val in ave_nbr_diffs])
+    #     ave_nbr_diffs = [el if el > 0 else min_nbr_diff for el in ave_nbr_diffs]  # to avoid rounding errors leading to missed-data.
     if np.argmin(ave_nbr_vars) < 0:
-        ave_nbr_vars += np.abs(np.min(ave_nbr_diffs))
+        ave_nbr_vars += np.abs(np.min(ave_nbr_vars))
         min_nbr_var = np.min([val > 0 for val in ave_nbr_vars])
         ave_nbr_vars = [el if el > 0 else min_nbr_var for el in ave_nbr_vars]
     plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(meta_grid_search_plots_dir, f'eff_dist_diff_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=True, fig_title='Effective Distance Difference to Source')
     plot_heatmap(np.array(mean_eff_dist_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(meta_grid_search_plots_dir, f'mean_eff_dist_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=True, fig_title='Average Effective Distance to Source')
     plot_heatmap(np.array(global_eff_dist_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(meta_grid_search_plots_dir, f'global_eff_dist_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=True, fig_title='All-to-All Effective Distance Differences')
     plot_heatmap(np.array(degree_dist_var_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(meta_grid_search_plots_dir, f'degree_var_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=True, fig_title='Final Degree Distribution Variance')
-    plot_heatmap(np.log(ave_nbr_diffs), title=Path(meta_grid_search_plots_dir, f'log_ave_neighbor_diff_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='ln_Ave_Nbr_Differences')
-    plot_heatmap(np.log(ave_nbr_vars), title=Path(meta_grid_search_plots_dir, f'log_ave_neighbor_var_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='ln_Ave_Nbr_Varience')
+    # plot_heatmap(np.log(ave_nbr_diffs), title=Path(meta_grid_search_plots_dir, f'log_ave_neighbor_diff_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='ln_Ave_Nbr_Differences')
+    plot_heatmap(np.log(ave_nbr_vars), title=Path(meta_grid_search_plots_dir, f'log_ave_neighbor_var_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='ln_Ave_Nbr_Variance')
+    general_3d_data_plot(data=np.array(hierarchy_coordinates), xlabel="Treeness", ylabel="Feedforwardness", zlabel="Orderability", plot_projections=True, fig_title='Hierarchy Coordinates (Linear Thresholds)', title=Path(meta_grid_search_plots_dir, 'Hierarchy_Coordinates'))
+    general_3d_data_plot(data=np.array(exp_threshold_hierarchy_coordinates), xlabel="Treeness", ylabel="Feedforwardness", zlabel="Orderability", plot_projections=True, fig_title='Hierarchy Coordinates (Exponential Thresholds)', title=Path(meta_grid_search_plots_dir, 'Exp_Thresholds_Hierarchy_Coordinates'))
+    plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency", fig_title="Diffusion vs Routing Efficiency", title=Path(meta_grid_search_plots_dir, 'Efficiency_Scores'))
+
     if verbose: print(f"Time lapsed for {num_nodes} node, {run_counter} parameter combinations: {int((time.time()-start_time) / 60)} minutes, {np.round((time.time()-start_time) % 60, 2)} seconds")
 
 
@@ -1466,5 +1571,5 @@ def plot_hierarchy_evolution(graph, time_between_sampling):
     for timestep in range(0, graph.A.shape[0], time_between_sampling):
         coordinates[-1] = graph.average_hierarchy_coordinates(timestep=timestep)
         coordinates = np.vstack((coordinates, [coordinates[-1]]))
-    print(coordinates)
     general_3d_data_plot(coordinates)
+

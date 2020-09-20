@@ -9,6 +9,8 @@ from scipy.sparse.linalg import inv
 from scipy.sparse import diags, eye, csc_matrix
 import time
 
+import plotter
+
 np.random.seed(42)
 random.seed(42)
 
@@ -750,13 +752,16 @@ class Graph:
         # base_binary_graphs = [nx.to_numpy_array(nx_graphs[val]) for val in range(len(nx_graphs))]  # yes, it's silly to reconvert if this is actually needed.
 
         condensed_graphs = [nx.condensation(nx_graphs[index]) for index in range(len(nx_graphs))]
+        largest_condensed_graphs = []
         for condensed_graph in condensed_graphs:
-            members = nx.get_node_attributes(condensed_graph, 'members')
+            largest_condensed_graphs.append(nx.convert_node_labels_to_integers(max(nx.weakly_connected_component_subgraphs(condensed_graph, copy=True), key=len)))
+            # To take only the largest component of the condensed graph. Required inputting function from older NetworkX docs directly.
+            members = nx.get_node_attributes(largest_condensed_graphs[-1], 'members')
             node_weights = [len(w) for w in members.values()]
             for node_index in range(len(node_weights)):
-                condensed_graph.nodes[node_index]["weight"] = node_weights[node_index]
+                largest_condensed_graphs[-1].nodes[node_index]["weight"] = node_weights[node_index]
 
-        return condensed_graphs, nx_graphs
+        return largest_condensed_graphs, nx_graphs
 
     def average_hierarchy_coordinates(self, timestep=-1, num_thresholds=5, exp_threshold_distribution=False):
         o, f, t = 0, 0, 0
@@ -885,9 +890,8 @@ class Graph:
                 A = self.A
                 eff_dist_history = self.eff_dist_history
             else:
-                A = utility_funcs.element_wise_array_average([A, self.A])
-                eff_dist_history = utility_funcs.element_wise_array_average(
-                    [np.array(eff_dist_history), np.array(self.eff_dist_history)])
+                A = utility_funcs.element_wise_array_average([A, self.A])  # Note this implies that the hierarchy coordinates are taken of the average graph...
+                eff_dist_history = utility_funcs.element_wise_array_average([np.array(eff_dist_history), np.array(self.eff_dist_history)])
             source_node_history.append(self.source_node_history)
             # A = self.A if i == 0 else A = utility_funcs.element_wise_array_average([A, self.A])
             # eff_dist_history = self.eff_dist_history if i == 0 else eff_dist_history = utility_funcs.element_wise_array_average([np.array(eff_dist_history), np.array(self.eff_dist_history)])

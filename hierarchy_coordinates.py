@@ -68,7 +68,8 @@ def orderability(nx_graph, condensed_nx_graph=None):
     if condensed_nx_graph is None:
         condensed_nx_graph = weight_nodes_by_condensation(nx.condensation(nx_graph))
     non_cyclic_nodes = [node[0] for node in nx.get_node_attributes(condensed_nx_graph, 'weight').items() if node[1] == 1]
-    return len(non_cyclic_nodes) / len(nx_graph.nodes())
+    total_acyclic_node_weight = sum([weight for weight in nx.get_node_attributes(condensed_nx_graph, 'weight').values()])
+    return len(non_cyclic_nodes) / total_acyclic_node_weight
 
 
 def feedforwardness_iteration(nx_graph):
@@ -98,19 +99,18 @@ def feedforwardness(directed_acyclic_graph):
     if len(successively_peeled_nx_graphs) == 1 and len(successively_peeled_nx_graphs[0].nodes()) == 1:
         return 0
     #  Prunes the last, pathless, component of the decomposed graph set, as it won't count in feedforwardness
-    if len(successively_peeled_nx_graphs[-1].nodes()) == 0:
+    if len(successively_peeled_nx_graphs[-1].nodes()) == 1:
         nx_graphs = successively_peeled_nx_graphs[:-1]
     else:
         nx_graphs = successively_peeled_nx_graphs
 
     f = 0
-    total_length = 0
+    total_num_paths = 0
     for nx_graph in nx_graphs:
-        g, num_paths = feedforwardness_iteration(nx_graph)
+        g, paths = feedforwardness_iteration(nx_graph)
         f += g
-        total_length += num_paths
-
-    return f / total_length
+        total_num_paths += paths
+    return f / total_num_paths
 
 
 def graph_entropy(directed_acyclic_graphs, forward_entropy=False):
@@ -120,22 +120,22 @@ def graph_entropy(directed_acyclic_graphs, forward_entropy=False):
     :param forward_entropy: Bool: if True, calculates entropy from k_in = 0 nodes to others.
     :return: float, Entropy
     """
-    largest_dag = nx.convert_node_labels_to_integers(directed_acyclic_graphs[0])
-    B = utility_funcs.matrix_normalize(nx.to_numpy_array(largest_dag), row_normalize=False)
+    initial_dag = nx.convert_node_labels_to_integers(directed_acyclic_graphs[0])
+    B = utility_funcs.matrix_normalize(nx.to_numpy_array(initial_dag), row_normalize=False)
     if not forward_entropy:
         P = sum([np.power(B.T, k) for k in range(len(directed_acyclic_graphs[0]))])
     else:
         P = sum([np.power(B, k) for k in range(len(directed_acyclic_graphs[0]))])
 
-    boundary_layer = max_min_layers(largest_dag, max_layer=forward_entropy)
-    non_maximal_nodes = set(largest_dag.nodes() - max_min_layers(largest_dag, max_layer=not forward_entropy))
+    boundary_layer = max_min_layers(initial_dag, max_layer=forward_entropy)
+    non_maximal_nodes = set(initial_dag.nodes() - max_min_layers(initial_dag, max_layer=not forward_entropy))
     entropy = 0
     for layer_node in boundary_layer:
         for non_maximal_node in non_maximal_nodes:
             if forward_entropy:
-                entropy += P[non_maximal_node][layer_node] * np.log(largest_dag.out_degree(non_maximal_node))
+                entropy += P[non_maximal_node][layer_node] * np.log(initial_dag.out_degree(non_maximal_node))
             else:
-                entropy += P[non_maximal_node][layer_node] * np.log(largest_dag.in_degree(non_maximal_node))
+                entropy += P[non_maximal_node][layer_node] * np.log(initial_dag.in_degree(non_maximal_node))
     entropy /= len(boundary_layer)
     return entropy
 

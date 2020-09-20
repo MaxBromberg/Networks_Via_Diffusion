@@ -1,5 +1,5 @@
 import numpy as np
-import original_effective_distance as ed
+import effective_distance as ed
 from pathlib import Path
 import pandas as pd
 

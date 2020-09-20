@@ -43,6 +43,23 @@ search_wide_dic = {
     'source_reward': sys.argv[24],
     'undirectify_init': sys.argv[25]
 }
+# Plots Needn't be passed to simulate.py
+plots = {
+    'network_graphs': sys.argv[26],  # graphs the networks
+    'node_plots': sys.argv[27],  # plots Evolution of node values over time
+    'ave_nbr': sys.argv[28],  # Plots average neighbor connections over time
+    'cluster_coeff': sys.argv[29],  # Plots evolution of cluster coefficient
+    'eff_dist': sys.argv[30],  # Plots evolution of average effective distance to source
+    'global_eff_dist': sys.argv[31],  # Plots evolution of average effective distance from every node to every other
+    'shortest_path': sys.argv[32],  # PLots the average shortest path over time. Very computationally expensive
+    'degree_dist': sys.argv[33],  # Yields the degree (total weight) distribution as a histogram
+    'edge_dist': sys.argv[34],  # PLots the edge distribution (individual edge counts) as a histogram
+    'meta_plots': sys.argv[35],  # Plots all the meta-plots, specifically: last_ave_nbr_deg, ed diffs, mean ed, ave_neighbor diffs,
+    # global ed diffs, ave_nbr variance, log_deg_dist variance, hierarchy coordinates (with exponential and linear thresholds) and efficiency coordinates
+}
+print('Plots in grid Search')
+utility_funcs.print_inventory(plots)
+
 
 try:
     super_data_dir = data_directory[:-len(data_directory.split('/')[-1])] if data_directory[-1] != '/' else data_directory[:-(len(data_directory.split('/')[-2]) + 1)]
@@ -117,7 +134,16 @@ if __name__ == '__main__':
 
     print(f"Time lapsed for {num_nodes} nodes, {edge_conservation_range.size * selectivity_range.size} parameter combinations: {utility_funcs.time_lapsed_h_m_s(time.time()-start_time)}")
 plotter.twoD_grid_search_plots(subdata_directory, edge_conservation_range=edge_conservation_range, selectivity_range=selectivity_range,
-                               num_nodes=num_nodes, network_graphs=True, node_plots=False, ave_nbr=False, cluster_coeff=False,
-                               eff_dist=True, global_eff_dist=True, shortest_path=False, degree_dist=True, edge_dist=True,
+                               num_nodes=num_nodes,
+                               network_graphs=plots['network_graphs'],
+                               node_plots=plots['node_plots'],
+                               ave_nbr=plots['ave_nbr'],
+                               cluster_coeff=plots['cluster_coeff'],
+                               eff_dist=plots['eff_dist'],
+                               global_eff_dist=plots['global_eff_dist'],
+                               shortest_path=plots['shortest_path'],
+                               degree_dist=plots['degree_dist'],
+                               edge_dist=plots['edge_dist'],
+                               meta_plots=plots['meta_plots'],
                                output_dir=Path(data_directory, 'Plots'))
 shutil.rmtree(subdata_directory)
