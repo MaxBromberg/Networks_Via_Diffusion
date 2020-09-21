@@ -30,11 +30,12 @@ G.sparse_random_edge_init(3, connected=True)
 # data = np.random.rand(10, 3)
 # plotter.general_3d_data_plot(data, plot_projections=True, projections=False, show=True, title='/home/maqz/Desktop/test')
 def f(a):
-    print(a)
+    if a:
+        print('True!')
 
-    
+
 p = mp.Pool(mp.cpu_count())
-results = p.map(f, ['printed!'])
+results = p.map(f, [bool(1), bool(0)])
 p.close()
 p.join()
 

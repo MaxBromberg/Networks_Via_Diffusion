@@ -8,6 +8,7 @@ import sys
 sys.path.append('../')
 import plotter
 import utility_funcs
+import graph
 
 data_directory = str(sys.argv[1])
 run_index, num_nodes = [int(arg) for arg in sys.argv[2:4]]  # eliminates name of file as initial input string
@@ -86,6 +87,96 @@ def process_wrapper(param_dic):
     os.system('python3 simulate.py {output_directory} {run_index} {num_nodes} {edge_conservation_val} {selectivity_val} {reinforcement_info_score_coupling} {positive_eff_dist_and_reinforcement_correlation} {eff_dist_is_towards_source} {nodes_adapt_outgoing_edges} {incoming_edges_conserved} {undirected} {edge_init} {ensemble_size} {num_runs} {delta} {equilibrium_distance} {constant_source_node} {num_shifts_of_source_node} {seeding_sigma_coeff} {seeding_power_law_exponent} {beta} {multiple_path} {update_interval} {source_reward} {undirectify_init}'.format(**param_dic))
 
 
+def simulate(param_list):
+    output_path = str(param_list[0])
+    run_index = int(param_list[1])
+    num_nodes = int(param_list[2])
+    edge_conservation_val = float(param_list[3])
+    selectivity_val = float(param_list[4])
+    r_i_s_c = bool(int(param_list[5]))
+    p_ed_and_r_c = bool(int(param_list[6]))
+    ed_to_s = bool(int(param_list[7]))
+    n_a_o_e = bool(int(param_list[8]))
+    i_e_c = bool(int(param_list[9]))
+    undirected_run = bool(int(param_list[10]))
+    if str(param_list[11]).__contains__('.'):
+        edge_init = float(param_list[11])
+    elif str(param_list[11]) == "None" or str(param_list[11]) == "False":
+        edge_init = None
+    else:
+        edge_init = int(param_list[11])  # I don't see how to possibly pass a np.array through shell script, so that option's out
+    ensemble_size = int(param_list[12])
+    num_runs = int(param_list[13])
+    delta = float(param_list[14])
+    equilibrium_distance = int(param_list[15])
+    constant_source_node = int(param_list[16])
+    num_shifts_of_source_node = int(param_list[17])
+    seeding_sigma_coeff = float(param_list[18])
+    seeding_power_law_exponent = float(param_list[19])
+    beta = float(param_list[20])
+    multiple_path = bool(int(param_list[21]))
+    update_interval = int(param_list[22])
+    source_reward = float(param_list[23])
+    undirectify_init = bool(param_list[24])
+
+    graph_start_time = time.time()
+    G = graph.Graph(num_nodes=num_nodes, edge_conservation_coefficient=edge_conservation_val, selectivity=selectivity_val,
+                    reinforcement_info_score_coupling=r_i_s_c, positive_eff_dist_and_reinforcement_correlation=p_ed_and_r_c,
+                    eff_dist_is_towards_source=ed_to_s, nodes_adapt_outgoing_edges=n_a_o_e, incoming_edges_conserved=i_e_c,
+                    undirected=undirected_run)
+
+    if not ensemble_size:
+        G.edge_initialization_conditional(edge_init=edge_init, undirectify=undirectify_init)
+        G.simulate(num_runs=num_runs, eff_dist_delta_param=delta, constant_source_node=constant_source_node,
+                   num_shifts_of_source_node=num_shifts_of_source_node, seeding_sigma_coeff=seeding_sigma_coeff,
+                   seeding_power_law_exponent=seeding_power_law_exponent, beta=beta, multiple_path=multiple_path,
+                   equilibrium_distance=equilibrium_distance, update_interval=update_interval, source_reward=source_reward)
+    else:
+        G.simulate_ensemble(num_simulations=ensemble_size, num_runs_per_sim=num_runs, eff_dist_delta_param=delta, edge_init=edge_init,
+                            constant_source_node=constant_source_node, num_shifts_of_source_node=num_shifts_of_source_node,
+                            equilibrium_distance=equilibrium_distance, seeding_sigma_coeff=seeding_sigma_coeff,
+                            seeding_power_law_exponent=seeding_power_law_exponent, beta=beta, multiple_path=multiple_path,
+                            update_interval=update_interval, source_reward=source_reward, undirectify=undirectify_init, verbose=False)
+    plotter.save_object(G, Path(output_path, f'{run_index:04}_graph_obj.pkl'))
+    print(f'Run {run_index}, [edge conservation: {edge_conservation_val}, selectivity: {selectivity_val}] complete. {G.get_num_errors()} errors, ({utility_funcs.time_lapsed_h_m_s(time.time()-graph_start_time)})')
+
+
+if __name__ == '__main__':
+    start_time = time.time()
+    pool = mp.Pool(num_cores_used)
+    args = []
+    for coupling_val in edge_conservation_range:
+        for selectivity_val in selectivity_range:
+            parameter_dictionary = {
+                'output_directory': subdata_directory,
+                'run_index': run_index,
+                'num_nodes': num_nodes,
+                'edge_conservation_val': np.round(coupling_val, 2),
+                'selectivity_val': np.round(selectivity_val, 2),
+            }
+            run_index += 1
+            parameter_dictionary.update(search_wide_dic)
+            args.append(list(parameter_dictionary.values()))
+    p = pool.map(simulate, args)
+    pool.close()
+    pool.join()
+    print(f"Time lapsed for {num_nodes} nodes, {edge_conservation_range.size * selectivity_range.size} parameter combinations: {utility_funcs.time_lapsed_h_m_s(time.time()-start_time)}")
+plotter.twoD_grid_search_plots(subdata_directory, edge_conservation_range=edge_conservation_range, selectivity_range=selectivity_range,
+                               num_nodes=num_nodes,
+                               network_graphs=bool(plots['network_graphs']),
+                               node_plots=bool(plots['node_plots']),
+                               ave_nbr=bool(plots['ave_nbr']),
+                               cluster_coeff=bool(plots['cluster_coeff']),
+                               eff_dist=bool(plots['eff_dist']),
+                               global_eff_dist=bool(plots['global_eff_dist']),
+                               shortest_path=bool(plots['shortest_path']),
+                               degree_dist=bool(plots['degree_dist']),
+                               edge_dist=bool(plots['edge_dist']),
+                               meta_plots=bool(plots['meta_plots']),
+                               output_dir=Path(data_directory, 'Plots'))
+shutil.rmtree(subdata_directory)
+
+"""
 if __name__ == '__main__':
     start_time = time.time()
     for coupling_val in edge_conservation_range:
@@ -133,17 +224,5 @@ if __name__ == '__main__':
                 process.join()  # join's created processes to run simultaneously.
 
     print(f"Time lapsed for {num_nodes} nodes, {edge_conservation_range.size * selectivity_range.size} parameter combinations: {utility_funcs.time_lapsed_h_m_s(time.time()-start_time)}")
-plotter.twoD_grid_search_plots(subdata_directory, edge_conservation_range=edge_conservation_range, selectivity_range=selectivity_range,
-                               num_nodes=num_nodes,
-                               network_graphs=plots['network_graphs'],
-                               node_plots=plots['node_plots'],
-                               ave_nbr=plots['ave_nbr'],
-                               cluster_coeff=plots['cluster_coeff'],
-                               eff_dist=plots['eff_dist'],
-                               global_eff_dist=plots['global_eff_dist'],
-                               shortest_path=plots['shortest_path'],
-                               degree_dist=plots['degree_dist'],
-                               edge_dist=plots['edge_dist'],
-                               meta_plots=plots['meta_plots'],
-                               output_dir=Path(data_directory, 'Plots'))
-shutil.rmtree(subdata_directory)
+
+"""
