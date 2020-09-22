@@ -1,19 +1,16 @@
 import os
-import sys
 import time
 import shutil
 import numpy as np
 from pathlib import Path
 import multiprocessing as mp
 import pprint
-
-sys.path.append('../')
 import graph
 import plotter
 import utility_funcs as uf
 
 """
-Central program to order sequential grid-searches based on total parameter dictionaries
+Central program to order sequential grid-searches based on comprehensive parameter dictionaries
 """
 
 
@@ -137,16 +134,16 @@ def grid_search(param_dic, num_cores_used=mp.cpu_count(), remove_data_post_plott
 
     plotter.twoD_grid_search_plots(subdata_directory, edge_conservation_range=edge_conservation_range, selectivity_range=selectivity_range,
                                    num_nodes=num_nodes,
-                                   network_graphs=bool(plots['network_graphs']),
-                                   node_plots=bool(plots['node_plots']),
-                                   ave_nbr=bool(plots['ave_nbr']),
-                                   cluster_coeff=bool(plots['cluster_coeff']),
-                                   eff_dist=bool(plots['eff_dist']),
-                                   global_eff_dist=bool(plots['global_eff_dist']),
-                                   shortest_path=bool(plots['shortest_path']),
-                                   degree_dist=bool(plots['degree_dist']),
-                                   edge_dist=bool(plots['edge_dist']),
-                                   meta_plots=bool(plots['meta_plots']),
+                                   network_graphs=bool(param_dic['network_graphs']),
+                                   node_plots=bool(param_dic['node_plots']),
+                                   ave_nbr=bool(param_dic['ave_nbr']),
+                                   cluster_coeff=bool(param_dic['cluster_coeff']),
+                                   eff_dist=bool(param_dic['eff_dist']),
+                                   global_eff_dist=bool(param_dic['global_eff_dist']),
+                                   shortest_path=bool(param_dic['shortest_path']),
+                                   degree_dist=bool(param_dic['degree_dist']),
+                                   edge_dist=bool(param_dic['edge_dist']),
+                                   meta_plots=bool(param_dic['meta_plots']),
                                    output_dir=Path(data_directory, 'Plots'))
     if remove_data_post_plotting:
         shutil.rmtree(subdata_directory)
@@ -157,6 +154,7 @@ def run_grid_search(param_dic, via_pool=True):
         grid_search(param_dic)
     else:
         os.system('python grid_search.py {data_directory} {run_index} {num_nodes} {edge_conservation_range} {selectivity_range} {reinforcement_info_score_coupling} {positive_eff_dist_and_reinforcement_correlation} {eff_dist_is_towards_source} {nodes_adapt_outgoing_edges} {incoming_edges_conserved} {undirected} {edge_init} {ensemble_size} {num_runs} {delta} {equilibrium_distance} {constant_source_node} {num_shifts_of_source_node} {seeding_sigma_coeff} {seeding_power_law_exponent} {beta} {multiple_path} {update_interval} {source_reward} {undirectify_init} {network_graphs} {node_plots} {ave_nbr} {cluster_coeff} {eff_dist} {global_eff_dist} {shortest_path} {degree_dist} {edge_dist} {meta_plots}'.format(**param_dic))
+
     print(f'Simulation with the following parameters complete:')
     pprint.pprint(param_dic)
 
@@ -226,10 +224,8 @@ default_dic = {**parameter_dictionary, **search_wide_dic, **edge_init, **ensembl
 default_sparse_init = {**default_dic, 'edge_init': 1.2, 'num_nodes': 60, 'constant_source_node': 4, 'edge_conservation_range': '0.4_1.05_0.1'}
 directory = '/home/maqz/Desktop/data/Mechanic_Mods/sparse_edge_init_1.2'
 start_time = time.time()
+print(f"Grid Search Control: Starting at {time.ctime()}")
 run_over_all_directionality_combos(mods=default_sparse_init, data_directory=directory, via_pool=True)
 
 print(f'Total Time Elapsed: {uf.time_lapsed_h_m_s(time.time()-start_time)}')
 
-# undirected_sparse_run_data_directory = '/home/maqz/Desktop/data/Mechanic_Mods/undirected_run_sparse_1.2'
-# undirected_sparse_init = {**default_sparse_init, 'undirectify_init': 1}
-# undirected_sparse_run = {**undirected_sparse_init, 'undirected': 1}

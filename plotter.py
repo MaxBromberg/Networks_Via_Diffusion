@@ -41,7 +41,7 @@ def plot_ave_node_values(graph, individually=False, show=True, save_fig=False, t
         plt.close(fig)
 
 
-def plot_eff_dist(graph, all_to_all=False, difference=False, fit=False, normalized=True, show=True, save_fig=False, title=None,
+def plot_eff_dist(graph, all_to_all=False, difference=False, fit=False, normalized=True, show=False, save_fig=False, title=None,
                   source_reward=2.6, delta=1, MPED=False):
     """
     :param all_to_all: Determines if the effective distance graphed through time disregards the source, and averages for an all to all effective distance.
@@ -101,7 +101,7 @@ def plot_eff_dist(graph, all_to_all=False, difference=False, fit=False, normaliz
         plt.close(fig)
 
 
-def plot_node_values(graph, node='all', show=True, save_fig=False, title=None):
+def plot_node_values(graph, node='all', show=False, save_fig=False, title=None):
     """
     Plots node values over the course of the graph's run history.
     :param node: set to 'all' to graph all node values simultanouesly, else select intended node index (< num_nodes)
@@ -127,7 +127,7 @@ def plot_node_values(graph, node='all', show=True, save_fig=False, title=None):
         plt.show()
 
 
-def plot_node_edges(graph, node, show=True, save_fig=False, title=None):
+def plot_node_edges(graph, node, show=False, save_fig=False, title=None):
     """
     Graphs node's edges values.
     :param node: node index whose edges are to be graphed over time.
@@ -147,7 +147,7 @@ def plot_node_edges(graph, node, show=True, save_fig=False, title=None):
         plt.close(fig)
 
 
-def plot_edge_sum(graph, node=None, standard_deviation=False, incoming_edges=False, show=True, save_fig=False, title=None):
+def plot_edge_sum(graph, node=None, standard_deviation=False, incoming_edges=False, show=False, save_fig=False, title=None):
     """
     :param node: index of node to be examined. If None (as default) then edge sums/edge stds, all nodes are plotted.
     :param standard_deviation: determines if graphing standard deviations rather than sums
@@ -213,7 +213,7 @@ def plot_edge_sum(graph, node=None, standard_deviation=False, incoming_edges=Fal
         plt.close(fig)
 
 
-def plot_degree_distribution_var_over_time(graph, show=True, save_fig=False, title=False):
+def plot_degree_distribution_var_over_time(graph, show=False, save_fig=False, title=False):
     """
     Plots variance of the degree distribution over time.
     """
@@ -233,7 +233,7 @@ def plot_degree_distribution_var_over_time(graph, show=True, save_fig=False, tit
 
 
 #  NetworkX Observables: ---------------------------------------------------------------------------------------------
-def plot_clustering_coefficients(nx_graphs, source=False, average_clustering=False, show=True, save_fig=False, title=None):
+def plot_clustering_coefficients(nx_graphs, source=False, average_clustering=False, show=False, save_fig=False, title=None):
     """
     Plots clustering Coefficients. Requires a series of pre-converted graphs as NetworkX graphs
     :param source: if not None, computes ave_clustering for the single (presumably source) node
@@ -272,7 +272,7 @@ def plot_clustering_coefficients(nx_graphs, source=False, average_clustering=Fal
         plt.show()
 
 
-def plot_ave_neighbor_degree(nx_graphs, source='in', target='in', node=False, show=True, save_fig=False, title=None):
+def plot_ave_neighbor_degree(nx_graphs, source='in', target='in', node=False, show=False, save_fig=False, title=None):
     """
     Plots average Neighbor degree. Requires a series of pre-converted graphs as NetworkX graphs
     :param source: if not None, computes ave_neighborhood degree for the single (presumably source) node
@@ -301,7 +301,7 @@ def plot_ave_neighbor_degree(nx_graphs, source='in', target='in', node=False, sh
         plt.show()
 
 
-def plot_shortest_path_length(nx_graphs, show=True, save_fig=False, title=None):
+def plot_shortest_path_length(nx_graphs, show=False, save_fig=False, title=None):
     """
     Requires fully connected graph (no islands) though could be modified to allow for analysis of disprate components
     Plots AVERAGE shortest path lengths. Requires a series of pre-converted graphs as NetworkX graphs
@@ -325,7 +325,7 @@ def plot_shortest_path_length(nx_graphs, show=True, save_fig=False, title=None):
 
 
 #  Heatmaps: ---------------------------------------------------------------------------------------------------------
-def plot_adjacency_matrix_as_heatmap(graph, timestep=-1, show=True, save_fig=False, title=None):
+def plot_adjacency_matrix_as_heatmap(graph, timestep=-1, show=False, save_fig=False, title=None):
     """
     Returns adjacency matrix at timestep plotted as a heat map. Default timestep is the latest value.
     """
@@ -346,7 +346,7 @@ def plot_adjacency_matrix_as_heatmap(graph, timestep=-1, show=True, save_fig=Fal
         plt.close(fig)
 
 
-def plot_all_to_all_eff_dists_as_heatmap(graph, timestep=-1, source_reward=2.6, parameter=12, MPED=False, normalize=True, log_norm=False, show=True, save_fig=False, title=None):
+def plot_all_to_all_eff_dists_as_heatmap(graph, timestep=-1, source_reward=2.6, parameter=12, MPED=False, normalize=True, log_norm=False, show=False, save_fig=False, title=None):
     """
     Returns all to all effective distances at timestep plotted as a heat map. Default timestep is the latest value.
     """
@@ -414,7 +414,7 @@ def plot_heatmap(TwoD_data, x_range=None, y_range=None, normalize=False, tick_sc
 
 
 #  Histograms: -------------------------------------------------------------------------------------------------------
-def plot_weight_histogram(graph, num_bins=False, timestep=-1, show=True, save_fig=False, title=None):
+def plot_weight_histogram(graph, num_bins=False, timestep=-1, show=False, save_fig=False, title=None):
     """
     Plots histogram for edge weight distribution (edge weight distribution is considered for the entire graph, disconnected from nodes)
     :param num_bins: explicitly set the number of bins (bars) for the histogram to use.
@@ -436,7 +436,7 @@ def plot_weight_histogram(graph, num_bins=False, timestep=-1, show=True, save_fi
         plt.show()
 
 
-def plot_histogram(data, num_bins=False, show=True):
+def plot_histogram(data, num_bins=False, show=False):
     """
     General histogram plotter shortcut; simply input flattened data as data.
     :param data: flattened data to be graphed as a histogram.
@@ -451,7 +451,7 @@ def plot_histogram(data, num_bins=False, show=True):
         plt.show()
 
 
-def plot_degree_histogram(graph, num_bins=False, timestep=-1, show=True, save_fig=False, title=False):
+def plot_degree_histogram(graph, num_bins=False, timestep=-1, show=False, save_fig=False, title=False):
     """
     Plots degree distribution (of entire graph) as a histogram.
     :param num_bins: explicit number of bins for histogram, (default sets them automatically)
@@ -478,7 +478,7 @@ def plot_degree_histogram(graph, num_bins=False, timestep=-1, show=True, save_fi
         plt.show()
 
 
-def plot_edge_histogram(graph, num_bins=False, timestep=-1, show=True, save_fig=False, title=False):
+def plot_edge_histogram(graph, num_bins=False, timestep=-1, show=False, save_fig=False, title=False):
     """
     Plots degree distribution (of entire graph) as a histogram.
     :param num_bins: explicit number of bins for histogram, (default sets them automatically)
@@ -503,7 +503,7 @@ def plot_edge_histogram(graph, num_bins=False, timestep=-1, show=True, save_fig=
         plt.show()
 
 
-def plot_source_distribution(graph, num_bins=False, timestep=-1, show=True, save_fig=False, title=False):
+def plot_source_distribution(graph, num_bins=False, timestep=-1, show=False, save_fig=False, title=False):
     """
     Plots source distribution over the course of the graphs history as a histogram
     :param num_bins: Explicitly set the number of desired histogram bins. Default automatically sets for data
@@ -532,7 +532,7 @@ def plot_source_distribution(graph, num_bins=False, timestep=-1, show=True, save
         plt.show()
 
 
-def plot_effective_distance_histogram(eff_dists, num_bins=False, timestep=-1, show=True, save_fig=False):
+def plot_effective_distance_histogram(eff_dists, num_bins=False, timestep=-1, show=False, save_fig=False):
     """
     TODO: consider deletion
     """
@@ -553,7 +553,7 @@ def plot_effective_distance_histogram(eff_dists, num_bins=False, timestep=-1, sh
 
 
 #  Network Illustrations: --------------------------------------------------------------------------------------------
-def plot_nx_network(nx_graph, node_size_scaling=100, show=True, save_fig=False, title=None):
+def plot_nx_network(nx_graph, node_size_scaling=100, show=False, save_fig=False, title=None):
     fig = plt.figure(figsize=(10, 10))
     pos = nx.spring_layout(nx_graph, k=0.5, scale=0.5, weight='weight', seed=42)
     labels = nx.draw_networkx_labels(nx_graph, pos=pos, font_color='blue', font_size=20)  # For use in debugging
@@ -576,7 +576,7 @@ def plot_nx_network(nx_graph, node_size_scaling=100, show=True, save_fig=False, 
     plt.close(fig)
 
 
-def plot_single_network(graph, timestep, directed=True, node_size_scaling=None, source_weighting=False, position=None, show=True, save_fig=False, title=None):
+def plot_single_network(graph, timestep, directed=True, node_size_scaling=None, source_weighting=False, position=None, show=False, save_fig=False, title=None):
     """
     :param timestep: Point at which the network's structure is to be graphed.
     :param directed: As the Graph class considers only directed networks, this delta is not be to shifted unless considering undirected graphs.
@@ -598,11 +598,12 @@ def plot_single_network(graph, timestep, directed=True, node_size_scaling=None, 
     if node_size_scaling is None:
         node_size_scaling = 2*graph.nodes.shape[0]  # So that nodes are sized proportional to the number of times they *could've* been the source
 
-    labels = nx.draw_networkx_labels(nx_G, pos=pos, font_color='blue', font_size=20)  # For use in debugging
+    # labels = nx.draw_networkx_labels(nx_G, pos=pos, font_color='blue', font_size=20)  # For use in debugging
+    labels = None
 
     # pos = nx.drawing.layout.spring_layout(nx_G, k=0.5, pos=pos, weight='weight', fixed=list(nx_G.nodes))
     weights = [np.round((nx_G[u][v]['weight'] * 2.5), 10) for u, v in nx_G.edges()]
-    nx.draw_networkx_edges(nx_G, pos, nodelist=['0'], alpha=0.8, width=weights, arrowsize=4, edge_color=None,
+    nx.draw_networkx_edges(nx_G, pos, nodelist=['0'], alpha=0.8, width=weights, arrowsize=4, edge_color='k',
                            connectionstyle='arc3, rad=0.2', edge_cmap='winter')
     node_colors = ['grey' for _ in nx_G]
     node_colors[graph.source_node_history[timestep - 1]] = 'red'
@@ -645,7 +646,7 @@ def plot_single_network(graph, timestep, directed=True, node_size_scaling=None, 
 
 
 def plot_network(graph, directed=True, node_size_scaling=200, nodes_sized_by_eff_distance=False,
-                 show=True, save_fig=False, title=None):
+                 show=False, save_fig=False, title=None):
     """
     Plots the graph at four equispaced points spanning the entire time to denote network evolution through time in a single figure.
     :param directed: As the Graph class considers only directed networks, this delta is not be to shifted unless considering undirected graphs.
@@ -1014,10 +1015,9 @@ def general_3d_data_plot(data, xlabel=None, ylabel=None, zlabel=None, plot_proje
             ax.set_title(f'{fig_title}')
         if title:
             plt.savefig(f'{title}.png')
+            plt.close()
         if show:
             plt.show()
-        if show and title:
-            plt.close()
     else:
         ax = fig.add_subplot(111, projection='3d')
         # color = np.array([1 / val for val in np.arange(1+int((data.shape[0]+1) / 3), data.shape[0]+1)]) * 100
@@ -1038,7 +1038,7 @@ def general_3d_data_plot(data, xlabel=None, ylabel=None, zlabel=None, plot_proje
             plt.close()
 
 
-def plot_3d_data(three_d_data, x_range=None, y_range=None, z_range=None, show=True, raw_fig_title=None):
+def plot_3d_data(three_d_data, x_range=None, y_range=None, z_range=None, show=False, raw_fig_title=None):
     """
     Plots 3d data (np.dim=3)
     :param three_d_data: 3 dimensional data to be plotted.
@@ -1508,22 +1508,22 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
                         nx_graphs = G.convert_history_to_list_of_nx_graphs()
                     if ave_nbr:
                         p_4 = mp.Process(target=plot_ave_neighbor_degree, args=(nx_graphs, 'in', 'in', False, False, False,
-                                                                                Path(neighbor_path,
-                                                                                     f'{run_counter:03}_neighbor_plot_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
+                                                                          Path(neighbor_path,
+                                                                               f'{run_counter:03}_neighbor_plot_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
                         p_4.start()
                         processes.append(p_4)
                         used_cores += 1
                     if cluster_coeff:
                         p_5 = mp.Process(target=plot_clustering_coefficients, args=(nx_graphs, False, False, False, False,
-                                                                                    Path(cluster_coeff_path,
-                                                                                         f'{run_counter:03}_cluster_coeffs_plot_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
+                                                                              Path(cluster_coeff_path,
+                                                                                   f'{run_counter:03}_cluster_coeffs_plot_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
                         p_5.start()
                         processes.append(p_5)
                         used_cores += 1
                     if shortest_path:
                         p_6 = mp.Process(target=plot_shortest_path_length, args=(nx_graphs, False, False,
-                                                                                 Path(shortest_paths_path,
-                                                                                      f'{run_counter:03}_shortest_path_plot_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
+                                                                           Path(shortest_paths_path,
+                                                                                f'{run_counter:03}_shortest_path_plot_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
                         p_6.start()
                         processes.append(p_6)
                         used_cores += 1
@@ -1575,15 +1575,23 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
             ave_nbr_vars += np.abs(np.min(ave_nbr_diffs))
             min_nbr_var = np.min([val > 0 for val in ave_nbr_vars])
             ave_nbr_vars = [el if el > 0 else min_nbr_var for el in ave_nbr_vars]
+        general_3d_data_plot(data=np.array(hierarchy_coordinates), xlabel="Treeness", ylabel="Feedforwardness",
+                             zlabel="Orderability", plot_projections=True,
+                             fig_title='Hierarchy Coordinates (Linear Thresholds)',
+                             title=Path(grid_search_plots_dir, 'Hierarchy_Coordinates_[Linear_Thresholds]'))
+        general_3d_data_plot(data=np.array(exp_threshold_hierarchy_coordinates), xlabel="Treeness",
+                             ylabel="Feedforwardness", zlabel="Orderability", plot_projections=True,
+                             fig_title='Hierarchy Coordinates (Exponential Thresholds)',
+                             title=Path(grid_search_plots_dir, 'Hierarchy_Coordinates_[Exponential_Thresholds]'))
+        plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency",
+                     fig_title="Diffusion vs Routing Efficiency",
+                     title=Path(grid_search_plots_dir, 'Efficiency_Scores'))
         plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'eff_dist_diffs'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='Effective Distance Differences to Source')
         plot_heatmap(np.array(mean_eff_dist_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'mean_eff_dist'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='Ave Effective Distance to Source')
         plot_heatmap(np.array(global_eff_dist_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'global_eff_dist'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='All-to-All Effective Distance Differences')
         plot_heatmap(np.array(log_degree_dist_var_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'log_degree_var'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='Final Degree Distribution Variance')
         plot_heatmap(np.log(ave_nbr_diffs), title=Path(grid_search_plots_dir, 'log_ave_neighbor_diff'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='log_ave_nbr_diffs')
         plot_heatmap(np.log(ave_nbr_vars), title=Path(grid_search_plots_dir, 'log_ave_neighbor_var'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='log_ave_nbr_var')
-        general_3d_data_plot(data=np.array(hierarchy_coordinates), xlabel="Treeness", ylabel="Feedforwardness", zlabel="Orderability", plot_projections=True, fig_title='Hierarchy Coordinates (Linear Thresholds)', title=Path(grid_search_plots_dir, 'Hierarchy_Coordinates'))
-        general_3d_data_plot(data=np.array(exp_threshold_hierarchy_coordinates), xlabel="Treeness", ylabel="Feedforwardness", zlabel="Orderability", plot_projections=True, fig_title='Hierarchy Coordinates (Exponential Thresholds)', title=Path(grid_search_plots_dir, 'Exp_Thresholds_Hierarchy_Coordinates'))
-        plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency", fig_title="Diffusion vs Routing Efficiency", title=Path(grid_search_plots_dir, 'Efficiency_Scores'))
     print(f"Time lapsed for plotting {num_nodes} nodes, {run_counter} parameter combinations: {utility_funcs.time_lapsed_h_m_s(time.time()-start_time)}")
 
 
