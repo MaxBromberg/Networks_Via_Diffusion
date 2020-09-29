@@ -1,8 +1,9 @@
 import os
+import sys
 import time
 import shutil
 import numpy as np
-from pathlib import Path
+from pathlib import Path, PurePath
 import multiprocessing as mp
 import pprint
 import graph
@@ -19,16 +20,35 @@ def directionality_dic(data_directory):
     node_adapt_outgoing_edges = {'nodes_adapt_outgoing_edges': 1}
     outgoing_edges_conserved = {'incoming_edges_conserved': 0}
     directionality = {
-        'base_case': {'data_directory': Path(data_directory, "base_case")},
-        'reversed_source_edge_conservation': {**eff_dist_to_source, **node_adapt_outgoing_edges, **outgoing_edges_conserved, 'data_directory': Path(data_directory, "switched_ED_Adaptation_Conservation")},
-        'reversed_edge_conservation': {**node_adapt_outgoing_edges, **outgoing_edges_conserved, 'data_directory': Path(data_directory, "switched_Adaptation_Conservation")},
-        'reversed_source_conservation': {**eff_dist_to_source, **outgoing_edges_conserved, 'data_directory': Path(data_directory, "switched_ED_Conservation")},
-        'reversed_source_edge': {**eff_dist_to_source, **node_adapt_outgoing_edges, 'data_directory': Path(data_directory, "switched_ED_Adaptation")},
-        'reversed_source': {**eff_dist_to_source, 'data_directory': Path(data_directory, "switched_ED")},
-        'reversed_edge': {**node_adapt_outgoing_edges, 'data_directory': Path(data_directory, "switched_Adaptation")},
-        'reversed_conservation': {**outgoing_edges_conserved, 'data_directory': Path(data_directory, "switched_Conservation")}
+        'base_case': {'data_directory': Path(data_directory, "base_case/")},
+        'reversed_source_edge_conservation': {**eff_dist_to_source, **node_adapt_outgoing_edges, **outgoing_edges_conserved, 'data_directory': Path(data_directory, "switched_ED_Adaptation_Conservation/")},
+        'reversed_edge_conservation': {**node_adapt_outgoing_edges, **outgoing_edges_conserved, 'data_directory': Path(data_directory, "switched_Adaptation_Conservation/")},
+        'reversed_source_conservation': {**eff_dist_to_source, **outgoing_edges_conserved, 'data_directory': Path(data_directory, "switched_ED_Conservation/")},
+        'reversed_source_edge': {**eff_dist_to_source, **node_adapt_outgoing_edges, 'data_directory': Path(data_directory, "switched_ED_Adaptation/")},
+        'reversed_source': {**eff_dist_to_source, 'data_directory': Path(data_directory, "switched_ED/")},
+        'reversed_edge': {**node_adapt_outgoing_edges, 'data_directory': Path(data_directory, "switched_Adaptation/")},
+        'reversed_conservation': {**outgoing_edges_conserved, 'data_directory': Path(data_directory, "switched_Conservation/")}
     }
     return directionality
+
+
+def initializations_dic(data_directory):
+    inits = {
+        'scale_free': {'edge_init': 1.2, 'data_directory': Path(data_directory, 'scale_free_deg_exp_1.2_edges/')},
+        'uniform_random': {'edge_init': None, 'data_directory': Path(data_directory, 'uniform_random_edges/')},
+        'sparse': {'edge_init': 3, 'data_directory': Path(data_directory, 'sparse_3_edges/')}
+    }
+    return inits
+
+
+def seeding_dic(data_directory):
+    seed_dic = {
+        'constant': {'constant_source_node': 1, 'data_directory': Path(data_directory, 'constant_seeding/')},
+        'random': {'constant_source_node': 0, 'num_shifts_of_source_node': 0, 'seeding_sigma_coeff': 0, 'seeding_power_law_exponent': 0, 'data_directory': Path(data_directory, 'random_seeding/')},
+        '10_source_shifts': {'num_shifts_of_source_node': 10, 'data_directory': Path(data_directory, '10_shifts_seeding/')},
+        'pwr_law_5': {'seeding_power_law_exponent': 5, 'data_directory': Path(data_directory, 'pwr_law_5_seeding/')},
+    }
+    return seed_dic
 
 
 def simulate(param_list):
@@ -85,6 +105,39 @@ def simulate(param_list):
     print(f'Run {run_index}, [edge conservation: {edge_conservation_val}, selectivity: {selectivity_val}] complete. {G.get_num_errors()} errors, ({uf.time_lapsed_h_m_s(time.time()-graph_start_time)})')
 
 
+def run_over_all_directionality_combos(mods, data_directory, via_pool=True):
+    """
+    Runs grid searches for every directionality combination
+    :param mods: dictionary of all mods unrelated to directionality (initialization, directedness, etc...)
+    :param data_directory: where all directionality grid-searches will be output
+    """
+    modded_directionality_dic = directionality_dic(data_directory=data_directory)
+    for v in modded_directionality_dic.values():
+        run_grid_search({**mods, **v}, via_pool=via_pool)
+
+
+def run_over_all_seeding_combos(mods, data_directory, via_pool=True):
+    """
+    Runs grid searches for every directionality combination
+    :param mods: dictionary of all mods unrelated to seeding (initialization, directedness, etc...)
+    :param data_directory: where all directionality grid-searches will be output
+    """
+    modded_seeding_dic = seeding_dic(data_directory=data_directory)
+    for v in modded_seeding_dic.values():
+        run_grid_search({**mods, **v}, via_pool=via_pool)
+
+
+def run_over_all_initialization_combos(mods, data_directory, via_pool=True):
+    """
+    Runs grid searches for every directionality combination
+    :param mods: dictionary of all mods unrelated to initialization
+    :param data_directory: where all directionality grid-searches will be output
+    """
+    modded_initialization_dic = initializations_dic(data_directory=data_directory)
+    for v in modded_initialization_dic.values():
+        run_grid_search({**mods, **v}, via_pool=via_pool)
+
+
 def grid_search(param_dic, num_cores_used=mp.cpu_count(), remove_data_post_plotting=True):
     unvarying_dic_values = list(param_dic.values())[5:]
     data_directory = str(param_dic['data_directory'])
@@ -131,10 +184,12 @@ def grid_search(param_dic, num_cores_used=mp.cpu_count(), remove_data_post_plott
     pool.close()
     pool.join()
     print(f"Time lapsed for {num_nodes} nodes, {edge_conservation_range.size * selectivity_range.size} parameter combinations: {uf.time_lapsed_h_m_s(time.time()-grid_search_start_time)}")
-
+    network_graphs = bool(param_dic['network_graphs'])
+    if param_dic['ensemble_size']:
+        network_graphs = False
     plotter.twoD_grid_search_plots(subdata_directory, edge_conservation_range=edge_conservation_range, selectivity_range=selectivity_range,
                                    num_nodes=num_nodes,
-                                   network_graphs=bool(param_dic['network_graphs']),
+                                   network_graphs=network_graphs,
                                    node_plots=bool(param_dic['node_plots']),
                                    ave_nbr=bool(param_dic['ave_nbr']),
                                    cluster_coeff=bool(param_dic['cluster_coeff']),
@@ -159,22 +214,50 @@ def run_grid_search(param_dic, via_pool=True):
     pprint.pprint(param_dic)
 
 
-def run_over_all_directionality_combos(mods, data_directory, via_pool=True):
-    """
-    Runs grid searches for every directionality combination
-    :param mods: dictionary of all mods unrelated to directionality (initialization, directedness, etc...)
-    :param data_directory: where all directionality grid-searches will be output
-    """
-    modded_directionality_dic = directionality_dic(data_directory=data_directory)
-    for v in modded_directionality_dic.values():
-        run_grid_search({**mods, **v}, via_pool=via_pool)
+def list_of_dicts(base_dic, dic_1, dic_2=None, dic_3=None):
+    base_dicts = []
+
+    if dic_2 is not None:
+        two_dicts_combined = []
+        dic_2_directory_labels = []
+        for v_2 in dic_2.values():
+            dic_2_directory_labels.append(PurePath(v_2.pop('data_directory')).name)  # pop should delete the 'data_directory' item from v_2, so it doesn't overwrite the key
+    if dic_3 is not None:
+        three_dicts_combined = []
+        dic_3_directory_labels = []
+        for v_3 in dic_3.values():
+            dic_3_directory_labels.append(PurePath(v_3.pop('data_directory')).name)  # pop should delete the 'data_directory' item from v_2, so it doesn't overwrite the key
+
+    for v_1 in dic_1.values():
+        base_dicts.append({**base_dic, **v_1})
+
+    if dic_2 is not None:
+        for value in base_dicts:
+            i = 0
+            for v_2 in dic_2.values():
+                two_dicts_combined.append({**value, **v_2})
+                two_dicts_combined[-1]['data_directory'] = Path(str(two_dicts_combined[-1]['data_directory']), dic_2_directory_labels[i])
+                i += 1
+    if dic_3 is not None:
+        for value in two_dicts_combined:
+            i = 0
+            for v_3 in dic_3.values():
+                three_dicts_combined.append({**value, **v_3})
+                three_dicts_combined[-1]['data_directory'] = Path(str(three_dicts_combined[-1]['data_directory']), dic_3_directory_labels[i])
+                i += 1
+
+    if dic_3 is not None:
+        return three_dicts_combined
+    if dic_2 is not None:
+        return two_dicts_combined
+    return base_dicts
 
 
 # Throughout, use False = 0 and True = 1 for binaries
 parameter_dictionary = {
     'data_directory': "/home/maqz/Desktop/data/",
     'run_index': 1,
-    'num_nodes': 50,
+    'num_nodes': 60,
     'edge_conservation_range': '0_1.05_0.05',  # work with me here. (args to np.arange separated by _)
     'selectivity_range': '0_1.05_0.05'
 }
@@ -218,14 +301,14 @@ plots = {
     # global ed diffs, ave_nbr variance, log_deg_dist variance, hierarchy coordinates (with exponential and linear thresholds) and efficiency coordinates
 }
 
-default_dic = {**parameter_dictionary, **search_wide_dic, **edge_init, **ensemble_params, **plots}
+default_dict = {**parameter_dictionary, **search_wide_dic, **edge_init, **ensemble_params, **plots}
 
 
-default_sparse_init = {**default_dic, 'edge_init': 1.2, 'num_nodes': 60, 'constant_source_node': 4, 'edge_conservation_range': '0.4_1.05_0.1'}
-directory = '/home/maqz/Desktop/data/Mechanic_Mods/sparse_edge_init_1.2'
-start_time = time.time()
-print(f"Grid Search Control: Starting at {time.ctime()}")
-run_over_all_directionality_combos(mods=default_sparse_init, data_directory=directory, via_pool=True)
+default_sparse_init = {**default_dict, 'edge_init': 1.2, 'num_nodes': 60, 'constant_source_node': 4}
+directory = '/output'
 
-print(f'Total Time Elapsed: {uf.time_lapsed_h_m_s(time.time()-start_time)}')
+master_dict = list_of_dicts(default_dict, initializations_dic(directory), seeding_dic(directory))
 
+grid_search_index = int(sys.argv[1])
+if __name__ == '__main__':
+    run_grid_search(param_dic=master_dict[grid_search_index])

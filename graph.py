@@ -57,6 +57,8 @@ class Graph:
         self.A = np.zeros((1, self.num_nodes, self.num_nodes))  # Adjacency matrix (and history of)
         self.source_node_history = []
         self.eff_dist_history = []
+        self.linear_threshold_hierarchy_coordinates = []
+        self.exp_threshold_hierarchy_coordinates = []
 
     # Edge Initialization: ------------------------------------------------------------------------------------------
     def sparse_random_edge_init(self, nonzero_edges_per_node=1, connected=True, even_distribution=True,
@@ -840,13 +842,15 @@ class Graph:
                 self.A = np.vstack((self.A, [self.A[-1]]))
             if verbose:
                 utility_funcs.print_run_percentage(i, num_runs, 17)
-            if self.A.shape[0] > equilibrium_distance + equilibrium_span + 1:  # +1 for range starting at 0 offset
+            if equilibrium_distance and self.A.shape[0] > equilibrium_distance + equilibrium_span + 1:  # +1 for range starting at 0 offset
                 # if np.all(np.array([np.allclose(self.A[-(ii+1)], self.A[-(equilibrium_distance+(ii+1))], rtol=1e-10) for ii in range(equilibrium_span)])):
                 if np.allclose(self.A[-1], self.A[-(equilibrium_distance + 1)], rtol=1e-15):
                     print(f'Equilibrium conditions met after {i} runs, run halted.')
                     break  # Automatic break if equilibrium is reached. Lets run times be arb. large for MC delta search
         self.A = np.delete(self.A, -1, axis=0)
         self.nodes = self.nodes[:-1]
+        self.linear_threshold_hierarchy_coordinates = np.array(self.average_hierarchy_coordinates(timestep=-1))
+        self.exp_threshold_hierarchy_coordinates = np.array(self.average_hierarchy_coordinates(timestep=-1, exp_threshold_distribution=True))
         if verbose:
             print_run_methods()
 
@@ -885,13 +889,17 @@ class Graph:
                           source_reward=source_reward, constant_source_node=constant_source_node,
                           num_shifts_of_source_node=num_shifts_of_source_node, seeding_sigma_coeff=seeding_sigma_coeff,
                           seeding_power_law_exponent=seeding_power_law_exponent, beta=beta, multiple_path=multiple_path,
-                          equilibrium_distance=equilibrium_distance, verbose=False)
+                          equilibrium_distance=False, verbose=False)
             if i == 0:
                 A = self.A
                 eff_dist_history = self.eff_dist_history
+                linear_hierarchy_coordinates = self.linear_threshold_hierarchy_coordinates
+                exp_hierarchy_coordinates = self.exp_threshold_hierarchy_coordinates
             else:
-                A = utility_funcs.element_wise_array_average([A, self.A])  # Note this implies that the hierarchy coordinates are taken of the average graph...
+                A = utility_funcs.element_wise_array_average([A, self.A])
                 eff_dist_history = utility_funcs.element_wise_array_average([np.array(eff_dist_history), np.array(self.eff_dist_history)])
+                linear_hierarchy_coordinates = utility_funcs.element_wise_array_average([linear_hierarchy_coordinates, self.linear_threshold_hierarchy_coordinates])
+                exp_hierarchy_coordinates = utility_funcs.element_wise_array_average([exp_hierarchy_coordinates, self.exp_threshold_hierarchy_coordinates])
             source_node_history.append(self.source_node_history)
             # A = self.A if i == 0 else A = utility_funcs.element_wise_array_average([A, self.A])
             # eff_dist_history = self.eff_dist_history if i == 0 else eff_dist_history = utility_funcs.element_wise_array_average([np.array(eff_dist_history), np.array(self.eff_dist_history)])
@@ -904,6 +912,8 @@ class Graph:
         self.A = A
         self.eff_dist_history = eff_dist_history
         self.source_node_history = source_node_history  # Makes final source node history 2d, with columns being the individual run histories.
+        self.linear_threshold_hierarchy_coordinates = linear_hierarchy_coordinates
+        self.exp_threshold_hierarchy_coordinates = exp_hierarchy_coordinates
 
 
 ########################################################################################################################

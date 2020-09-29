@@ -1,4 +1,7 @@
 import numpy as np
+import matplotlib
+# Force matplotlib to not use any Xwindows backend.
+matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 from matplotlib import gridspec
 from matplotlib import cm
@@ -681,20 +684,18 @@ def plot_network(graph, directed=True, node_size_scaling=200, nodes_sized_by_eff
         node_colors[graph.source_node_history[timestep]] = 'red'
         nx.draw_networkx_edges(nx_G, pos, nodelist=['0'], alpha=0.8, width=weights, arrowsize=4, connectionstyle='arc3, rad=0.2')
         nx.draw_networkx_nodes(nx_G, pos,
-                               arrowstyle='->',
-                               edge_color=edge_colors,
+                               edgecolors=edge_colors,
                                node_size=incoming_edge_sum,
                                node_color=node_colors,
-                               widths=weights,
+                               linewidths=weights,
                                cmap=plt.get_cmap('viridis'))
         plt.title("timestep: {0}".format(timestep))
         if nodes_sized_by_eff_distance:
             nx.draw_networkx_nodes(nx_G, pos,
-                                   arrowstyle='->',
-                                   edge_color=edge_colors,
+                                   edgecolors=edge_colors,
                                    node_size=graph.nodes,
                                    node_color=node_colors,
-                                   widths=weights,
+                                   linewidths=weights,
                                    cmap=plt.get_cmap('viridis'))
         plt.title("timestep: {0}".format(timestep))
     if show:
@@ -1381,8 +1382,8 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
     ave_neighbor_diffs_flattened = []
     ave_nbr_var_flattened = []
     log_degree_dist_var_flattened = []
-    hierarchy_coordinates = []
     efficiency_coordinates = []
+    linear_threshold_hierarchy_coordinates = []
     exp_threshold_hierarchy_coordinates = []
 
     for __, __, files in os.walk(data_directory):
@@ -1474,8 +1475,10 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
                         ave_neighbor_diffs_flattened.append((lambda x: max(x) - min(x))(last_ave_nbr_deg))
                         ave_nbr_var_flattened.append(np.array(last_ave_nbr_deg).var())
                         log_degree_dist_var_flattened.append(np.var(G.degree_distribution(timestep=-1)))
-                        hierarchy_coordinates.append(np.array(G.average_hierarchy_coordinates(timestep=-1)))
-                        exp_threshold_hierarchy_coordinates.append(np.array(G.average_hierarchy_coordinates(timestep=-1, exp_threshold_distribution=True)))
+                        # hierarchy_coordinates.append(np.array(G.average_hierarchy_coordinates(timestep=-1)))
+                        # exp_threshold_hierarchy_coordinates.append(np.array(G.average_hierarchy_coordinates(timestep=-1, exp_threshold_distribution=True)))
+                        linear_threshold_hierarchy_coordinates.append(G.linear_threshold_hierarchy_coordinates)
+                        exp_threshold_hierarchy_coordinates.append(G.exp_threshold_hierarchy_coordinates)
                         efficiency_coordinates.append(np.array([G.E_diff(timestep=-1), G.E_routing(timestep=-1)]))
 
                 utility_funcs.consume(selectivity_range_iter, left_over_selectivity_values - 1)  # -1 because the iteration forwards 1 step still proceeds directly after
@@ -1556,10 +1559,9 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
                         ave_neighbor_diffs_flattened.append((lambda x: max(x) - min(x))(last_ave_nbr_deg))
                         ave_nbr_var_flattened.append(np.array(last_ave_nbr_deg).var())
                         log_degree_dist_var_flattened.append(np.var(G.degree_distribution(timestep=-1)))
-                        hierarchy_coordinates.append(np.array(G.average_hierarchy_coordinates(timestep=-1)))
-                        exp_threshold_hierarchy_coordinates.append(np.array(G.average_hierarchy_coordinates(timestep=-1, exp_threshold_distribution=True)))
+                        linear_threshold_hierarchy_coordinates.append(G.linear_threshold_hierarchy_coordinates)
+                        exp_threshold_hierarchy_coordinates.append(G.exp_threshold_hierarchy_coordinates)
                         efficiency_coordinates.append(np.array([G.E_diff(timestep=-1), G.E_routing(timestep=-1)]))
-
                 utility_funcs.consume(selectivity_range_iter, cores_used - 1)  # Advances skew iter cpu count iterations
 
             for process in processes:
@@ -1575,7 +1577,7 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
             ave_nbr_vars += np.abs(np.min(ave_nbr_diffs))
             min_nbr_var = np.min([val > 0 for val in ave_nbr_vars])
             ave_nbr_vars = [el if el > 0 else min_nbr_var for el in ave_nbr_vars]
-        general_3d_data_plot(data=np.array(hierarchy_coordinates), xlabel="Treeness", ylabel="Feedforwardness",
+        general_3d_data_plot(data=np.array(linear_threshold_hierarchy_coordinates), xlabel="Treeness", ylabel="Feedforwardness",
                              zlabel="Orderability", plot_projections=True,
                              fig_title='Hierarchy Coordinates (Linear Thresholds)',
                              title=Path(grid_search_plots_dir, 'Hierarchy_Coordinates_[Linear_Thresholds]'))
@@ -1624,7 +1626,7 @@ def twoD_grid_search_meta_plots(path_to_data_dir, edge_conservation_range, selec
     # ave_neighbor_diffs_flattened = []
     ave_nbr_var_flattened = []
     degree_dist_var_flattened = []
-    hierarchy_coordinates = []
+    linear_threshold_hierarchy_coordinates = []
     exp_threshold_hierarchy_coordinates = []
     efficiency_coordinates = []
 
@@ -1643,8 +1645,8 @@ def twoD_grid_search_meta_plots(path_to_data_dir, edge_conservation_range, selec
             global_eff_dist_diffs_flattened.append(G.eff_dist_diff(all_to_all_eff_dist=True, MPED=False, source_reward=source_reward, delta=delta))  # Compares first and last eff_dist values
             ave_nbr_var_flattened.append(np.log(np.array(last_ave_nbr_deg).var()))
             degree_dist_var_flattened.append(np.var(G.degree_distribution(timestep=-1)))
-            hierarchy_coordinates.append(np.array(G.average_hierarchy_coordinates(timestep=-1)))
-            exp_threshold_hierarchy_coordinates.append(np.array(G.average_hierarchy_coordinates(timestep=-1, exp_threshold_distribution=True)))
+            linear_threshold_hierarchy_coordinates.append(G.linear_threshold_hierarchy_coordinates)
+            exp_threshold_hierarchy_coordinates.append(G.exp_threshold_hierarchy_coordinates)
             efficiency_coordinates.append(np.array([G.E_diff(timestep=-1), G.E_routing(timestep=-1)]))
             if verbose:
                 num_nodes = G.num_nodes
@@ -1667,7 +1669,7 @@ def twoD_grid_search_meta_plots(path_to_data_dir, edge_conservation_range, selec
     plot_heatmap(np.array(degree_dist_var_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(meta_grid_search_plots_dir, f'degree_var_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=True, fig_title='Final Degree Distribution Variance')
     # plot_heatmap(np.log(ave_nbr_diffs), title=Path(meta_grid_search_plots_dir, f'log_ave_neighbor_diff_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='ln_Ave_Nbr_Differences')
     plot_heatmap(np.log(ave_nbr_vars), title=Path(meta_grid_search_plots_dir, f'log_ave_neighbor_var_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='ln_Ave_Nbr_Variance')
-    general_3d_data_plot(data=np.array(hierarchy_coordinates), xlabel="Treeness", ylabel="Feedforwardness", zlabel="Orderability", plot_projections=True, fig_title='Hierarchy Coordinates (Linear Thresholds)', title=Path(meta_grid_search_plots_dir, 'Hierarchy_Coordinates'))
+    general_3d_data_plot(data=np.array(linear_threshold_hierarchy_coordinates), xlabel="Treeness", ylabel="Feedforwardness", zlabel="Orderability", plot_projections=True, fig_title='Hierarchy Coordinates (Linear Thresholds)', title=Path(meta_grid_search_plots_dir, 'Hierarchy_Coordinates'))
     general_3d_data_plot(data=np.array(exp_threshold_hierarchy_coordinates), xlabel="Treeness", ylabel="Feedforwardness", zlabel="Orderability", plot_projections=True, fig_title='Hierarchy Coordinates (Exponential Thresholds)', title=Path(meta_grid_search_plots_dir, 'Exp_Thresholds_Hierarchy_Coordinates'))
     plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency", fig_title="Diffusion vs Routing Efficiency", title=Path(meta_grid_search_plots_dir, 'Efficiency_Scores'))
 

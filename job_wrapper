@@ -1,0 +1,6 @@
+#!/bin/bash
+file_directory="/Network_Structure_Via_Info_Diffusion"
+for sub in $(seq -w 0 11) ; do
+  sbatch -J job_label_$sub --wrap "python3 $file_directory/grid_search_control.py $sub"
+# python3 $file_directory/grid_search_control.py $sub
+done
