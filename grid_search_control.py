@@ -208,7 +208,7 @@ def run_grid_search(param_dic, via_pool=True):
     if via_pool:
         grid_search(param_dic)
     else:
-        os.system('python grid_search.py {data_directory} {run_index} {num_nodes} {edge_conservation_range} {selectivity_range} {reinforcement_info_score_coupling} {positive_eff_dist_and_reinforcement_correlation} {eff_dist_is_towards_source} {nodes_adapt_outgoing_edges} {incoming_edges_conserved} {undirected} {edge_init} {ensemble_size} {num_runs} {delta} {equilibrium_distance} {constant_source_node} {num_shifts_of_source_node} {seeding_sigma_coeff} {seeding_power_law_exponent} {beta} {multiple_path} {update_interval} {source_reward} {undirectify_init} {network_graphs} {node_plots} {ave_nbr} {cluster_coeff} {eff_dist} {global_eff_dist} {shortest_path} {degree_dist} {edge_dist} {meta_plots}'.format(**param_dic))
+        os.system('python3 grid_search.py {data_directory} {run_index} {num_nodes} {edge_conservation_range} {selectivity_range} {reinforcement_info_score_coupling} {positive_eff_dist_and_reinforcement_correlation} {eff_dist_is_towards_source} {nodes_adapt_outgoing_edges} {incoming_edges_conserved} {undirected} {edge_init} {ensemble_size} {num_runs} {delta} {equilibrium_distance} {constant_source_node} {num_shifts_of_source_node} {seeding_sigma_coeff} {seeding_power_law_exponent} {beta} {multiple_path} {update_interval} {source_reward} {undirectify_init} {network_graphs} {node_plots} {ave_nbr} {cluster_coeff} {eff_dist} {global_eff_dist} {shortest_path} {degree_dist} {edge_dist} {meta_plots}'.format(**param_dic))
 
     print(f'Simulation with the following parameters complete:')
     pprint.pprint(param_dic)
@@ -254,8 +254,9 @@ def list_of_dicts(base_dic, dic_1, dic_2=None, dic_3=None):
 
 
 # Throughout, use False = 0 and True = 1 for binaries
+directory = Path(str(Path.home()), 'data/')
 parameter_dictionary = {
-    'data_directory': "/home/maqz/Desktop/data/",
+    'data_directory': directory,
     'run_index': 1,
     'num_nodes': 60,
     'edge_conservation_range': '0_1.05_0.05',  # work with me here. (args to np.arange separated by _)
@@ -305,7 +306,6 @@ default_dict = {**parameter_dictionary, **search_wide_dic, **edge_init, **ensemb
 
 
 default_sparse_init = {**default_dict, 'edge_init': 1.2, 'num_nodes': 60, 'constant_source_node': 4}
-directory = '/output'
 
 master_dict = list_of_dicts(default_dict, initializations_dic(directory), seeding_dic(directory))
 

@@ -724,10 +724,7 @@ class Graph:
                     self.nodes.shape[1] * (self.nodes.shape[1] - 1))
 
     def E_diff(self, timestep=-1):  # Diffusion Efficiency
-        return np.sum(1 / self.evaluate_effective_distances(source_reward=source_reward_val, parameter=1,
-                                                            multiple_path_eff_dist=False, source=None,
-                                                            timestep=timestep)) / (
-                           self.nodes.shape[1] * (self.nodes.shape[1] - 1))
+        return np.sum(self.RWED(adjacency_matrix=self.A[timestep])) / (self.nodes.shape[1] * (self.nodes.shape[1] - 1))
 
     def node_weighted_condense(self, timestep, num_thresholds=5, exp_threshold_distribution=False):
         """
