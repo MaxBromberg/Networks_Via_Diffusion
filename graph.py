@@ -506,7 +506,7 @@ class Graph:
 
         # assert np.all(np.isclose(P.sum(axis=1), 1, rtol=1e-15, equal_nan=True)), "If there are dim incompatibility issues, as nan == nan is false."
         A = adjacency_matrix
-        assert np.all(np.isclose(A.sum(axis=1), 1, rtol=1e-15)), "The transition matrix has to be row normalized"
+        assert np.all(np.isclose(A.sum(axis=1), 1, rtol=1e-15)), f"The transition matrix has to be row normalized | A row sums: \n {A.sum(axis=1)}"
 
         if via_numpy:
             one = np.identity(adjacency_matrix.shape[0])
@@ -744,8 +744,11 @@ class Graph:
         return np.sum(1 / (shortest_paths + (1 / self.nodes.shape[1]))) / (
                     self.nodes.shape[1] * (self.nodes.shape[1] - 1))
 
-    def E_diff(self, timestep=-1):  # Diffusion Efficiency
-        return np.sum(self.RWED(adjacency_matrix=self.A[timestep])) / (self.nodes.shape[1] * (self.nodes.shape[1] - 1))
+    def E_diff(self, timestep=-2):  # Diffusion Efficiency
+        row_sums = self.A[timestep].sum(axis=1)
+        normalized_A = np.array([self.A[timestep][node, :] / row_sums[node] for node in range(self.A[timestep].shape[0])])
+        return np.sum(self.RWED(adjacency_matrix=normalized_A)) / (self.nodes.shape[1] * (self.nodes.shape[1] - 1))
+        # return np.sum(self.RWED(adjacency_matrix=self.A[timestep])) / (self.nodes.shape[1] * (self.nodes.shape[1] - 1))
 
     def node_weighted_condense(self, timestep, num_thresholds=5, exp_threshold_distribution=False):
         """
