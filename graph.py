@@ -21,6 +21,27 @@ equilibrium_distance_val = 100
 equilibrium_span_val = 0  # virtually never triggers for val > 0
 
 
+# nx.utils.decorators.not_implemented_for("undirected")
+# As this function was eliminated in later versions of networkx, I must add it again here
+def weakly_connected_component_subgraphs(G, copy=True):
+    """Generate weakly connected components as subgraphs.
+
+    Parameters
+    ----------
+    G : NetworkX Graph
+       A directed graph.
+
+    copy : bool
+        If copy is True, graph, node, and edge attributes are copied to the
+        subgraphs.
+    """
+    for comp in nx.weakly_connected_components(G):
+        if copy:
+            yield G.subgraph(comp).copy()
+        else:
+            yield G.subgraph(comp)
+
+
 class Graph:
     _source_node = None  # holds the source node for each run, reset after every run.
     _singular_fundamental_matrix_errors = 0  # keeps running count of would be below errors (and replacees 0s with 1e-100):
@@ -753,7 +774,8 @@ class Graph:
         condensed_graphs = [nx.condensation(nx_graphs[index]) for index in range(len(nx_graphs))]
         largest_condensed_graphs = []
         for condensed_graph in condensed_graphs:
-            largest_condensed_graphs.append(nx.convert_node_labels_to_integers(max(nx.weakly_connected_component_subgraphs(condensed_graph, copy=True), key=len)))
+            largest_condensed_graphs.append(nx.convert_node_labels_to_integers(max(weakly_connected_component_subgraphs(condensed_graph, copy=True), key=len)))
+            # largest_condensed_graphs.append(nx.convert_node_labels_to_integers(max(nx.weakly_connected_component_subgraphs(condensed_graph, copy=True), key=len)))
             # To take only the largest component of the condensed graph. Required inputting function from older NetworkX docs directly.
             members = nx.get_node_attributes(largest_condensed_graphs[-1], 'members')
             node_weights = [len(w) for w in members.values()]

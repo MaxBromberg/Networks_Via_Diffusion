@@ -295,9 +295,9 @@ plots = {
     'cluster_coeff': 0,  # Plots evolution of cluster coefficient
     'eff_dist': 1,  # Plots evolution of average effective distance to source
     'global_eff_dist': 1,  # Plots evolution of average effective distance from every node to every other
-    'shortest_path': 0,  # PLots the average shortest path over time. Very computationally expensive
+    'shortest_path': 0,  # Plots the average shortest path over time. Very computationally expensive
     'degree_dist': 0,  # Yields the degree (total weight) distribution as a histogram
-    'edge_dist': 1,  # PLots the edge distribution (individual edge counts) as a histogram
+    'edge_dist': 1,  # Plots the edge distribution (individual edge counts) as a histogram
     'meta_plots': 1,  # Plots all the meta-plots, specifically: last_ave_nbr_deg, ed diffs, mean ed, ave_neighbor diffs,
     # global ed diffs, ave_nbr variance, log_deg_dist variance, hierarchy coordinates (with exponential and linear thresholds) and efficiency coordinates
 }
