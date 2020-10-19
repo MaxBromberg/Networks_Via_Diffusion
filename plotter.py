@@ -1345,8 +1345,7 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
     start_time = time.time()
     assert eff_dist or global_eff_dist or network_graphs or node_plots or ave_nbr or cluster_coeff or shortest_path or degree_dist or edge_dist, 'Choose something to plot'
     if output_dir is None:
-        output_dir = data_directory
-    # grid_search_plots_dir = Path(output_dir, f'plots_for_{num_nodes}_nodes')
+        output_dir = data_directory.parents[0]
     grid_search_plots_dir = output_dir
     if eff_dist: eff_dist_path = Path(grid_search_plots_dir, 'eff_dist_plots')
     if network_graphs: graph_path = Path(grid_search_plots_dir, 'network_graphs')
@@ -1358,16 +1357,15 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
     if edge_dist: edge_dist_path = Path(grid_search_plots_dir, 'edge_dist_plots')
     if global_eff_dist: all_to_all_eff_dist_path = Path(grid_search_plots_dir, 'global_eff_dist_plots')
     try:
-        os.mkdir(grid_search_plots_dir), f'Created folder for grid search results at {grid_search_plots_dir}'
-        if eff_dist: os.mkdir(eff_dist_path), f'Created folder for graphs at {eff_dist_path}'
-        if network_graphs: os.mkdir(graph_path), f'Created folder for graphs at {graph_path}'
-        if node_plots: os.mkdir(node_path), f'Created folder for node plots at {node_path}'
-        if ave_nbr: os.mkdir(neighbor_path), f'Created folder for neighbor graph at {neighbor_path}'
-        if cluster_coeff: os.mkdir(cluster_coeff_path), f'Created folder for cluster coeff graphs at {cluster_coeff_path}'
-        if shortest_path: os.mkdir(shortest_paths_path), f'Created folder for shortest path graphs at {shortest_paths_path}'
-        if degree_dist: os.mkdir(degree_dist_path), f'Created folder for degree distribution graphs at {degree_dist_path}'
-        if edge_dist: os.mkdir(edge_dist_path), f'Created folder for degree distribution graphs at {edge_dist_path}'
-        if global_eff_dist: os.mkdir(all_to_all_eff_dist_path), f'Created folder for global eff dist graphs at {all_to_all_eff_dist_path}'
+        if eff_dist: os.makedirs(eff_dist_path), f'Created folder for graphs at {eff_dist_path}'
+        if network_graphs: os.makedirs(graph_path), f'Created folder for graphs at {graph_path}'
+        if node_plots: os.makedirs(node_path), f'Created folder for node plots at {node_path}'
+        if ave_nbr: os.makedirs(neighbor_path), f'Created folder for neighbor graph at {neighbor_path}'
+        if cluster_coeff: os.makedirs(cluster_coeff_path), f'Created folder for cluster coeff graphs at {cluster_coeff_path}'
+        if shortest_path: os.makedirs(shortest_paths_path), f'Created folder for shortest path graphs at {shortest_paths_path}'
+        if degree_dist: os.makedirs(degree_dist_path), f'Created folder for degree distribution graphs at {degree_dist_path}'
+        if edge_dist: os.makedirs(edge_dist_path), f'Created folder for degree distribution graphs at {edge_dist_path}'
+        if global_eff_dist: os.makedirs(all_to_all_eff_dist_path), f'Created folder for global eff dist graphs at {all_to_all_eff_dist_path}'
     except OSError:
         print(f'{grid_search_plots_dir} already exists, adding or overwriting contents')
         pass

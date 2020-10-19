@@ -142,28 +142,21 @@ def grid_search(param_dic, num_cores_used=mp.cpu_count(), remove_data_post_plott
     unvarying_dic_values = list(param_dic.values())[5:]
     data_directory = str(param_dic['data_directory'])
     run_index, num_nodes = [int(arg) for arg in [param_dic['run_index'], param_dic['num_nodes']]]  # eliminates name of file as initial input string
-    subdata_directory = Path(data_directory, f"node_num_{num_nodes}")
+    raw_data_directory = Path(data_directory, f"node_num_{num_nodes}")
 
     edge_conservation_range = np.arange(*[float(arg) for arg in param_dic['edge_conservation_range'].split('_')])
     selectivity_range = np.arange(*[float(arg) for arg in param_dic['selectivity_range'].split('_')])
 
     try:
-        super_data_dir = data_directory[:-len(data_directory.split('/')[-1])] if data_directory[-1] != '/' else data_directory[:-(len(data_directory.split('/')[-2]) + 1)]
-        os.mkdir(super_data_dir)
-    except OSError:
-        print(f'{super_data_dir} already exists, adding to contents')
-        pass
-
-    try:
-        os.mkdir(data_directory)
+        os.makedirs(data_directory)
     except OSError:
         print(f'{data_directory} already exists, adding or overwriting contents')
         pass
 
     try:
-        os.mkdir(subdata_directory)
+        os.mkdir(raw_data_directory)
     except OSError:
-        print(f'{subdata_directory} already exists, adding or overwriting contents')
+        print(f'{raw_data_directory} already exists, adding or overwriting contents')
         pass
 
     grid_search_start_time = time.time()
@@ -172,7 +165,7 @@ def grid_search(param_dic, num_cores_used=mp.cpu_count(), remove_data_post_plott
     for coupling_val in edge_conservation_range:
         for selectivity_val in selectivity_range:
             varying_param_dic = {
-                'output_directory': subdata_directory,
+                'output_directory': raw_data_directory,
                 'run_index': run_index,
                 'num_nodes': num_nodes,
                 'edge_conservation_val': np.round(coupling_val, 2),
@@ -187,7 +180,7 @@ def grid_search(param_dic, num_cores_used=mp.cpu_count(), remove_data_post_plott
     network_graphs = bool(param_dic['network_graphs'])
     if param_dic['ensemble_size']:
         network_graphs = False
-    plotter.twoD_grid_search_plots(subdata_directory, edge_conservation_range=edge_conservation_range, selectivity_range=selectivity_range,
+    plotter.twoD_grid_search_plots(raw_data_directory, edge_conservation_range=edge_conservation_range, selectivity_range=selectivity_range,
                                    num_nodes=num_nodes,
                                    network_graphs=network_graphs,
                                    node_plots=bool(param_dic['node_plots']),
@@ -199,9 +192,10 @@ def grid_search(param_dic, num_cores_used=mp.cpu_count(), remove_data_post_plott
                                    degree_dist=bool(param_dic['degree_dist']),
                                    edge_dist=bool(param_dic['edge_dist']),
                                    meta_plots=bool(param_dic['meta_plots']),
-                                   output_dir=Path(data_directory, 'Plots'))
+                                   # output_dir=Path(data_directory, 'Plots'))
+                                   output_dir=None)
     if remove_data_post_plotting:
-        shutil.rmtree(subdata_directory)
+        shutil.rmtree(raw_data_directory)
 
 
 def run_grid_search(param_dic, via_pool=True):
@@ -275,7 +269,7 @@ edge_init = {
 }
 ensemble_params = {
     'ensemble_size': 0,  # num sims to average over. 0 if just one sim is desired (e.g. for graph pictures)
-    'num_runs': 600,  # num runs, could be cut off if reaches equilibrium condition first
+    'num_runs': 6,  # num runs, could be cut off if reaches equilibrium condition first
     'delta': 10,  # Delta parameter in (RW/MP)ED, recommended >= 1
     'equilibrium_distance': 200,
     'constant_source_node': 0,  # If no seeding mechanism is set, defaults to rnd. Activate below seeding by setting values != 0
@@ -303,12 +297,7 @@ plots = {
 }
 
 default_dict = {**parameter_dictionary, **search_wide_dic, **edge_init, **ensemble_params, **plots}
+master_dict = list_of_dicts(default_dict, initializations_dic(directory), seeding_dic(directory), directionality_dic(directory))
 
-
-default_sparse_init = {**default_dict, 'edge_init': 1.2, 'num_nodes': 60, 'constant_source_node': 4}
-
-master_dict = list_of_dicts(default_dict, initializations_dic(directory), seeding_dic(directory))
-
-grid_search_index = int(sys.argv[1])
 if __name__ == '__main__':
-    run_grid_search(param_dic=master_dict[grid_search_index])
+    run_grid_search(param_dic=master_dict[int(sys.argv[1])])
