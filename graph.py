@@ -706,49 +706,54 @@ class Graph:
         return np.round(np.sum(self.A[timestep], axis=1), 20)
         # return np.round(np.sum(self.A[timestep], axis=0), 20)
 
-    def shortest_path(self, timestep=-1, source=None, target=None, reversed_directions=False):
-        inverted_weights_nx_graph = nx.to_directed(nx.from_numpy_matrix(np.array(1 - self.A[timestep]),
-                                                                        create_using=nx.DiGraph))  # might be better ot simply accept a pre-converted nx_graph
+    def shortest_path(self, timestep=-1, source=None, target=None, reversed_directions=False, Adj_Matrix=None):
+        if Adj_Matrix is not None: inverted_weights_nx_graph = nx.to_directed(nx.from_numpy_matrix(np.array(1 - Adj_Matrix), create_using=nx.DiGraph))
+        else: inverted_weights_nx_graph = nx.to_directed(nx.from_numpy_matrix(np.array(1 - self.A[timestep]), create_using=nx.DiGraph))  # might be better ot simply accept a pre-converted nx_graph
         if reversed_directions:
             inverted_weights_nx_graph = inverted_weights_nx_graph.reverse(copy=False)
         SPD_dic = dict(
             nx.shortest_path_length(inverted_weights_nx_graph, source=source, target=target, weight='weight'))
 
         if source is None and target is None:
-            SPD = np.array([list(SPD_dic[s].values()) for s in
-                            range(self.nodes.shape[1])])  # TODO:  .transpose()  # why the transpose?
+            SPD = np.array([list(SPD_dic[s].values()) for s in range(self.nodes.shape[1])])  # TODO:  .transpose()  # why the transpose?
         elif (source is None) != (target is None):
             SPD = np.array(list(SPD_dic.values()))
         else:
             SPD = SPD_dic.values()
         return SPD
 
-    """
-    def routing_efficiency(self, nx_graph):
-        The initial algorithm from [*] gives quotient of the sum of the inverted shortest path distances between points and n(n-1),
-        i.e. E_routing =  ( \sum_{i, j} \frac{1}{\phi_{ij}} ) / (n(n-1)), where \phi = shortest path from i to j and n = num_nodes,
-        but as the shortest path is evaluated via dijkstra, counting larger edge values negatively, this requires an inversion
-        before finding the \phi-s (as in shortest_path function). However this is effectively counteracted by the
-        subsequent inversion in the E_routing sum, which as it often yields 1/0=Nan, we simply perform the average_shortest_path_length
-        function. Afterall; it is a good mathematician who makes an even number of sign-errors. ;)
-        (The need to invert the edge values and the subsequent shortest path cancel, to give a notion of E_routing)
-        ..but this does not perform as E_routing below, which it should if these influences canceled...
-        [*] Latora V & Marchiori M (2001) Efficient behavior of small-world networks: Structure and Dynamics
-        return nx.average_shortest_path_length(nx_graph, weight='weight')
-    """
+    def ave_network_efficiencies(self, n, ensemble_size: int, efficiency: str):
+        if efficiency == "routing" or efficiency == "rout":
+            routing_lattice_average = self.E_routing(Adj_Matrix=utility_funcs.matrix_normalize(nx.to_numpy_array(nx.grid_graph(dim=(2, int(n/2)), periodic=True)), row_normalize=True), normalize=False)
+            routing_rnd_graph_average = np.mean([self.E_routing(Adj_Matrix=utility_funcs.matrix_normalize(nx.to_numpy_array(nx.fast_gnp_random_graph(n=n, p=0.5, seed=i, directed=True)), row_normalize=True), normalize=False) for i in range(ensemble_size)])
+            return routing_lattice_average, routing_rnd_graph_average
+        if efficiency == "diffusive" or efficiency == "diff":
+            diffusive_lattice_average = self.E_diff(A=utility_funcs.matrix_normalize(nx.to_numpy_array(nx.grid_graph(dim=(2, int(n/2)), periodic=True)), row_normalize=True), normalize=False)
+            diffusive_rnd_graph_average = np.mean([self.E_diff(A=utility_funcs.matrix_normalize(nx.to_numpy_array(nx.fast_gnp_random_graph(n=n, p=0.5, seed=i, directed=True)), row_normalize=True), normalize=False) for i in range(ensemble_size)])
+            return diffusive_lattice_average, diffusive_rnd_graph_average
 
-    def E_routing(self, timestep=-1, source=None, target=None, reversed_directions=False):
+    def E_routing(self, timestep=-1, source=None, target=None, reversed_directions=False, Adj_Matrix=None, normalize=True):
         # To avoid divide by 0 errors, we add the 'average' edge weight 1/self.nodes.shape[1] to the inverted weight shortest paths
-        shortest_paths = self.shortest_path(timestep=timestep, source=source, target=target,
-                                            reversed_directions=reversed_directions)
-        return np.sum(1 / (shortest_paths + (1 / self.nodes.shape[1]))) / (
-                    self.nodes.shape[1] * (self.nodes.shape[1] - 1))
+        shortest_paths = self.shortest_path(timestep=timestep, source=source, target=target, reversed_directions=reversed_directions, Adj_Matrix=Adj_Matrix)
+        if Adj_Matrix is not None: n = Adj_Matrix.shape[0]
+        else: n = self.nodes.shape[1]
+        if normalize:
+            routing_lattice_average, routing_rnd_graph_average = self.ave_network_efficiencies(n=n, ensemble_size=10, efficiency="routing")
+            E_routing_base = np.sum(1 / (np.array(shortest_paths) + (1 / n))) / (n * (n - 1))
+            return (E_routing_base - routing_lattice_average) / (routing_rnd_graph_average - routing_lattice_average)
+        return np.sum(1 / (np.array(shortest_paths) + (1 / n))) / (n * (n - 1))
 
-    def E_diff(self, timestep=-2):  # Diffusion Efficiency
-        row_sums = self.A[timestep].sum(axis=1)
-        normalized_A = np.array([self.A[timestep][node, :] / row_sums[node] for node in range(self.A[timestep].shape[0])])
-        return np.sum(self.RWED(adjacency_matrix=normalized_A)) / (self.nodes.shape[1] * (self.nodes.shape[1] - 1))
-        # return np.sum(self.RWED(adjacency_matrix=self.A[timestep])) / (self.nodes.shape[1] * (self.nodes.shape[1] - 1))
+    def E_diff(self, A=None, timestep=-2, normalize=True):  # Diffusion Efficiency
+        Adj_Matrix = self.A[timestep] if A is None else A
+        n = Adj_Matrix.shape[0] if Adj_Matrix.shape[0] is not None else self.nodes.shape[1]
+
+        row_sums = Adj_Matrix.sum(axis=1)
+        normalized_A = np.array([Adj_Matrix[node, :] / row_sums[node] for node in range(Adj_Matrix.shape[0])])
+        if normalize:
+            diffusive_lattice_average, diffusive_rnd_graph_average = self.ave_network_efficiencies(n=n, ensemble_size=10, efficiency="diffusive")
+            E_diff_base = np.sum(self.RWED(adjacency_matrix=normalized_A)) / (n * (n - 1))
+            return (E_diff_base - diffusive_lattice_average) / (diffusive_rnd_graph_average - diffusive_lattice_average)
+        return np.sum(self.RWED(adjacency_matrix=normalized_A)) / (n * (n - 1))
 
     def node_weighted_condense(self, timestep, num_thresholds=5, exp_threshold_distribution=False):
         """

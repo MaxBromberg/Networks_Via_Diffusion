@@ -1,9 +1,10 @@
 import numpy as np
 import matplotlib
 # Force matplotlib to not use any Xwindows backend.
-matplotlib.use('Agg')
+# matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 from matplotlib import gridspec
+from matplotlib import colors
 from matplotlib import cm
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
 import networkx as nx
@@ -911,17 +912,18 @@ def parallellized_animate_network_evolution(graph, source_weighting=False, node_
 
 
 #  2D Plotting: ------------------------------------------------------------------------------------------------------
-def plot_2d_data(data, xlabel=None, ylabel=None, show=False, fig_title=None, title=False):
+def plot_2d_data(data, xlabel=None, ylabel=None, color=None, plot_limits=None, show=False, fig_title=None, title=False):
     fig = plt.figure(figsize=(10, 8))
+    if plot_limits is not None:
+        if plot_limits[0]: plt.xlim(*plot_limits[0])
+        if plot_limits[1]: plt.ylim(*plot_limits[1])
 
     if xlabel is not None:
         plt.xlabel(xlabel)
     if ylabel is not None:
         plt.ylabel(ylabel)
     x, y = data[:, 0], data[:, 1]
-    color = np.log(np.array([1 / val for val in np.arange(int(data.shape[0]/3), data.shape[0]+int(data.shape[0]/3))]) * 100)
-    # plt.scatter(x, y, c=color, cmap='BuPu')
-    plt.scatter(x, y)
+    plt.scatter(x, y, c=color, cmap='viridis')
     if show:
         plt.show()
     if fig_title:
@@ -969,8 +971,13 @@ def plot_3d(function, x_range, y_range=None, piecewise=False, z_limits=None, spa
     plt.show()
 
 
-def general_3d_data_plot(data, xlabel=None, ylabel=None, zlabel=None, plot_projections=False, projections=False, fig_title=None, show=False, title=False):
-    xdata, ydata, zdata = data[:, 2], data[:, 1], data[:, 0]
+def general_3d_data_plot(data, xlabel=None, ylabel=None, zlabel=None, plot_limits=None, color=None, plot_projections=False, projections=False, fig_title=None, show=False, title=False):
+    # :param plot_limits: give as a list of lists of limits, i.e. [[x_min, x_max], [y_min, y_max], [z_min, z_max]]
+    cmap = 'viridis'
+    if xlabel == 'Treeness' or xlabel == 'treeness':
+        xdata, ydata, zdata = data[:, 2], data[:, 1], data[:, 0]
+    else:
+        xdata, ydata, zdata = data[:, 0], data[:, 1], data[:, 2]
     fig = plt.figure(figsize=(10, 10))
     if xlabel is not None:
         x_label = xlabel
@@ -988,25 +995,31 @@ def general_3d_data_plot(data, xlabel=None, ylabel=None, zlabel=None, plot_proje
     if plot_projections:
         gs = gridspec.GridSpec(3, 3, wspace=0.3)
         ax = fig.add_subplot(gs[:2, :], projection='3d')
-        ax.scatter(xdata, ydata, zdata, cmap='BuPu')  # , c=color)
+        # norm = matplotlib.colors.Normalize(vmin=0, vmax=100)
+        ax.scatter(xdata, ydata, zdata, cmap=cmap, c=color)  #, norm=norm)
         ax.set_xlabel(x_label)
         ax.set_ylabel(y_label)
         ax.set_zlabel(z_label)
 
+        if plot_limits is not None:
+            if plot_limits[0]: ax.set_xlim3d(*plot_limits[0])
+            if plot_limits[1]: ax.set_ylim3d(*plot_limits[1])
+            if plot_limits[2]: ax.set_zlim3d(*plot_limits[2])
+
         ax1 = fig.add_subplot(gs[2, 0])
-        ax1.scatter(xdata, ydata)
+        ax1.scatter(xdata, ydata, cmap=cmap, c=color)
         plt.grid(True)
         ax1.set_xlabel(x_label)
         ax1.set_ylabel(y_label)
 
         ax2 = fig.add_subplot(gs[2, 1])
-        ax2.scatter(xdata, zdata)
+        ax2.scatter(xdata, zdata, cmap=cmap, c=color)
         plt.grid(True)
         ax2.set_xlabel(x_label)
         ax2.set_ylabel(z_label)
 
         ax3 = fig.add_subplot(gs[2, 2])
-        ax3.scatter(ydata, zdata)
+        ax3.scatter(ydata, zdata, cmap=cmap, c=color)
         plt.grid(True)
         ax3.set_xlabel(y_label)
         ax3.set_ylabel(z_label)
@@ -1021,11 +1034,17 @@ def general_3d_data_plot(data, xlabel=None, ylabel=None, zlabel=None, plot_proje
             plt.show()
     else:
         ax = fig.add_subplot(111, projection='3d')
-        # color = np.array([1 / val for val in np.arange(1+int((data.shape[0]+1) / 3), data.shape[0]+1)]) * 100
-        ax.scatter(xdata, ydata, zdata, cmap='BuPu')  #, c=color)
+        # norm = matplotlib.colors.Normalize(vmin=0, vmax=100)
+        ax.scatter(xdata, ydata, zdata, cmap=cmap, c=color)  #, norm=norm)
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
         ax.set_zlabel(zlabel)
+
+        if plot_limits is not None:
+            if plot_limits[0]: ax.set_xlim3d(*plot_limits[0])
+            if plot_limits[1]: ax.set_ylim3d(*plot_limits[1])
+            if plot_limits[2]: ax.set_zlim3d(*plot_limits[2])
+
         if projections:
             ax.plot(xdata, zdata, 'r+', zdir='y', zs=1)
             ax.plot(ydata, zdata, 'g+', zdir='x', zs=0)
@@ -1343,7 +1362,7 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
     :param output_dir: string; path obj. Determines output directory, defaults to data directory
     """
     start_time = time.time()
-    assert eff_dist or global_eff_dist or network_graphs or node_plots or ave_nbr or cluster_coeff or shortest_path or degree_dist or edge_dist, 'Choose something to plot'
+    # assert eff_dist or global_eff_dist or network_graphs or node_plots or ave_nbr or cluster_coeff or shortest_path or degree_dist or edge_dist, 'Choose something to plot'
     if output_dir is None:
         output_dir = data_directory.parents[0]
     grid_search_plots_dir = output_dir
@@ -1575,17 +1594,22 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
             ave_nbr_vars += np.abs(np.min(ave_nbr_diffs))
             min_nbr_var = np.min([val > 0 for val in ave_nbr_vars])
             ave_nbr_vars = [el if el > 0 else min_nbr_var for el in ave_nbr_vars]
+        # color_map = [int(i*80/selectivity_range.size) for i in range(selectivity_range.size)]*int(edge_conservation_range.size)  # color scale by selectivity value: 80 because I don't want the yellows at the end
+        color_map = [int(i*255/selectivity_range.size) for i in np.arange(selectivity_range.size, 0, -1)]*int(edge_conservation_range.size)  # color scale by selectivity value reversed
+        # color_map = [int(i*100/edge_conservation_range.size) for i in range(edge_conservation_range.size)]*int(selectivity_range.size)  # color scale by edge conservation value
+        # color_map = [int(i*100/edge_conservation_range.size) for i in np.arange(edge_conservation_range.size, 0, -1)]*int(selectivity_range.size)  # color scale by edge conservation value reversed
+
+        plot_limits = [[-1, 1], [0, 1], [0, 1]]
         general_3d_data_plot(data=np.array(linear_threshold_hierarchy_coordinates), xlabel="Treeness", ylabel="Feedforwardness",
-                             zlabel="Orderability", plot_projections=True,
+                             zlabel="Orderability", color=color_map, plot_limits=plot_limits, plot_projections=True,
                              fig_title='Hierarchy Coordinates (Linear Thresholds)',
                              title=Path(grid_search_plots_dir, 'Hierarchy_Coordinates_[Linear_Thresholds]'))
         general_3d_data_plot(data=np.array(exp_threshold_hierarchy_coordinates), xlabel="Treeness",
-                             ylabel="Feedforwardness", zlabel="Orderability", plot_projections=True,
-                             fig_title='Hierarchy Coordinates (Exponential Thresholds)',
+                             ylabel="Feedforwardness", zlabel="Orderability", color=color_map, plot_limits=plot_limits,
+                             plot_projections=True, fig_title='Hierarchy Coordinates (Exponential Thresholds)',
                              title=Path(grid_search_plots_dir, 'Hierarchy_Coordinates_[Exponential_Thresholds]'))
-        plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency",
-                     fig_title="Diffusion vs Routing Efficiency",
-                     title=Path(grid_search_plots_dir, 'Efficiency_Scores'))
+        plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency", color=color_map, plot_limits=[[0, 2], [0, 2]], fig_title="Diffusion vs Routing Efficiency", title=Path(grid_search_plots_dir, 'Efficiency_Scores_Around_1'))
+        plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency", color=color_map, fig_title="Diffusion vs Routing Efficiency", title=Path(grid_search_plots_dir, 'Efficiency_Scores'))
         plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'eff_dist_diffs'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='Effective Distance Differences to Source')
         plot_heatmap(np.array(mean_eff_dist_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'mean_eff_dist'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='Ave Effective Distance to Source')
         plot_heatmap(np.array(global_eff_dist_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'global_eff_dist'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='All-to-All Effective Distance Differences')
@@ -1749,10 +1773,12 @@ def ave_degree_diff(data_dir, initial_graph=0, final_graph=-1, ave_degree_at_tim
 
 
 # Hierarchy Coordinates: ---------------------------------------------------------------------------------------------
-def plot_hierarchy_evolution(graph, time_between_sampling):
+def plot_hierarchy_evolution(graph, time_between_sampling, morphospace_limits=True):
     coordinates = np.zeros((1, 3))
     for timestep in range(0, graph.A.shape[0], time_between_sampling):
         coordinates[-1] = graph.average_hierarchy_coordinates(timestep=timestep)
         coordinates = np.vstack((coordinates, [coordinates[-1]]))
-    general_3d_data_plot(coordinates)
+    plot_limits = None
+    if morphospace_limits: plot_limits = [[-1, 1], [0, 1], [0, 1]]
+    general_3d_data_plot(coordinates, xlabel='Treeness', ylabel='Feedforwardness', zlabel='Orderability', plot_limits=plot_limits, show=True)
 

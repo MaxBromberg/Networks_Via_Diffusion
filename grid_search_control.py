@@ -269,7 +269,7 @@ edge_init = {
 }
 ensemble_params = {
     'ensemble_size': 0,  # num sims to average over. 0 if just one sim is desired (e.g. for graph pictures)
-    'num_runs': 6,  # num runs, could be cut off if reaches equilibrium condition first
+    'num_runs': 600,  # num runs, could be cut off if reaches equilibrium condition first
     'delta': 10,  # Delta parameter in (RW/MP)ED, recommended >= 1
     'equilibrium_distance': 200,
     'constant_source_node': 0,  # If no seeding mechanism is set, defaults to rnd. Activate below seeding by setting values != 0
@@ -283,15 +283,15 @@ ensemble_params = {
     'undirectify_init': 0  # Start edges with reciprocated (simple) edges? (Boolean)
 }
 plots = {
-    'network_graphs': 1,  # graphs the networks
+    'network_graphs': 0,  # graphs the networks
     'node_plots': 0,  # plots Evolution of node values over time
     'ave_nbr': 0,  # Plots average neighbor connections over time
     'cluster_coeff': 0,  # Plots evolution of cluster coefficient
-    'eff_dist': 1,  # Plots evolution of average effective distance to source
-    'global_eff_dist': 1,  # Plots evolution of average effective distance from every node to every other
+    'eff_dist': 0,  # Plots evolution of average effective distance to source
+    'global_eff_dist': 0,  # Plots evolution of average effective distance from every node to every other
     'shortest_path': 0,  # Plots the average shortest path over time. Very computationally expensive
     'degree_dist': 0,  # Yields the degree (total weight) distribution as a histogram
-    'edge_dist': 1,  # Plots the edge distribution (individual edge counts) as a histogram
+    'edge_dist': 0,  # Plots the edge distribution (individual edge counts) as a histogram
     'meta_plots': 1,  # Plots all the meta-plots, specifically: last_ave_nbr_deg, ed diffs, mean ed, ave_neighbor diffs,
     # global ed diffs, ave_nbr variance, log_deg_dist variance, hierarchy coordinates (with exponential and linear thresholds) and efficiency coordinates
 }
