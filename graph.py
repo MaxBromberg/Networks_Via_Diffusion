@@ -44,8 +44,7 @@ def weakly_connected_component_subgraphs(G, copy=True):
 
 class Graph:
     _source_node = None  # holds the source node for each run, reset after every run.
-    _singular_fundamental_matrix_errors = 0  # keeps running count of would be below errors (and replacees 0s with 1e-100):
-
+    _singular_fundamental_matrix_errors = 0  # keeps running count of would be log zero errors (seen below) and replaces 0s with 1e-100:
     # RuntimeWarning: divide by zero encountered in log: RWED = -np.log(Z.dot(D).toarray()) Errors
 
     def __init__(self, num_nodes, edge_conservation_coefficient=None, selectivity=None,
@@ -413,13 +412,14 @@ class Graph:
         if self.reinforcement_infoscore_coupling:
             reduced_info_score = [val if val >= cutoff_val else 0 for val in info_score]
         else:
-            reduced_info_score = [1 if val >= cutoff_val else 0 for val in info_score]
+            reduced_info_score = [1 if val > cutoff_val else 0 for val in info_score]
 
         reduced_info_score_sum = sum(reduced_info_score)
         if reduced_info_score_sum == 0:
-            print(f'reduced_info_score: {reduced_info_score}')
+            # print(f'reduced_info_score: {reduced_info_score} \n cutoff value: {cutoff_val}')
             reduced_info_score = [0] * len(info_score)
             reduced_info_score[utility_funcs.argmax(info_score)] = sorted(info_score)[-1]
+            reduced_info_score_sum = sorted(info_score)[-1]
         return [info_score_sum * (val / reduced_info_score_sum) for val in reduced_info_score]
 
     # Edge Reweighing: ----------------------------------------------------------------------------------------------
@@ -715,7 +715,9 @@ class Graph:
             nx.shortest_path_length(inverted_weights_nx_graph, source=source, target=target, weight='weight'))
 
         if source is None and target is None:
-            SPD = np.array([list(SPD_dic[s].values()) for s in range(self.nodes.shape[1])])  # TODO:  .transpose()  # why the transpose?
+            SPD = np.array([list(SPD_dic[s].values()) for s in range(self.nodes.shape[1])])
+            # SPD = np.array([list(SPD_dic[s].values()) for s in range(self.nodes.shape[1])], dtype=object)  # TODO:  .transpose()  # why the transpose?
+            if SPD.shape[0] != SPD.shape[1]: print(f'Shortest Path Dimensions unequal: {SPD.shape[0]} != {SPD.shape[1]}')
         elif (source is None) != (target is None):
             SPD = np.array(list(SPD_dic.values()))
         else:
@@ -724,11 +726,11 @@ class Graph:
 
     def ave_network_efficiencies(self, n, ensemble_size: int, efficiency: str):
         if efficiency == "routing" or efficiency == "rout":
-            routing_lattice_average = self.E_routing(Adj_Matrix=utility_funcs.matrix_normalize(nx.to_numpy_array(nx.grid_graph(dim=(2, int(n/2)), periodic=True)), row_normalize=True), normalize=False)
+            routing_lattice_average = self.E_routing(Adj_Matrix=utility_funcs.matrix_normalize(nx.to_numpy_array(nx.grid_graph(dim=[2, int(n/2)], periodic=True)), row_normalize=True), normalize=False)
             routing_rnd_graph_average = np.mean([self.E_routing(Adj_Matrix=utility_funcs.matrix_normalize(nx.to_numpy_array(nx.fast_gnp_random_graph(n=n, p=0.5, seed=i, directed=True)), row_normalize=True), normalize=False) for i in range(ensemble_size)])
             return routing_lattice_average, routing_rnd_graph_average
         if efficiency == "diffusive" or efficiency == "diff":
-            diffusive_lattice_average = self.E_diff(A=utility_funcs.matrix_normalize(nx.to_numpy_array(nx.grid_graph(dim=(2, int(n/2)), periodic=True)), row_normalize=True), normalize=False)
+            diffusive_lattice_average = self.E_diff(A=utility_funcs.matrix_normalize(nx.to_numpy_array(nx.grid_graph(dim=[2, int(n/2)], periodic=True)), row_normalize=True), normalize=False)
             diffusive_rnd_graph_average = np.mean([self.E_diff(A=utility_funcs.matrix_normalize(nx.to_numpy_array(nx.fast_gnp_random_graph(n=n, p=0.5, seed=i, directed=True)), row_normalize=True), normalize=False) for i in range(ensemble_size)])
             return diffusive_lattice_average, diffusive_rnd_graph_average
 

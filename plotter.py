@@ -1685,6 +1685,27 @@ def twoD_grid_search_meta_plots(path_to_data_dir, edge_conservation_range, selec
         ave_nbr_vars += np.abs(np.min(ave_nbr_vars))
         min_nbr_var = np.min([val > 0 for val in ave_nbr_vars])
         ave_nbr_vars = [el if el > 0 else min_nbr_var for el in ave_nbr_vars]
+    color_map = [int(i * 255 / selectivity_range.size) for i in np.arange(selectivity_range.size, 0, -1)] * int(
+        edge_conservation_range.size)  # color scale by selectivity value reversed
+    # color_map = [int(i*100/edge_conservation_range.size) for i in range(edge_conservation_range.size)]*int(selectivity_range.size)  # color scale by edge conservation value
+    # color_map = [int(i*100/edge_conservation_range.size) for i in np.arange(edge_conservation_range.size, 0, -1)]*int(selectivity_range.size)  # color scale by edge conservation value reversed
+
+    plot_limits = [[-1, 1], [0, 1], [0, 1]]
+    general_3d_data_plot(data=np.array(linear_threshold_hierarchy_coordinates), xlabel="Treeness",
+                         ylabel="Feedforwardness",
+                         zlabel="Orderability", color=color_map, plot_limits=plot_limits, plot_projections=True,
+                         fig_title='Hierarchy Coordinates (Linear Thresholds)',
+                         title=Path(meta_grid_search_plots_dir, 'Hierarchy_Coordinates_[Linear_Thresholds]'))
+    general_3d_data_plot(data=np.array(exp_threshold_hierarchy_coordinates), xlabel="Treeness",
+                         ylabel="Feedforwardness", zlabel="Orderability", color=color_map, plot_limits=plot_limits,
+                         plot_projections=True, fig_title='Hierarchy Coordinates (Exponential Thresholds)',
+                         title=Path(meta_grid_search_plots_dir, 'Hierarchy_Coordinates_[Exponential_Thresholds]'))
+    plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency",
+                 color=color_map, plot_limits=[[0, 2], [0, 2]], fig_title="Diffusion vs Routing Efficiency",
+                 title=Path(meta_grid_search_plots_dir, 'Efficiency_Scores_Around_1'))
+    plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency",
+                 color=color_map, fig_title="Diffusion vs Routing Efficiency",
+                 title=Path(meta_grid_search_plots_dir, 'Efficiency_Scores'))
     plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(meta_grid_search_plots_dir, f'eff_dist_diff_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=True, fig_title='Effective Distance Difference to Source')
     plot_heatmap(np.array(mean_eff_dist_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(meta_grid_search_plots_dir, f'mean_eff_dist_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=True, fig_title='Average Effective Distance to Source')
     plot_heatmap(np.array(global_eff_dist_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(meta_grid_search_plots_dir, f'global_eff_dist_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=True, fig_title='All-to-All Effective Distance Differences')
@@ -1782,3 +1803,26 @@ def plot_hierarchy_evolution(graph, time_between_sampling, morphospace_limits=Tr
     if morphospace_limits: plot_limits = [[-1, 1], [0, 1], [0, 1]]
     general_3d_data_plot(coordinates, xlabel='Treeness', ylabel='Feedforwardness', zlabel='Orderability', plot_limits=plot_limits, show=True)
 
+########################################################################################################################
+
+if __name__ == "__main__":
+    # CHECK VERSIONS
+    vers_python0 = '3.7.3'
+    vers_numpy0 = '1.17.3'
+    vers_matplotlib0 = '3.1.1'
+    vers_netx0 = '2.5'
+
+    from sys import version_info
+    from matplotlib import __version__ as vers_matplotlib
+    from networkx import __version__ as vers_netx
+
+    vers_python = '%s.%s.%s' % version_info[:3]
+    vers_numpy = np.__version__
+
+    print('\n------------------- Network Diffusion Adaptation ----------------------------\n')
+    print('Required modules:')
+    print('Python:        tested for: %s.  Yours: %s' % (vers_python0, vers_python))
+    print('numpy:         tested for: %s.  Yours: %s' % (vers_numpy0, vers_numpy))
+    print('matplotlib:    tested for: %s.  Yours: %s' % (vers_matplotlib0, vers_matplotlib))
+    print('networkx:      tested for: %s.   Yours: %s' % (vers_netx0, vers_netx))
+    print('\n------------------------------------------------------------------------------\n')

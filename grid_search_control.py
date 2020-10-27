@@ -16,7 +16,7 @@ Central program to order sequential grid-searches based on comprehensive paramet
 
 
 def directionality_dic(data_directory):
-    eff_dist_to_source = {'eff_dist_is_towards_source': 1}
+    eff_dist_to_source = {'eff_dist_is_towards_source': 1, 'positive_eff_dist_and_reinforcement_correlation': 1}  # The effective distance flip should be accompanied by its info-score equivalent
     node_adapt_outgoing_edges = {'nodes_adapt_outgoing_edges': 1}
     outgoing_edges_conserved = {'incoming_edges_conserved': 0}
     directionality = {
@@ -34,9 +34,9 @@ def directionality_dic(data_directory):
 
 def initializations_dic(data_directory):
     inits = {
-        'scale_free': {'edge_init': 1.2, 'data_directory': Path(data_directory, 'scale_free_deg_exp_1.2_edges/')},
+        'scale_free': {'edge_init': float(1.2), 'data_directory': Path(data_directory, 'scale_free_deg_exp_1.2_edges/')},
         'uniform_random': {'edge_init': None, 'data_directory': Path(data_directory, 'uniform_random_edges/')},
-        'sparse': {'edge_init': 3, 'data_directory': Path(data_directory, 'sparse_3_edges/')}
+        'sparse': {'edge_init': int(3), 'data_directory': Path(data_directory, 'sparse_3_edges/')}
     }
     return inits
 
@@ -257,7 +257,7 @@ parameter_dictionary = {
     'selectivity_range': '0_1.05_0.05'
 }
 search_wide_dic = {
-    'reinforcement_info_score_coupling': 0,  # Default = False (0)
+    'reinforcement_info_score_coupling': 1,  # Default = False (0)
     'positive_eff_dist_and_reinforcement_correlation': 0,  # Default = False (0)
     'eff_dist_is_towards_source': 0,   # Default = False (0)
     'nodes_adapt_outgoing_edges': 0,  # Default = False (0)
@@ -283,21 +283,27 @@ ensemble_params = {
     'undirectify_init': 0  # Start edges with reciprocated (simple) edges? (Boolean)
 }
 plots = {
-    'network_graphs': 0,  # graphs the networks
+    'network_graphs': 1,  # graphs the networks
     'node_plots': 0,  # plots Evolution of node values over time
     'ave_nbr': 0,  # Plots average neighbor connections over time
     'cluster_coeff': 0,  # Plots evolution of cluster coefficient
-    'eff_dist': 0,  # Plots evolution of average effective distance to source
-    'global_eff_dist': 0,  # Plots evolution of average effective distance from every node to every other
+    'eff_dist': 1,  # Plots evolution of average effective distance to source
+    'global_eff_dist': 1,  # Plots evolution of average effective distance from every node to every other
     'shortest_path': 0,  # Plots the average shortest path over time. Very computationally expensive
-    'degree_dist': 0,  # Yields the degree (total weight) distribution as a histogram
-    'edge_dist': 0,  # Plots the edge distribution (individual edge counts) as a histogram
+    'degree_dist': 1,  # Yields the degree (total weight) distribution as a histogram
+    'edge_dist': 1,  # Plots the edge distribution (individual edge counts) as a histogram
     'meta_plots': 1,  # Plots all the meta-plots, specifically: last_ave_nbr_deg, ed diffs, mean ed, ave_neighbor diffs,
     # global ed diffs, ave_nbr variance, log_deg_dist variance, hierarchy coordinates (with exponential and linear thresholds) and efficiency coordinates
 }
 
 default_dict = {**parameter_dictionary, **search_wide_dic, **edge_init, **ensemble_params, **plots}
-master_dict = list_of_dicts(default_dict, initializations_dic(directory), seeding_dic(directory), directionality_dic(directory))
+# master_dict = list_of_dicts(default_dict, initializations_dic(directory), seeding_dic(directory), directionality_dic(directory))
+master_dict = list_of_dicts(default_dict, initializations_dic(directory), seeding_dic(directory))
+
+# num_shifts_of_source_node = 'num_shifts_of_source_node'
+# print(f'index: {i} | directory: {list(master_dict[i].values())[0]} | num_shifts_of_source_node: {master_dict[i][num_shifts_of_source_node]}')
 
 if __name__ == '__main__':
+    for i in range(3):
+        run_grid_search(param_dic=master_dict[i])
     run_grid_search(param_dic=master_dict[int(sys.argv[1])])
