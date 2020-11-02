@@ -34,9 +34,9 @@ def directionality_dic(data_directory):
 
 def initializations_dic(data_directory):
     inits = {
-        'scale_free': {'edge_init': float(1.2), 'data_directory': Path(data_directory, 'scale_free_deg_exp_1.2_edges/')},
+        'scale_free': {'edge_init': 1.2, 'data_directory': Path(data_directory, 'scale_free_deg_exp_1.2_edges/')},
         'uniform_random': {'edge_init': None, 'data_directory': Path(data_directory, 'uniform_random_edges/')},
-        'sparse': {'edge_init': int(3), 'data_directory': Path(data_directory, 'sparse_3_edges/')}
+        'sparse': {'edge_init': 3, 'data_directory': Path(data_directory, 'sparse_3_edges/')}
     }
     return inits
 
@@ -192,6 +192,7 @@ def grid_search(param_dic, num_cores_used=mp.cpu_count(), remove_data_post_plott
                                    degree_dist=bool(param_dic['degree_dist']),
                                    edge_dist=bool(param_dic['edge_dist']),
                                    meta_plots=bool(param_dic['meta_plots']),
+                                   efficiency_coords=True,
                                    # output_dir=Path(data_directory, 'Plots'))
                                    output_dir=None)
     if remove_data_post_plotting:
@@ -300,10 +301,7 @@ default_dict = {**parameter_dictionary, **search_wide_dic, **edge_init, **ensemb
 # master_dict = list_of_dicts(default_dict, initializations_dic(directory), seeding_dic(directory), directionality_dic(directory))
 master_dict = list_of_dicts(default_dict, initializations_dic(directory), seeding_dic(directory))
 
-# num_shifts_of_source_node = 'num_shifts_of_source_node'
-# print(f'index: {i} | directory: {list(master_dict[i].values())[0]} | num_shifts_of_source_node: {master_dict[i][num_shifts_of_source_node]}')
-
 if __name__ == '__main__':
-    for i in range(3):
-        run_grid_search(param_dic=master_dict[i])
     run_grid_search(param_dic=master_dict[int(sys.argv[1])])
+    # uf.print_inventory(master_dict[4])
+    # run_grid_search(param_dic=master_dict[4])

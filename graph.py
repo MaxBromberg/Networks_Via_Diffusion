@@ -42,6 +42,10 @@ def weakly_connected_component_subgraphs(G, copy=True):
             yield G.subgraph(comp)
 
 
+def sum_weighted_path(A, path: list):
+    return sum([A[path[i]][path[i+1]] for i in range(len(path)-1)])
+
+
 class Graph:
     _source_node = None  # holds the source node for each run, reset after every run.
     _singular_fundamental_matrix_errors = 0  # keeps running count of would be log zero errors (seen below) and replaces 0s with 1e-100:
@@ -707,21 +711,30 @@ class Graph:
         # return np.round(np.sum(self.A[timestep], axis=0), 20)
 
     def shortest_path(self, timestep=-1, source=None, target=None, reversed_directions=False, Adj_Matrix=None):
-        if Adj_Matrix is not None: inverted_weights_nx_graph = nx.to_directed(nx.from_numpy_matrix(np.array(1 - Adj_Matrix), create_using=nx.DiGraph))
-        else: inverted_weights_nx_graph = nx.to_directed(nx.from_numpy_matrix(np.array(1 - self.A[timestep]), create_using=nx.DiGraph))  # might be better ot simply accept a pre-converted nx_graph
+        if Adj_Matrix is not None:
+            Adj = np.array(1 - Adj_Matrix)
+        else:
+            Adj = np.array(1 - self.A[timestep])
+
+        Adj = np.where(Adj == 0, 1e-100, Adj)
+
+        inverted_weights_nx_graph = nx.to_directed(nx.from_numpy_matrix(Adj, create_using=nx.DiGraph))
         if reversed_directions:
             inverted_weights_nx_graph = inverted_weights_nx_graph.reverse(copy=False)
-        SPD_dic = dict(
-            nx.shortest_path_length(inverted_weights_nx_graph, source=source, target=target, weight='weight'))
 
-        if source is None and target is None:
-            SPD = np.array([list(SPD_dic[s].values()) for s in range(self.nodes.shape[1])])
-            # SPD = np.array([list(SPD_dic[s].values()) for s in range(self.nodes.shape[1])], dtype=object)  # TODO:  .transpose()  # why the transpose?
-            if SPD.shape[0] != SPD.shape[1]: print(f'Shortest Path Dimensions unequal: {SPD.shape[0]} != {SPD.shape[1]}')
-        elif (source is None) != (target is None):
-            SPD = np.array(list(SPD_dic.values()))
+        # SPD_dic = dict(nx.shortest_path_length(inverted_weights_nx_graph, source=source, target=target, weight='weight'))
+        shortest_paths = nx.shortest_path(inverted_weights_nx_graph, source=source, target=target, weight='weight')
+        # if shortest_paths
+        if source is None:
+            if target is None:
+                SPD = np.array([[sum_weighted_path(Adj, shortest_paths[s][t]) for s in range(self.nodes.shape[1])] for t in range(self.nodes.shape[1])])
+            else:
+                SPD = np.array([sum_weighted_path(Adj, shortest_paths[s][target]) for s in range(self.nodes.shape[1])])
         else:
-            SPD = SPD_dic.values()
+            if target is None:
+                SPD = np.array([sum_weighted_path(Adj, shortest_paths[source][t]) for t in range(self.nodes.shape[1])])
+            else:
+                SPD = sum_weighted_path(Adj, shortest_paths[source][target])
         return SPD
 
     def ave_network_efficiencies(self, n, ensemble_size: int, efficiency: str):

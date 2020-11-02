@@ -174,6 +174,17 @@ def exponentially_distribute(exponent, dist_max, dist_min, num_exp_distributed_v
     return np.array(exponential_proportions) * (dist_max - dist_min)
 
 
+def crop_outliers(data, std_multiple_cutoff=2):
+    data_std_cutoffs = [-np.std(data)*std_multiple_cutoff+np.mean(data), np.std(data)*std_multiple_cutoff+np.mean(data)]
+    cropped_data = filter(lambda x: data_std_cutoffs[0] < x < data_std_cutoffs[1], data)
+
+    filtered_data = []
+    for el in cropped_data:
+        filtered_data.append(el)
+    #  Not understood why this cannot be done through list comprehension...
+    return filtered_data
+
+
 # just for debugging
 def rounded_print(num):
     print(np.round(num, rounding))
@@ -182,3 +193,4 @@ def rounded_print(num):
 def print_inventory(dct):
     for item, amount in dct.items():
         print("{} ({})".format(item, amount))
+

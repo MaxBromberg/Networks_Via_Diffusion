@@ -22,11 +22,11 @@ init_args = [num_nodes, edge_conservation_val, selectivity_val, reinforcement_in
 G = graph.Graph(*init_args)
 # G.uniform_random_edge_init()
 # G.sparse_random_edge_init(3, connected=True)
-G.edge_initialization_conditional(1.2)
-print(f'G.A[0]: \n {np.round(G.A[0], 3)}')
-G.simulate(100, constant_source_node=3)
-print(f'G.A[0]: \n {np.round(G.A[-1], 3)}')
-plotter.plot_network(G, show=True)
+# G.edge_initialization_conditional(1.2)
+# print(f'G.A[0]: \n {np.round(G.A[0], 3)}')
+# G.simulate(100, constant_source_node=3)
+# print(f'G.A[0]: \n {np.round(G.A[-1], 3)}')
+
 # plotter.general_3d_data_plot(data=np.random.rand(100, 3), xlabel="Treeness", ylabel="Feedforwardness", zlabel="Orderability", fig_title='Hierarchy Coordinates (Exponential Thresholds)', show=True)
 #
 
@@ -34,3 +34,6 @@ plotter.plot_network(G, show=True)
 # plotter.general_3d_data_plot(data, plot_projections=True, projections=False, show=True, title='/home/maqz/Desktop/test')
 
 # plotter.plot_nx_network(nx.to_directed(nx.from_numpy_matrix(np.array(G.A[-1]), create_using=nx.DiGraph)), show=True)
+
+plotter.twoD_grid_search_meta_plots(path_to_data_dir=Path(str(Path.home()), 'data/node_num_50/'), output_dir=Path(str(Path.home()), 'data/'),
+                                    selectivity_range=np.arange(0, 1.05, 0.05), efficiency_coords=True, edge_conservation_range=np.arange(0, 1.05, 0.05))

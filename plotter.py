@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib
 # Force matplotlib to not use any Xwindows backend.
-# matplotlib.use('Agg')
+matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 from matplotlib import gridspec
 from matplotlib import colors
@@ -615,10 +615,10 @@ def plot_single_network(graph, timestep, directed=True, node_size_scaling=None, 
     edge_colors = 'black'
 
     if source_weighting:  # sizes nodes proportional to the number of times they've been a source
-        source_weights = [graph.source_node_history[:timestep].count(node) for node in range(graph.nodes.shape[1]-1)]
+        source_weights = [graph.source_node_history[:timestep].count(node)*node_size_scaling for node in range(graph.nodes.shape[1]-1)]
         # source_weight_sum = sum(source_weights)
         # source_weights = [node_size_scaling*pow((weight/source_weight_sum), 0.5) for weight in source_weights]
-        source_weights = [weight if weight > 0 else 1 for weight in source_weights]
+        source_weights = [weight if weight > 0 else 1*node_size_scaling for weight in source_weights]
 
         nx.draw_networkx_nodes(nx_G, pos,
                                edgecolors=edge_colors,
@@ -684,12 +684,11 @@ def plot_network(graph, directed=True, node_size_scaling=200, nodes_sized_by_eff
         node_colors = ['grey'] * graph.nodes.shape[1]
         node_colors[graph.source_node_history[timestep]] = 'red'
         nx.draw_networkx_edges(nx_G, pos, nodelist=['0'], alpha=0.8, width=weights, arrowsize=4, connectionstyle='arc3, rad=0.2')
-        nx.draw_networkx_nodes(nx_G, pos,
+        nx.draw_networkx_nodes(G=nx_G, pos=pos,
                                edgecolors=edge_colors,
                                node_size=incoming_edge_sum,
                                node_color=node_colors,
-                               linewidths=weights,
-                               cmap=plt.get_cmap('viridis'))
+                               linewidths=weights)
         plt.title("timestep: {0}".format(timestep))
         if nodes_sized_by_eff_distance:
             nx.draw_networkx_nodes(nx_G, pos,
@@ -1347,7 +1346,7 @@ def pool_twoD_grid_search_plots(data_directory, edge_conservation_range, selecti
         f"Time lapsed for plotting {num_nodes} nodes, {run_counter} parameter combinations: {utility_funcs.time_lapsed_h_m_s(time.time() - start_time)}")
 
 
-def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_range, num_nodes, source_reward=2.6, eff_dist=False, global_eff_dist=False, network_graphs=False, node_plots=False, ave_nbr=False, cluster_coeff=False, shortest_path=False, degree_dist=False, edge_dist=False, meta_plots=True, output_dir=None):
+def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_range, num_nodes, source_reward=2.6, eff_dist=False, global_eff_dist=False, network_graphs=False, node_plots=False, ave_nbr=False, cluster_coeff=False, shortest_path=False, degree_dist=False, edge_dist=False, meta_plots=True,  efficiency_coords=True, output_dir=None):
     """
     Runs grid-search, and then creates all plots for a given dataset (sub)directory, and puts the results in new appropriately named subdirectories.
     # Parallelization implementation ensures completion of all plots per dataset (or as many as supportable by the number of cpu cores) before continuing to the following set
@@ -1399,7 +1398,7 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
     ave_neighbor_diffs_flattened = []
     ave_nbr_var_flattened = []
     log_degree_dist_var_flattened = []
-    efficiency_coordinates = []
+    if efficiency_coords: efficiency_coordinates = []
     linear_threshold_hierarchy_coordinates = []
     exp_threshold_hierarchy_coordinates = []
 
@@ -1496,7 +1495,7 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
                         # exp_threshold_hierarchy_coordinates.append(np.array(G.average_hierarchy_coordinates(timestep=-1, exp_threshold_distribution=True)))
                         linear_threshold_hierarchy_coordinates.append(G.linear_threshold_hierarchy_coordinates)
                         exp_threshold_hierarchy_coordinates.append(G.exp_threshold_hierarchy_coordinates)
-                        efficiency_coordinates.append(np.array([G.E_diff(timestep=-1), G.E_routing(timestep=-1)]))
+                        if efficiency_coords: efficiency_coordinates.append(np.array([G.E_diff(timestep=-1), G.E_routing(timestep=-1)]))
 
                 utility_funcs.consume(selectivity_range_iter, left_over_selectivity_values - 1)  # -1 because the iteration forwards 1 step still proceeds directly after
             else:
@@ -1578,7 +1577,7 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
                         log_degree_dist_var_flattened.append(np.var(G.degree_distribution(timestep=-1)))
                         linear_threshold_hierarchy_coordinates.append(G.linear_threshold_hierarchy_coordinates)
                         exp_threshold_hierarchy_coordinates.append(G.exp_threshold_hierarchy_coordinates)
-                        efficiency_coordinates.append(np.array([G.E_diff(timestep=-1), G.E_routing(timestep=-1)]))
+                        if efficiency_coords: efficiency_coordinates.append(np.array([G.E_diff(timestep=-1), G.E_routing(timestep=-1)]))
                 utility_funcs.consume(selectivity_range_iter, cores_used - 1)  # Advances skew iter cpu count iterations
 
             for process in processes:
@@ -1608,8 +1607,19 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
                              ylabel="Feedforwardness", zlabel="Orderability", color=color_map, plot_limits=plot_limits,
                              plot_projections=True, fig_title='Hierarchy Coordinates (Exponential Thresholds)',
                              title=Path(grid_search_plots_dir, 'Hierarchy_Coordinates_[Exponential_Thresholds]'))
-        plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency", color=color_map, plot_limits=[[0, 2], [0, 2]], fig_title="Diffusion vs Routing Efficiency", title=Path(grid_search_plots_dir, 'Efficiency_Scores_Around_1'))
-        plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency", color=color_map, fig_title="Diffusion vs Routing Efficiency", title=Path(grid_search_plots_dir, 'Efficiency_Scores'))
+        if efficiency_coords:
+            scaling = 2
+            cropped_diff_eff = utility_funcs.crop_outliers(np.array(efficiency_coordinates)[:, 0], std_multiple_cutoff=2)
+            cropped_rout_eff = utility_funcs.crop_outliers(np.array(efficiency_coordinates)[:, 1], std_multiple_cutoff=1)
+            diff_eff_std, diff_eff_mean = np.std(cropped_diff_eff), np.mean(cropped_diff_eff)
+            rout_eff_std, rout_eff_mean = np.std(cropped_rout_eff), np.mean(cropped_rout_eff)
+            x_eff_lim = [diff_eff_mean - (scaling * diff_eff_std), diff_eff_mean + (scaling * diff_eff_std)]
+            y_eff_lim = [rout_eff_mean - (scaling * rout_eff_std), rout_eff_mean + (scaling * rout_eff_std)]
+            plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency",
+                         color=color_map, plot_limits=[x_eff_lim, y_eff_lim], fig_title="Diffusion vs Routing Efficiency",
+                         title=Path(grid_search_plots_dir, 'Efficiency_Scores_wo_outliers'))
+            plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency", color=color_map, plot_limits=[[0, 2], [0, 2]], fig_title="Diffusion vs Routing Efficiency", title=Path(grid_search_plots_dir, 'Efficiency_Scores_Around_1'))
+            plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency", color=color_map, fig_title="Diffusion vs Routing Efficiency", title=Path(grid_search_plots_dir, 'Efficiency_Scores'))
         plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'eff_dist_diffs'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='Effective Distance Differences to Source')
         plot_heatmap(np.array(mean_eff_dist_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'mean_eff_dist'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='Ave Effective Distance to Source')
         plot_heatmap(np.array(global_eff_dist_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'global_eff_dist'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='All-to-All Effective Distance Differences')
@@ -1619,7 +1629,7 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
     print(f"Time lapsed for plotting {num_nodes} nodes, {run_counter} parameter combinations: {utility_funcs.time_lapsed_h_m_s(time.time()-start_time)}")
 
 
-def twoD_grid_search_meta_plots(path_to_data_dir, edge_conservation_range, selectivity_range, source_reward=2.6, delta=1, output_dir=None, verbose=False):
+def twoD_grid_search_meta_plots(path_to_data_dir, edge_conservation_range, selectivity_range, source_reward=2.6, delta=10, efficiency_coords=True, output_dir=None, verbose=False):
     """
     Creates meta plots for a given dataset (sub)directory, and puts the results in new appropriately named subdirectories.
     :param path_to_data_dir: string; Path obj, path to data directory
@@ -1650,7 +1660,7 @@ def twoD_grid_search_meta_plots(path_to_data_dir, edge_conservation_range, selec
     degree_dist_var_flattened = []
     linear_threshold_hierarchy_coordinates = []
     exp_threshold_hierarchy_coordinates = []
-    efficiency_coordinates = []
+    if efficiency_coords: efficiency_coordinates = []
 
     for __, __, files in os.walk(path_to_data_dir):
         f = sorted(files)  # Order preserved due to 0 padding.
@@ -1669,7 +1679,8 @@ def twoD_grid_search_meta_plots(path_to_data_dir, edge_conservation_range, selec
             degree_dist_var_flattened.append(np.var(G.degree_distribution(timestep=-1)))
             linear_threshold_hierarchy_coordinates.append(G.linear_threshold_hierarchy_coordinates)
             exp_threshold_hierarchy_coordinates.append(G.exp_threshold_hierarchy_coordinates)
-            efficiency_coordinates.append(np.array([G.E_diff(timestep=-1), G.E_routing(timestep=-1)]))
+            if efficiency_coords:
+                efficiency_coordinates.append(np.array([G.E_diff(timestep=-1), G.E_routing(timestep=-1)]))
             if verbose:
                 num_nodes = G.num_nodes
                 run_counter += 1
@@ -1700,21 +1711,31 @@ def twoD_grid_search_meta_plots(path_to_data_dir, edge_conservation_range, selec
                          ylabel="Feedforwardness", zlabel="Orderability", color=color_map, plot_limits=plot_limits,
                          plot_projections=True, fig_title='Hierarchy Coordinates (Exponential Thresholds)',
                          title=Path(meta_grid_search_plots_dir, 'Hierarchy_Coordinates_[Exponential_Thresholds]'))
-    plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency",
-                 color=color_map, plot_limits=[[0, 2], [0, 2]], fig_title="Diffusion vs Routing Efficiency",
-                 title=Path(meta_grid_search_plots_dir, 'Efficiency_Scores_Around_1'))
-    plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency",
-                 color=color_map, fig_title="Diffusion vs Routing Efficiency",
-                 title=Path(meta_grid_search_plots_dir, 'Efficiency_Scores'))
+    if efficiency_coords:
+        scaling = 2
+        cropped_diff_eff = utility_funcs.crop_outliers(np.array(efficiency_coordinates)[:, 0], std_multiple_cutoff=2)
+        cropped_rout_eff = utility_funcs.crop_outliers(np.array(efficiency_coordinates)[:, 1], std_multiple_cutoff=1)
+        diff_eff_std, diff_eff_mean = np.std(cropped_diff_eff), np.mean(cropped_diff_eff)
+        rout_eff_std, rout_eff_mean = np.std(cropped_rout_eff), np.mean(cropped_rout_eff)
+        x_eff_lim = [diff_eff_mean - (scaling * diff_eff_std), diff_eff_mean + (scaling * diff_eff_std)]
+        y_eff_lim = [rout_eff_mean - (scaling * rout_eff_std), rout_eff_mean + (scaling * rout_eff_std)]
+        plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency",
+                     color=color_map, plot_limits=[x_eff_lim, y_eff_lim], fig_title="Diffusion vs Routing Efficiency",
+                     title=Path(meta_grid_search_plots_dir, 'Efficiency_Scores_wo_outliers'))
+        plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency",
+                     color=color_map, plot_limits=[[0, 1.5], [0, 1.5]], fig_title="Diffusion vs Routing Efficiency",
+                     title=Path(meta_grid_search_plots_dir, 'Efficiency_Scores_Around_1'))
+        plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency",
+                     color=color_map, fig_title="Diffusion vs Routing Efficiency",
+                     title=Path(meta_grid_search_plots_dir, 'Efficiency_Scores'))
     plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(meta_grid_search_plots_dir, f'eff_dist_diff_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=True, fig_title='Effective Distance Difference to Source')
     plot_heatmap(np.array(mean_eff_dist_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(meta_grid_search_plots_dir, f'mean_eff_dist_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=True, fig_title='Average Effective Distance to Source')
     plot_heatmap(np.array(global_eff_dist_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(meta_grid_search_plots_dir, f'global_eff_dist_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=True, fig_title='All-to-All Effective Distance Differences')
     plot_heatmap(np.array(degree_dist_var_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(meta_grid_search_plots_dir, f'degree_var_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=True, fig_title='Final Degree Distribution Variance')
     # plot_heatmap(np.log(ave_nbr_diffs), title=Path(meta_grid_search_plots_dir, f'log_ave_neighbor_diff_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='ln_Ave_Nbr_Differences')
-    plot_heatmap(np.log(ave_nbr_vars), title=Path(meta_grid_search_plots_dir, f'log_ave_neighbor_var_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='ln_Ave_Nbr_Variance')
+    # plot_heatmap(np.log(ave_nbr_vars), title=Path(meta_grid_search_plots_dir, f'log_ave_neighbor_var_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='ln_Ave_Nbr_Variance')
     general_3d_data_plot(data=np.array(linear_threshold_hierarchy_coordinates), xlabel="Treeness", ylabel="Feedforwardness", zlabel="Orderability", plot_projections=True, fig_title='Hierarchy Coordinates (Linear Thresholds)', title=Path(meta_grid_search_plots_dir, 'Hierarchy_Coordinates'))
     general_3d_data_plot(data=np.array(exp_threshold_hierarchy_coordinates), xlabel="Treeness", ylabel="Feedforwardness", zlabel="Orderability", plot_projections=True, fig_title='Hierarchy Coordinates (Exponential Thresholds)', title=Path(meta_grid_search_plots_dir, 'Exp_Thresholds_Hierarchy_Coordinates'))
-    plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency", fig_title="Diffusion vs Routing Efficiency", title=Path(meta_grid_search_plots_dir, 'Efficiency_Scores'))
 
     if verbose: print(f"Time lapsed for {num_nodes} node, {run_counter} parameter combinations: {int((time.time()-start_time) / 60)} minutes, {np.round((time.time()-start_time) % 60, 2)} seconds")
 
@@ -1799,9 +1820,12 @@ def plot_hierarchy_evolution(graph, time_between_sampling, morphospace_limits=Tr
     for timestep in range(0, graph.A.shape[0], time_between_sampling):
         coordinates[-1] = graph.average_hierarchy_coordinates(timestep=timestep)
         coordinates = np.vstack((coordinates, [coordinates[-1]]))
+
+    print(f'coordinates: {coordinates}')
     plot_limits = None
     if morphospace_limits: plot_limits = [[-1, 1], [0, 1], [0, 1]]
-    general_3d_data_plot(coordinates, xlabel='Treeness', ylabel='Feedforwardness', zlabel='Orderability', plot_limits=plot_limits, show=True)
+    color_map = [int(i * 255 / coordinates.shape[0]) for i in np.arange(coordinates.shape[0], 0, -1)]  # color scale by selectivity value reversed
+    general_3d_data_plot(coordinates, xlabel='Treeness', ylabel='Feedforwardness', zlabel='Orderability', plot_limits=plot_limits, color=color_map, show=True)
 
 ########################################################################################################################
 
