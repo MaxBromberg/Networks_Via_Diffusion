@@ -770,7 +770,7 @@ class Graph:
             return (E_diff_base - diffusive_lattice_average) / (diffusive_rnd_graph_average - diffusive_lattice_average)
         return np.sum(self.RWED(adjacency_matrix=normalized_A)) / (n * (n - 1))
 
-    def node_weighted_condense(self, timestep, num_thresholds=5, exp_threshold_distribution=False):
+    def node_weighted_condense(self, timestep, num_thresholds=8, exp_threshold_distribution=None):
         """
         returns a series of node_weighted condensed graphs [*]
         [*] Hierarchy in Complex Networks: the possible and the actual: Supporting information. Corominas-Murtra et al. [2013]
@@ -781,25 +781,23 @@ class Graph:
         An exponent of 0 results in a linear distribution, otherwise the exp distribution is sampled from e^(exp_float)*2e - e^(exp_float)*e
         """
         # Establishing Thresholds
-        if not exp_threshold_distribution:
+        if exp_threshold_distribution is None:
             thresholds = list(np.round(np.arange(np.min(self.A[timestep]), np.max(self.A[timestep]), (np.max(self.A[timestep] - np.min(self.A[timestep]))) / num_thresholds), 4))
         else:
             thresholds = utility_funcs.exponentially_distribute(exponent=exp_threshold_distribution,
                                                                 dist_max=np.max(self.A[timestep]),
                                                                 dist_min=np.min(self.A[timestep]),
                                                                 num_exp_distributed_values=num_thresholds)
-
         # Converting to binary nx_graphs according to thresholds:
-        nx_graphs = [nx.from_numpy_matrix(np.where(self.A[timestep] > threshold, 1, 0), create_using=nx.DiGraph) for
-                     threshold in thresholds]
+        nx_graphs = [nx.from_numpy_matrix(np.where(self.A[timestep] > threshold, 1, 0), create_using=nx.DiGraph) for threshold in thresholds]
         # base_binary_graphs = [nx.to_numpy_array(nx_graphs[val]) for val in range(len(nx_graphs))]  # yes, it's silly to reconvert if this is actually needed.
 
         condensed_graphs = [nx.condensation(nx_graphs[index]) for index in range(len(nx_graphs))]
         largest_condensed_graphs = []
         for condensed_graph in condensed_graphs:
             largest_condensed_graphs.append(nx.convert_node_labels_to_integers(max(weakly_connected_component_subgraphs(condensed_graph, copy=True), key=len)))
-            # largest_condensed_graphs.append(nx.convert_node_labels_to_integers(max(nx.weakly_connected_component_subgraphs(condensed_graph, copy=True), key=len)))
-            # To take only the largest component of the condensed graph. Required inputting function from older NetworkX docs directly.
+            # networkx.weakly_connected_component_subgraphs comes from networkx 1.10 documentation, and has sense been discontinued.
+            # For ease of access and future networkx compatibility, it was copied directly to this file before the class declaration.
             members = nx.get_node_attributes(largest_condensed_graphs[-1], 'members')
             node_weights = [len(w) for w in members.values()]
             for node_index in range(len(node_weights)):
@@ -807,7 +805,7 @@ class Graph:
 
         return largest_condensed_graphs, nx_graphs
 
-    def average_hierarchy_coordinates(self, timestep=-1, num_thresholds=5, exp_threshold_distribution=False):
+    def average_hierarchy_coordinates(self, timestep=-1, num_thresholds=8, exp_threshold_distribution=None):
         o, f, t = 0, 0, 0
         condensed_graphs, original_graphs = self.node_weighted_condense(timestep=timestep,
                                                                         num_thresholds=num_thresholds,
@@ -891,8 +889,8 @@ class Graph:
                     break  # Automatic break if equilibrium is reached. Lets run times be arb. large for MC delta search
         self.A = np.delete(self.A, -1, axis=0)
         self.nodes = self.nodes[:-1]
-        self.linear_threshold_hierarchy_coordinates = np.array(self.average_hierarchy_coordinates(timestep=-1))
-        self.exp_threshold_hierarchy_coordinates = np.array(self.average_hierarchy_coordinates(timestep=-1, exp_threshold_distribution=True))
+        self.linear_threshold_hierarchy_coordinates = np.array(self.average_hierarchy_coordinates(timestep=-1, exp_threshold_distribution=None))
+        self.exp_threshold_hierarchy_coordinates = np.array(self.average_hierarchy_coordinates(timestep=-1, exp_threshold_distribution=0.5))
         if verbose:
             print_run_methods()
 

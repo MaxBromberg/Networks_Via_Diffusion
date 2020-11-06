@@ -41,6 +41,17 @@ def initializations_dic(data_directory):
     return inits
 
 
+def density_init_dic(data_directory):
+    sparse_inits = {
+        'uniform_random': {'edge_init': None, 'data_directory': Path(data_directory, 'uniform_random_edges/')},
+        '0.75_sparse': {'edge_init': 45, 'data_directory': Path(data_directory, 'k_0.75_edges/')},
+        '0.5_sparse': {'edge_init': 30, 'data_directory': Path(data_directory, 'k_0.5_edges/')},
+        '0.25_sparse': {'edge_init': 15, 'data_directory': Path(data_directory, 'k_0.25_edges/')},
+        '0.1_sparse': {'edge_init': 6, 'data_directory': Path(data_directory, 'k_0.1_edges/')}
+    }
+    return sparse_inits
+
+
 def seeding_dic(data_directory):
     seed_dic = {
         'constant': {'constant_source_node': 1, 'data_directory': Path(data_directory, 'constant_seeding/')},
@@ -270,7 +281,7 @@ edge_init = {
 }
 ensemble_params = {
     'ensemble_size': 0,  # num sims to average over. 0 if just one sim is desired (e.g. for graph pictures)
-    'num_runs': 600,  # num runs, could be cut off if reaches equilibrium condition first
+    'num_runs': 6,  # num runs, could be cut off if reaches equilibrium condition first
     'delta': 10,  # Delta parameter in (RW/MP)ED, recommended >= 1
     'equilibrium_distance': 200,
     'constant_source_node': 0,  # If no seeding mechanism is set, defaults to rnd. Activate below seeding by setting values != 0
@@ -297,9 +308,10 @@ plots = {
     # global ed diffs, ave_nbr variance, log_deg_dist variance, hierarchy coordinates (with exponential and linear thresholds) and efficiency coordinates
 }
 
+
 default_dict = {**parameter_dictionary, **search_wide_dic, **edge_init, **ensemble_params, **plots}
 # master_dict = list_of_dicts(default_dict, initializations_dic(directory), seeding_dic(directory), directionality_dic(directory))
-master_dict = list_of_dicts(default_dict, initializations_dic(directory), seeding_dic(directory))
+master_dict = list_of_dicts(default_dict, density_init_dic(directory), seeding_dic(directory))
 
 if __name__ == '__main__':
     run_grid_search(param_dic=master_dict[int(sys.argv[1])])
