@@ -42,10 +42,6 @@ def weakly_connected_component_subgraphs(G, copy=True):
             yield G.subgraph(comp)
 
 
-def sum_weighted_path(A, path: list):
-    return sum([A[path[i]][path[i+1]] for i in range(len(path)-1)])
-
-
 class Graph:
     _source_node = None  # holds the source node for each run, reset after every run.
     _singular_fundamental_matrix_errors = 0  # keeps running count of would be log zero errors (seen below) and replaces 0s with 1e-100:
@@ -102,10 +98,8 @@ class Graph:
         if connected:
             zero_column_indices = np.where(self.A[-1].sum(axis=0) == 0)[0]
             for zero_column in zero_column_indices:
-                max_column = np.argmax(
-                    self.A[-1].sum(axis=0))  # Necessarily re-evaluated for every replacement, as the row sums change
-                row_chosen = random.choice(
-                    [row for row in np.where(self.A[-1][:, max_column] > 0)[0] if row != zero_column])
+                max_column = np.argmax(self.A[-1].sum(axis=0))  # Necessarily re-evaluated for every replacement, as the row sums change
+                row_chosen = random.choice([row for row in np.where(self.A[-1][:, max_column] > 0)[0] if row != zero_column])
                 self.A[-1][row_chosen][zero_column] += seed_amount
                 self.A[-1][row_chosen][max_column] -= seed_amount
 
@@ -264,6 +258,15 @@ class Graph:
             assert len(edge_init.shape) == 2 and edge_init.shape[0] == edge_init.shape[
                 1], f'edge_init as np.array must be a square (2d) matrix. Now edge_init is: \n {edge_init}'
             self.A[-1] = edge_init
+
+    def imported_A_edge_init(self, A, undirectify=False):
+        assert len(A[0]) == self.num_nodes, "imported A must be of dim == num nodes"
+        assert len(A.shape) == 2, "imported A must be square (dim==2)"
+        assert len(A[0]) == len(A[:, 0]), "imported A must be square"
+        assert [A[i][i] for i in range(len(A[0]))] == [0]*len(A[0]), "Imported A must be simple (i.e. no self loops, i.e. diagonal are all 0)"
+        self.A[-1] = A
+        if undirectify:
+            self.A[-1] = utility_funcs.undirectify(self.A[-1])
 
     # Information Seeding: ------------------------------------------------------------------------------------------
     def seed_info_random(self):
@@ -711,6 +714,10 @@ class Graph:
         # return np.round(np.sum(self.A[timestep], axis=0), 20)
 
     def shortest_path(self, timestep=-1, source=None, target=None, reversed_directions=False, Adj_Matrix=None):
+
+        def sum_weighted_path(A, path: list):
+            return sum([A[path[i]][path[i + 1]] for i in range(len(path) - 1)])
+
         if Adj_Matrix is not None:
             Adj = np.array(1 - Adj_Matrix)
         else:
@@ -770,6 +777,53 @@ class Graph:
             return (E_diff_base - diffusive_lattice_average) / (diffusive_rnd_graph_average - diffusive_lattice_average)
         return np.sum(self.RWED(adjacency_matrix=normalized_A)) / (n * (n - 1))
 
+    # def node_weighted_condense(self, timestep, num_thresholds=8, exp_threshold_distribution=None):
+    #     """
+    #     returns a series of node_weighted condensed graphs [*]
+    #     [*] Hierarchy in Complex Networks: the possible and the actual: Supporting information. Corominas-Murtra et al. [2013]
+    #     :param timestep: timestep for conversion
+    #     :param num_thresholds: Number of thresholds and resultant sets of node-weighted Directed Acyclic Graphs
+    #     :param exp_threshold_distribution: if true or float, distributes the thresholds exponentially, with an exponent equal to the float input.
+    #     :return condensed graphs, a list of node_weighted condensed nx_graphs, one for every threshold and corresponding binary A
+    #     An exponent of 0 results in a linear distribution, otherwise the exp distribution is sampled from e^(exp_float)*2e - e^(exp_float)*e
+    #     """
+    #     # Establishing Thresholds
+    #     if exp_threshold_distribution is None:
+    #         thresholds = list(np.round(np.arange(np.min(self.A[timestep]), np.max(self.A[timestep]), (np.max(self.A[timestep] - np.min(self.A[timestep]))) / num_thresholds), 4))
+    #     else:
+    #         thresholds = utility_funcs.exponentially_distribute(exponent=exp_threshold_distribution,
+    #                                                             dist_max=np.max(self.A[timestep]),
+    #                                                             dist_min=np.min(self.A[timestep]),
+    #                                                             num_exp_distributed_values=num_thresholds)
+    #     # Converting to binary nx_graphs according to thresholds:
+    #     nx_graphs = [nx.from_numpy_matrix(np.where(self.A[timestep] > threshold, 1, 0), create_using=nx.DiGraph) for threshold in thresholds]
+    #     # base_binary_graphs = [nx.to_numpy_array(nx_graphs[val]) for val in range(len(nx_graphs))]  # yes, it's silly to reconvert if this is actually needed.
+    #
+    #     condensed_graphs = [nx.condensation(nx_graphs[index]) for index in range(len(nx_graphs))]
+    #     largest_condensed_graphs = []
+    #     for condensed_graph in condensed_graphs:
+    #         largest_condensed_graphs.append(nx.convert_node_labels_to_integers(max(weakly_connected_component_subgraphs(condensed_graph, copy=True), key=len)))
+    #         # networkx.weakly_connected_component_subgraphs comes from networkx 1.10 documentation, and has sense been discontinued.
+    #         # For ease of access and future networkx compatibility, it was copied directly to this file before the class declaration.
+    #         members = nx.get_node_attributes(largest_condensed_graphs[-1], 'members')
+    #         node_weights = [len(w) for w in members.values()]
+    #         for node_index in range(len(node_weights)):
+    #             largest_condensed_graphs[-1].nodes[node_index]["weight"] = node_weights[node_index]
+    #
+    #     return largest_condensed_graphs, nx_graphs
+
+    # def average_hierarchy_coordinates(self, timestep=-1, num_thresholds=8, exp_threshold_distribution=None):
+    #     o, f, t = 0, 0, 0
+    #     condensed_graphs, original_graphs = self.node_weighted_condense(timestep=timestep,
+    #                                                                     num_thresholds=num_thresholds,
+    #                                                                     exp_threshold_distribution=exp_threshold_distribution)
+    #     for index in range(len(condensed_graphs)):
+    #         o += hc.orderability(original_graphs[index], condensed_graphs[index])
+    #         f += hc.feedforwardness(condensed_graphs[index])
+    #         t += hc.treeness(condensed_graphs[index])
+    #     o /= len(condensed_graphs); f /= len(condensed_graphs); t /= len(condensed_graphs)
+    #     return o, f, t
+
     def node_weighted_condense(self, timestep, num_thresholds=8, exp_threshold_distribution=None):
         """
         returns a series of node_weighted condensed graphs [*]
@@ -780,42 +834,10 @@ class Graph:
         :return condensed graphs, a list of node_weighted condensed nx_graphs, one for every threshold and corresponding binary A
         An exponent of 0 results in a linear distribution, otherwise the exp distribution is sampled from e^(exp_float)*2e - e^(exp_float)*e
         """
-        # Establishing Thresholds
-        if exp_threshold_distribution is None:
-            thresholds = list(np.round(np.arange(np.min(self.A[timestep]), np.max(self.A[timestep]), (np.max(self.A[timestep] - np.min(self.A[timestep]))) / num_thresholds), 4))
-        else:
-            thresholds = utility_funcs.exponentially_distribute(exponent=exp_threshold_distribution,
-                                                                dist_max=np.max(self.A[timestep]),
-                                                                dist_min=np.min(self.A[timestep]),
-                                                                num_exp_distributed_values=num_thresholds)
-        # Converting to binary nx_graphs according to thresholds:
-        nx_graphs = [nx.from_numpy_matrix(np.where(self.A[timestep] > threshold, 1, 0), create_using=nx.DiGraph) for threshold in thresholds]
-        # base_binary_graphs = [nx.to_numpy_array(nx_graphs[val]) for val in range(len(nx_graphs))]  # yes, it's silly to reconvert if this is actually needed.
-
-        condensed_graphs = [nx.condensation(nx_graphs[index]) for index in range(len(nx_graphs))]
-        largest_condensed_graphs = []
-        for condensed_graph in condensed_graphs:
-            largest_condensed_graphs.append(nx.convert_node_labels_to_integers(max(weakly_connected_component_subgraphs(condensed_graph, copy=True), key=len)))
-            # networkx.weakly_connected_component_subgraphs comes from networkx 1.10 documentation, and has sense been discontinued.
-            # For ease of access and future networkx compatibility, it was copied directly to this file before the class declaration.
-            members = nx.get_node_attributes(largest_condensed_graphs[-1], 'members')
-            node_weights = [len(w) for w in members.values()]
-            for node_index in range(len(node_weights)):
-                largest_condensed_graphs[-1].nodes[node_index]["weight"] = node_weights[node_index]
-
-        return largest_condensed_graphs, nx_graphs
+        return hc.node_weighted_condense(A=self.A[timestep], num_thresholds=num_thresholds, exp_threshold_distribution=exp_threshold_distribution)
 
     def average_hierarchy_coordinates(self, timestep=-1, num_thresholds=8, exp_threshold_distribution=None):
-        o, f, t = 0, 0, 0
-        condensed_graphs, original_graphs = self.node_weighted_condense(timestep=timestep,
-                                                                        num_thresholds=num_thresholds,
-                                                                        exp_threshold_distribution=exp_threshold_distribution)
-        for index in range(len(condensed_graphs)):
-            o += hc.orderability(original_graphs[index], condensed_graphs[index])
-            f += hc.feedforwardness(condensed_graphs[index])
-            t += hc.treeness(condensed_graphs[index])
-        o /= len(condensed_graphs); f /= len(condensed_graphs); t /= len(condensed_graphs)
-        return o, f, t
+        return hc.average_hierarchy_coordinates(A=self.A[timestep], num_thresholds=num_thresholds, exp_threshold_distribution=exp_threshold_distribution)
 
     # Run Functions: -------------------------------------------------------------------------------------------------
     def simulate(self, num_runs, eff_dist_delta_param=1, constant_source_node=False, num_shifts_of_source_node=False,

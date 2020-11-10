@@ -678,9 +678,8 @@ def plot_network(graph, directed=True, node_size_scaling=200, nodes_sized_by_eff
         plt.subplot(1, 4, count)
         count += 1
         weights = [nx_G[u][v]['weight'] * 1.5 for u, v in nx_G.edges()]
-        # colors=[G.node[n]['color'] for n in G.node()]
         incoming_edge_sum = [(node_size_scaling * node / sum(incoming_edge_sum)) for node in incoming_edge_sum]
-        edge_colors = range(2, nx_G.number_of_edges() + 2)
+        edge_colors = 'black'
         node_colors = ['grey'] * graph.nodes.shape[1]
         node_colors[graph.source_node_history[timestep]] = 'red'
         nx.draw_networkx_edges(nx_G, pos, nodelist=['0'], alpha=0.8, width=weights, arrowsize=4, connectionstyle='arc3, rad=0.2')
@@ -688,7 +687,8 @@ def plot_network(graph, directed=True, node_size_scaling=200, nodes_sized_by_eff
                                edgecolors=edge_colors,
                                node_size=incoming_edge_sum,
                                node_color=node_colors,
-                               linewidths=weights)
+                               linewidths=weights,
+                               cmap=plt.get_cmap('viridis'))
         plt.title("timestep: {0}".format(timestep))
         if nodes_sized_by_eff_distance:
             nx.draw_networkx_nodes(nx_G, pos,

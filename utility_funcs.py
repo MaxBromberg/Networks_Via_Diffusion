@@ -185,6 +185,16 @@ def crop_outliers(data, std_multiple_cutoff=2):
     return filtered_data
 
 
+def check_binary(x):
+    is_binary = True
+    for v in np.nditer(x):
+        if v.item() != 0 and v.item() != 1:
+            is_binary = False
+            break
+
+    return is_binary
+
+
 # just for debugging
 def rounded_print(num):
     print(np.round(num, rounding))

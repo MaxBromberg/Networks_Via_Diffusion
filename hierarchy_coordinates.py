@@ -13,6 +13,62 @@ applying thresholds to normalized weighted graphs.
 """
 
 
+def weakly_connected_component_subgraphs(G, copy=True):
+    """Generate weakly connected components as subgraphs.
+
+    Parameters
+    ----------
+    G : NetworkX Graph
+       A directed graph.
+
+    copy : bool
+        If copy is True, graph, node, and edge attributes are copied to the
+        subgraphs.
+    """
+    for comp in nx.weakly_connected_components(G):
+        if copy:
+            yield G.subgraph(comp).copy()
+        else:
+            yield G.subgraph(comp)
+
+
+def node_weighted_condense(A, num_thresholds=8, exp_threshold_distribution=None):
+    """
+    returns a series of node_weighted condensed graphs (DAGs) [*] and their original nx_graphs.
+    [*] Hierarchy in Complex Networks: the possible and the actual: Supporting information. Corominas-Murtra et al. [2013]
+    :param timestep: timestep for conversion
+    :param num_thresholds: Number of thresholds and resultant sets of node-weighted Directed Acyclic Graphs
+    :param exp_threshold_distribution: if true or float, distributes the thresholds exponentially, with an exponent equal to the float input.
+    :return condensed graphs, a list of node_weighted condensed nx_graphs, one for every threshold and corresponding binary A
+    An exponent of 0 results in a linear distribution, otherwise the exp distribution is sampled from e^(exp_float)*2e - e^(exp_float)*e
+    """
+    # Establishing Thresholds
+    if exp_threshold_distribution is None:
+        thresholds = list(np.round(np.arange(np.min(A), np.max(A), (np.max(A - np.min(A))) / num_thresholds), 4))
+    else:
+        thresholds = utility_funcs.exponentially_distribute(exponent=exp_threshold_distribution,
+                                                            dist_max=np.max(A),
+                                                            dist_min=np.min(A),
+                                                            num_exp_distributed_values=num_thresholds)
+    # Converting to binary nx_graphs according to thresholds:
+    nx_graphs = [nx.from_numpy_matrix(np.where(A > threshold, 1, 0), create_using=nx.DiGraph) for threshold in thresholds]
+    # base_binary_graphs = [nx.to_numpy_array(nx_graphs[val]) for val in range(len(nx_graphs))]  # yes, it's silly to reconvert if this is actually needed.
+
+    condensed_graphs = [nx.condensation(nx_graphs[index]) for index in range(len(nx_graphs))]
+    largest_condensed_graphs = []
+    for condensed_graph in condensed_graphs:
+        largest_condensed_graphs.append(nx.convert_node_labels_to_integers(
+            max(weakly_connected_component_subgraphs(condensed_graph, copy=True), key=len)))
+        # networkx.weakly_connected_component_subgraphs comes from networkx 1.10 documentation, and has sense been discontinued.
+        # For ease of access and future networkx compatibility, it was copied directly to this file before the class declaration.
+        members = nx.get_node_attributes(largest_condensed_graphs[-1], 'members')
+        node_weights = [len(w) for w in members.values()]
+        for node_index in range(len(node_weights)):
+            largest_condensed_graphs[-1].nodes[node_index]["weight"] = node_weights[node_index]
+
+    return largest_condensed_graphs, nx_graphs
+
+
 def weight_nodes_by_condensation(condensed_graph):
     node_weights = [len(w) for w in nx.get_node_attributes(condensed_graph, 'members').values()]
     for node_index in range(len(node_weights)):
@@ -174,6 +230,21 @@ def treeness(dag):
 
     return entropy_sum / (len(pruned_from_bottom) + len(pruned_from_top))
 
+
+def average_hierarchy_coordinates(A, num_thresholds=8, exp_threshold_distribution=None):
+    if utility_funcs.check_binary(A):
+        num_thresholds = 1
+    else:
+        num_thresholds = num_thresholds
+
+    o, f, t = 0, 0, 0
+    condensed_graphs, original_graphs = node_weighted_condense(A=A, num_thresholds=num_thresholds, exp_threshold_distribution=exp_threshold_distribution)
+    for index in range(len(condensed_graphs)):
+        o += orderability(original_graphs[index], condensed_graphs[index])
+        f += feedforwardness(condensed_graphs[index])
+        t += treeness(condensed_graphs[index])
+    o /= len(condensed_graphs); f /= len(condensed_graphs); t /= len(condensed_graphs)
+    return o, f, t
 
 ########################################################################################################################
 

@@ -1,5 +1,4 @@
 import os
-import sys
 import time
 import shutil
 import numpy as np
@@ -264,7 +263,7 @@ directory = Path(str(Path.home()), 'data/')
 parameter_dictionary = {
     'data_directory': directory,
     'run_index': 1,
-    'num_nodes': 60,
+    'num_nodes': 22,
     'edge_conservation_range': '0_1.05_0.05',  # work with me here. (args to np.arange separated by _)
     'selectivity_range': '0_1.05_0.05'
 }
@@ -281,7 +280,7 @@ edge_init = {
 }
 ensemble_params = {
     'ensemble_size': 0,  # num sims to average over. 0 if just one sim is desired (e.g. for graph pictures)
-    'num_runs': 6,  # num runs, could be cut off if reaches equilibrium condition first
+    'num_runs': 16,  # num runs, could be cut off if reaches equilibrium condition first
     'delta': 10,  # Delta parameter in (RW/MP)ED, recommended >= 1
     'equilibrium_distance': 200,
     'constant_source_node': 0,  # If no seeding mechanism is set, defaults to rnd. Activate below seeding by setting values != 0
@@ -314,6 +313,7 @@ default_dict = {**parameter_dictionary, **search_wide_dic, **edge_init, **ensemb
 master_dict = list_of_dicts(default_dict, density_init_dic(directory), seeding_dic(directory))
 
 if __name__ == '__main__':
-    run_grid_search(param_dic=master_dict[int(sys.argv[1])])
-    # uf.print_inventory(master_dict[4])
-    # run_grid_search(param_dic=master_dict[4])
+    print(len(master_dict))
+#     run_grid_search(param_dic=master_dict[int(sys.argv[1])])
+    # for i in range(len(master_dict)):
+    #     run_grid_search(param_dic=master_dict[i])
