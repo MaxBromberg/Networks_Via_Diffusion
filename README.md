@@ -2,7 +2,7 @@
 
 This repository contains the working code relevant for Max Bromberg's physics master's thesis, the objective of which is to discover the dependence of network structure on the forms of (presumably information) diffusion. 
 
-Supervised by [Dr. Lorenz-Spreen][1] of the Max Planck Institute for Human Development ([Max Planck Institut für Bildungsforschung][2]) and [Prof. Netz][3] of Freie Universität Berlin.
+Supervised by [Dr. Philipp Lorenz-Spreen][1] of the Max Planck Institute for Human Development ([Max Planck Institut für Bildungsforschung][2]) and [Prof. Roland Netz][3] of Freie Universität Berlin.
 
 <!---- Links: ---->
 [1]: https://www.mpib-berlin.mpg.de/staff/philipp-lorenz-spreen
@@ -13,12 +13,12 @@ Supervised by [Dr. Lorenz-Spreen][1] of the Max Planck Institute for Human Devel
 #### Hierarchy Coordinates
 
 Independent of the rest of this repository is an implementation of [Hierarchy Coordinates][0.1] for weighted graphs, which may be used in isolation. 
-Originally formulated exclusively for unweighted directed networks[^0.1] by Corominas-Murta et al. (2013) in _On the Origins of Hierarchy in Complex Networks_, and subsequently implemented in Matlab v7, [hierarchy_coordinates.py][0.2] provides a python3 implementation which includes weighted networks. 
+Originally formulated exclusively for unweighted directed networks<sup id="a1">[0.1](#f1)</sup> by Corominas-Murta et al. (2013) in _On the Origins of Hierarchy in Complex Networks_, and subsequently implemented in Matlab v7, [hierarchy_coordinates.py][0.2] provides a python3 implementation which includes weighted networks. 
 ![An illustration of linear vs exponential threshold distributions (right) and the corresponding unweighted networks created from them (left). For details regarding the adaptation from unweighted to weighted networks, see the [associated thesis][0.5]](./readme_graphics/Threshold_Explainations.png)
 Calculation of hierarchy coordinates for weighted networks are performed simply by reducing weighted networks to a set of unweighted networks based on either exponentially or linearly distributed thresholds, and subsequently averaging their hierarchy coordinates as given by the original algorithm described in their [appendix][0.3].
 
 There are a variety of functions required for the calculation of hierarchy coordinates, including initially reducing a simple, directed graph into a node weighted Directed Acyclic Graph (DAG), and thereafter making use of:
- _max_min_layers_, *(recursive)_leaf_removal*, *graph_entropy*, and the base hierarchy coordinate functions[^0.2]. Naturally all may be used independently, or for the common purpose of simply finding the hierarchy coordinates of a given graph (including a binary graph, for which the thresholds are not used) one may simply use _hierarchy_coordinates.average_hierarchy_coordinates_, as in
+ _max_min_layers_, *(recursive)_leaf_removal*, *graph_entropy*, and the base hierarchy coordinate functions<sup id="a2">[0.2](#f2)</sup>. Naturally all may be used independently, or for the common purpose of simply finding the hierarchy coordinates of a given graph (including a binary graph, for which the thresholds are not used) one may simply use _hierarchy_coordinates.average_hierarchy_coordinates_, as in this example code:
 ```
 import numpy as np
 import hierarchy_coordinates as hc
@@ -26,9 +26,8 @@ import hierarchy_coordinates as hc
 Adjacency_Matrix = np.random.rand(10, 10)
 orderability, feedforwardness, treeness = hc.average_hierarchy_coordinates(Adjacency_Matrix)
 ```
-
-
-
+Furthermore, for plotting of hierarchy coordinates with 2d planes printed below, one may use the [plotter.py][5] *general_3d_data_plot* function, as below.
+![Hierarchy coordinates for the associated model with power law seeding, and <k> = 0.25 with associated 2d plots below. Color coding here is based on selectivity value.](./readme_graphics/Hierarchy_Coordinates_%5BExponential_Thresholds_k_0.25_pwr_law_5_seeding%5D.png)
 <!---- References: ---->
 [0.1]: https://arxiv.org/abs/1303.2503
 [0.2]: hierarchy_coordinates.py
@@ -36,8 +35,38 @@ orderability, feedforwardness, treeness = hc.average_hierarchy_coordinates(Adjac
 [0.5]: reference_to_thesis_in_repo
 
 <!---- Footnotes: ---->
-[^0.1]: Supplementary material with detailed description of the hierarchy coordinates used to develop this repository's [hierarchy_coordinates.py][0.2] found at https://www.pnas.org/content/suppl/2013/07/25/1300832110.DCSupplemental
-[^0.2]: Feedforwardness and treeness are calculated through recursive application of the same 'base' version of their respective functions _feedforwardnes_iteration_ and  _single_graph_treeness_.
+<b id="f1">0.1</b> Supplementary material with detailed description of the hierarchy coordinates used to develop this repository's [hierarchy_coordinates.py][0.2] found at https://www.pnas.org/content/suppl/2013/07/25/1300832110.DCSupplemental [↩](#a1)
+
+<b id="f2">0.2</b> Feedforwardness and treeness are calculated through recursive application of the same 'base' version of their respective functions _feedforwardnes_iteration_ and  _single_graph_treeness_. [↩](#a2)
+
+#### Efficiency Coordinates
+**Note: implementation pending further analysis, as normalization does not presently yield expected (0, 1)<sup>2</sup> range**
+
+This repository also contains an implementation of the efficiency coordinates as explored in [Goñi et al. (2013)][1.1] *Exploring the morphospace of communication efficiency in complex networks*, and initially developed in [Latora et Marchiori (2001)][1.4], which considers both *global*, or *routing* efficiency (E<sub>rout</sub>) and diffusion efficiency (E<sub>diff</sub>). 
+Routing efficiencies consider the relative efficiency of intra-network communication via shortest possible path's (implying global knowledge, parallel processing) whereas diffusion efficiency<sup id="a1.0">[1.0](#f1.0)</sup> considers the comparable efficacy of information passing via pure diffusion. 
+
+The efficiency coordinates require only an adjacency (numpy) matrix (which will be row normalized if not already normalized) and the normalization option normalizes the efficiency coordinates according to the method in [Goñi et al. (2013)][1.1].
+```
+import efficiency_coordinates as ef
+import numpy as np
+
+A = np.random.rand(10, 10)  # Declaring Adjacency Matrix
+E_diff, E_rout = ef.network_efficiencies(A, normalize=True)
+
+# Equivalent to:
+E_diff, E_rout = ef.E_diff(A), ef.E_rout(A)
+```
+
+
+<!---- References: ---->
+[1.0]: https://pubmed.ncbi.nlm.nih.gov/23505455/
+[1.1]: efficiency_coordinates.py
+[1.2]: http://www.uvm.edu/pdodds/files/papers/others/2001/latora2001a.pdf
+[1.3]: https://arxiv.org/abs/1608.06201
+[1.4]: http://www.uvm.edu/pdodds/files/papers/others/2001/latora2001a.pdf
+
+<!---- Footnotes: ---->
+<b id="f1.0">1.1</b> Diffusive efficiency makes use of the random walker effective distance (explored in [Iannelli et al. 2017][1.3]), which is a handy method whereby with maximal computational demands of matrix inversion **~O(n<sup>2.5</sup>)** yields the random walker probabilities between all nodes in a network. [↩](#a1.0)
 
 #### Using the Migrating Meme Model
 
@@ -64,7 +93,7 @@ plotter.plot_network(G, show=True)
 The [plotter.py][5] file contains many preformatted, relevant plotting functions for a given network, from effective distance evolution and edge distribution histograms to grid search heatmaps and network evolution animations. 
 Nearly all [plotter.py][5] functions accept a graph class object as their first argument, and can either be directly shown via setting `show=True` or saved via `title='/path/to/file/file_title'`. 
 
-Note that for ensemble simulations (i.e. using `G.simulate_ensemble(num_simulations=10, num_runs_per_sim=100, edge_init=1.2)`) one needs to use the `edge_init` parameter[^2.0], to determine the edge initialization for each simulation.
+Note that for ensemble simulations (i.e. using `G.simulate_ensemble(num_simulations=10, num_runs_per_sim=100, edge_init=1.2)`) one needs to use the `edge_init` parameter<sup id="a2.1">[2.1](#f2.1)</sup>, to determine the edge initialization for each simulation.
 Furthermore, the final adjacency matrix is an average of all simulations, which makes sense for some observables, as in effective distance, but doesn't make much sense for visualizing network graphs. 
 
 
@@ -104,4 +133,4 @@ Note that for cluster computing, it may be necessary to turn off the Xwindows ba
 
 
 <!---- Footnotes: ---->
-[^2.0]: edge_init determines initial network structure based on data type, `None` is uniform rnd, `int` is num_edges/node in sparse init, `float` is degree exp in scale free init.
+<b id="f2.1">2.1</b> edge_init determines initial network structure based on data type, `None` is uniform rnd, `int` is num_edges/node in sparse init, `float` is degree exp in scale free init. [↩](#a2.1)

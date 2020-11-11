@@ -4,6 +4,7 @@ import utility_funcs
 import networkx as nx
 import effective_distance as ed
 import hierarchy_coordinates as hc
+import efficiency_coordinates as ef
 
 from scipy.sparse.linalg import inv
 from scipy.sparse import diags, eye, csc_matrix
@@ -19,27 +20,6 @@ update_interval_val = 1
 source_reward_val = 2.6
 equilibrium_distance_val = 100
 equilibrium_span_val = 0  # virtually never triggers for val > 0
-
-
-# nx.utils.decorators.not_implemented_for("undirected")
-# As this function was eliminated in later versions of networkx, I must add it again here
-def weakly_connected_component_subgraphs(G, copy=True):
-    """Generate weakly connected components as subgraphs.
-
-    Parameters
-    ----------
-    G : NetworkX Graph
-       A directed graph.
-
-    copy : bool
-        If copy is True, graph, node, and edge attributes are copied to the
-        subgraphs.
-    """
-    for comp in nx.weakly_connected_components(G):
-        if copy:
-            yield G.subgraph(comp).copy()
-        else:
-            yield G.subgraph(comp)
 
 
 class Graph:
@@ -228,8 +208,8 @@ class Graph:
     def nx_scale_free_edge_init_unconnected(self, alpha=0.41, beta=0.54, gamma=0.05, delta_in=0.2, delta_out=0,
                                             create_using=None, seed=None):
         # in and out degrees are considered to be the same by default
-        nx_graph = nx.scale_free_graph(self.A.shape[1], alpha=0.41, beta=0.54, gamma=0.05, delta_in=0.2, delta_out=0,
-                                       create_using=None, seed=None)
+        nx_graph = nx.scale_free_graph(self.A.shape[1], alpha=alpha, beta=beta, gamma=gamma, delta_in=delta_in, delta_out=delta_out,
+                                       create_using=create_using, seed=seed)
         self.A[-1] = nx.to_numpy_array(nx_graph)
 
         for from_node in range(self.A[-1].shape[0]):
@@ -474,82 +454,7 @@ class Graph:
                                                    average_connections=True)  # averages reciprocal connections (e_ji, e_ji --> (e_ij + e_ji)/2))
 
     # Effective Distance Evaluation: --------------------------------------------------------------------------------
-    def RWED(self, adjacency_matrix, source=None, target=None, parameter=1, via_numpy=False, sub_zeros=False):
-        """
-        Directly Adapted from Dr. Koher's version, though by default uses scipy.sparse rather than numpy.linalg (much faster)
-        Compute the random walk effective distance:
-        F. Iannelli, A. Koher, P. Hoevel, I.M. Sokolov (in preparation)
-
-        Parameters
-        ----------
-             source : int or None
-                If source is None, the distances from all nodes to the target is calculated
-                Otherwise the integer has to correspond to a node index
-
-            target : int or None
-                If target is None, the distances from the source to all other nodes is calculated
-                Otherwise the integer has to correspond to a node index
-
-            parameter : float
-                compound delta which includes the infection and recovery rate alpha and beta, respectively,
-                the mobility rate kappa and the Euler-Mascheroni constant lambda:
-                    log[ (alpha-beta)/kappa - lambda ]
-
-        Returns:
-        --------
-            random_walk_distance : ndarray or float
-                If source and target are specified, a float value is returned that specifies the distance.
-
-                If either source or target is None a numpy array is returned.
-                The position corresponds to the node ID.
-                shape = (Nnodes,)
-
-                If both are None a numpy array is returned.
-                Each row corresponds to the node ID.
-                shape = (Nnodes,Nnodes)
-        """
-
-        assert (isinstance(parameter, float) or isinstance(parameter, int)) and parameter > 0
-
-        # assert np.all(np.isclose(P.sum(axis=1), 1, rtol=1e-15, equal_nan=True)), "If there are dim incompatibility issues, as nan == nan is false."
-        A = adjacency_matrix
-        assert np.all(np.isclose(A.sum(axis=1), 1, rtol=1e-15)), f"The transition matrix has to be row normalized | A row sums: \n {A.sum(axis=1)}"
-
-        if via_numpy:
-            one = np.identity(adjacency_matrix.shape[0])
-            Z = np.linalg.inv(one - A * np.exp(-parameter))
-            D = np.diag(1. / Z.diagonal())
-            if sub_zeros:
-                ZdotD = Z.dot(D).toarray()
-                ZdotD = np.where(ZdotD == 0, 1e-100, ZdotD)
-                RWED = -np.log(ZdotD)
-            else:
-                RWED = -np.log(Z.dot(D))
-        else:
-            one = eye(self.nodes.shape[1], format="csc")
-            Z = inv(csc_matrix(one - A * np.exp(-parameter)))
-            D = diags(1. / Z.diagonal(), format="csc")
-            ZdotD = Z.dot(D).toarray()
-            if np.any(ZdotD == 0) or sub_zeros:
-                ZdotD = np.where(ZdotD == 0, 1e-100,
-                                 ZdotD)  # Substitute zero with low value (10^-100) for subsequent log evaluation
-                RWED = -np.log(ZdotD)
-                self._singular_fundamental_matrix_errors += 1
-            else:
-                RWED = -np.log(Z.dot(D).toarray())
-
-        if source is not None:
-            if target is not None:
-                RWED = RWED[source, target]
-            else:
-                RWED = RWED[source, :]
-        elif target is not None:
-            RWED = RWED[:, target]
-
-        return RWED
-
-    def get_eff_dist(self, adjacency_matrix=None, multiple_path=False, source=None, target=None, parameter=1,
-                     saveto=""):
+    def get_eff_dist(self, adjacency_matrix=None, multiple_path=False, source=None, target=None, parameter=1):
         """
         Returns effective distance based on the effective distance library built by Andreas Koher. Random walk
         estimations require row normalized adjacency matrix values.
@@ -561,14 +466,14 @@ class Graph:
         """
         if adjacency_matrix is None:
             adjacency_matrix = self.A[-1]
-        if multiple_path:
+        if not multiple_path:
+            RWED, errors = ef.Random_Walker_Effective_Distance(A=adjacency_matrix, source=source, target=target, parameter=parameter, via_numpy=False, return_errors=True)
+            self._singular_fundamental_matrix_errors += errors
+            return RWED
+        else:
             return ed.EffectiveDistances(np_array=adjacency_matrix).get_multiple_path_distance(source=source,
                                                                                                target=target,
-                                                                                               parameter=parameter,
-                                                                                               saveto=saveto)
-        else:
-            return self.RWED(adjacency_matrix, source=source, target=target, parameter=parameter, via_numpy=False)
-            # return ed.EffectiveDistances(np_array=adjacency_matrix).get_random_walk_distance(source=source, target=target, parameter=parameter, saveto=saveto)
+                                                                                               parameter=parameter)
 
     def evaluate_effective_distances(self, source_reward, parameter, multiple_path_eff_dist, source=None, timestep=-1,
                                      rounding=3):
@@ -744,102 +649,14 @@ class Graph:
                 SPD = sum_weighted_path(Adj, shortest_paths[source][target])
         return SPD
 
-    def ave_network_efficiencies(self, n, ensemble_size: int, efficiency: str):
-        if efficiency == "routing" or efficiency == "rout":
-            routing_lattice_average = self.E_routing(Adj_Matrix=utility_funcs.matrix_normalize(nx.to_numpy_array(nx.grid_graph(dim=[2, int(n/2)], periodic=True)), row_normalize=True), normalize=False)
-            routing_rnd_graph_average = np.mean([self.E_routing(Adj_Matrix=utility_funcs.matrix_normalize(nx.to_numpy_array(nx.fast_gnp_random_graph(n=n, p=0.5, seed=i, directed=True)), row_normalize=True), normalize=False) for i in range(ensemble_size)])
-            return routing_lattice_average, routing_rnd_graph_average
-        if efficiency == "diffusive" or efficiency == "diff":
-            diffusive_lattice_average = self.E_diff(A=utility_funcs.matrix_normalize(nx.to_numpy_array(nx.grid_graph(dim=[2, int(n/2)], periodic=True)), row_normalize=True), normalize=False)
-            diffusive_rnd_graph_average = np.mean([self.E_diff(A=utility_funcs.matrix_normalize(nx.to_numpy_array(nx.fast_gnp_random_graph(n=n, p=0.5, seed=i, directed=True)), row_normalize=True), normalize=False) for i in range(ensemble_size)])
-            return diffusive_lattice_average, diffusive_rnd_graph_average
-
-    def E_routing(self, timestep=-1, source=None, target=None, reversed_directions=False, Adj_Matrix=None, normalize=True):
-        # To avoid divide by 0 errors, we add the 'average' edge weight 1/self.nodes.shape[1] to the inverted weight shortest paths
-        shortest_paths = self.shortest_path(timestep=timestep, source=source, target=target, reversed_directions=reversed_directions, Adj_Matrix=Adj_Matrix)
-        if Adj_Matrix is not None: n = Adj_Matrix.shape[0]
-        else: n = self.nodes.shape[1]
-        if normalize:
-            routing_lattice_average, routing_rnd_graph_average = self.ave_network_efficiencies(n=n, ensemble_size=10, efficiency="routing")
-            E_routing_base = np.sum(1 / (np.array(shortest_paths) + (1 / n))) / (n * (n - 1))
-            return (E_routing_base - routing_lattice_average) / (routing_rnd_graph_average - routing_lattice_average)
-        return np.sum(1 / (np.array(shortest_paths) + (1 / n))) / (n * (n - 1))
-
-    def E_diff(self, A=None, timestep=-2, normalize=True):  # Diffusion Efficiency
-        Adj_Matrix = self.A[timestep] if A is None else A
-        n = Adj_Matrix.shape[0] if Adj_Matrix.shape[0] is not None else self.nodes.shape[1]
-
-        row_sums = Adj_Matrix.sum(axis=1)
-        normalized_A = np.array([Adj_Matrix[node, :] / row_sums[node] for node in range(Adj_Matrix.shape[0])])
-        if normalize:
-            diffusive_lattice_average, diffusive_rnd_graph_average = self.ave_network_efficiencies(n=n, ensemble_size=10, efficiency="diffusive")
-            E_diff_base = np.sum(self.RWED(adjacency_matrix=normalized_A)) / (n * (n - 1))
-            return (E_diff_base - diffusive_lattice_average) / (diffusive_rnd_graph_average - diffusive_lattice_average)
-        return np.sum(self.RWED(adjacency_matrix=normalized_A)) / (n * (n - 1))
-
-    # def node_weighted_condense(self, timestep, num_thresholds=8, exp_threshold_distribution=None):
-    #     """
-    #     returns a series of node_weighted condensed graphs [*]
-    #     [*] Hierarchy in Complex Networks: the possible and the actual: Supporting information. Corominas-Murtra et al. [2013]
-    #     :param timestep: timestep for conversion
-    #     :param num_thresholds: Number of thresholds and resultant sets of node-weighted Directed Acyclic Graphs
-    #     :param exp_threshold_distribution: if true or float, distributes the thresholds exponentially, with an exponent equal to the float input.
-    #     :return condensed graphs, a list of node_weighted condensed nx_graphs, one for every threshold and corresponding binary A
-    #     An exponent of 0 results in a linear distribution, otherwise the exp distribution is sampled from e^(exp_float)*2e - e^(exp_float)*e
-    #     """
-    #     # Establishing Thresholds
-    #     if exp_threshold_distribution is None:
-    #         thresholds = list(np.round(np.arange(np.min(self.A[timestep]), np.max(self.A[timestep]), (np.max(self.A[timestep] - np.min(self.A[timestep]))) / num_thresholds), 4))
-    #     else:
-    #         thresholds = utility_funcs.exponentially_distribute(exponent=exp_threshold_distribution,
-    #                                                             dist_max=np.max(self.A[timestep]),
-    #                                                             dist_min=np.min(self.A[timestep]),
-    #                                                             num_exp_distributed_values=num_thresholds)
-    #     # Converting to binary nx_graphs according to thresholds:
-    #     nx_graphs = [nx.from_numpy_matrix(np.where(self.A[timestep] > threshold, 1, 0), create_using=nx.DiGraph) for threshold in thresholds]
-    #     # base_binary_graphs = [nx.to_numpy_array(nx_graphs[val]) for val in range(len(nx_graphs))]  # yes, it's silly to reconvert if this is actually needed.
-    #
-    #     condensed_graphs = [nx.condensation(nx_graphs[index]) for index in range(len(nx_graphs))]
-    #     largest_condensed_graphs = []
-    #     for condensed_graph in condensed_graphs:
-    #         largest_condensed_graphs.append(nx.convert_node_labels_to_integers(max(weakly_connected_component_subgraphs(condensed_graph, copy=True), key=len)))
-    #         # networkx.weakly_connected_component_subgraphs comes from networkx 1.10 documentation, and has sense been discontinued.
-    #         # For ease of access and future networkx compatibility, it was copied directly to this file before the class declaration.
-    #         members = nx.get_node_attributes(largest_condensed_graphs[-1], 'members')
-    #         node_weights = [len(w) for w in members.values()]
-    #         for node_index in range(len(node_weights)):
-    #             largest_condensed_graphs[-1].nodes[node_index]["weight"] = node_weights[node_index]
-    #
-    #     return largest_condensed_graphs, nx_graphs
-
-    # def average_hierarchy_coordinates(self, timestep=-1, num_thresholds=8, exp_threshold_distribution=None):
-    #     o, f, t = 0, 0, 0
-    #     condensed_graphs, original_graphs = self.node_weighted_condense(timestep=timestep,
-    #                                                                     num_thresholds=num_thresholds,
-    #                                                                     exp_threshold_distribution=exp_threshold_distribution)
-    #     for index in range(len(condensed_graphs)):
-    #         o += hc.orderability(original_graphs[index], condensed_graphs[index])
-    #         f += hc.feedforwardness(condensed_graphs[index])
-    #         t += hc.treeness(condensed_graphs[index])
-    #     o /= len(condensed_graphs); f /= len(condensed_graphs); t /= len(condensed_graphs)
-    #     return o, f, t
-
-    def node_weighted_condense(self, timestep, num_thresholds=8, exp_threshold_distribution=None):
-        """
-        returns a series of node_weighted condensed graphs [*]
-        [*] Hierarchy in Complex Networks: the possible and the actual: Supporting information. Corominas-Murtra et al. [2013]
-        :param timestep: timestep for conversion
-        :param num_thresholds: Number of thresholds and resultant sets of node-weighted Directed Acyclic Graphs
-        :param exp_threshold_distribution: if true or float, distributes the thresholds exponentially, with an exponent equal to the float input.
-        :return condensed graphs, a list of node_weighted condensed nx_graphs, one for every threshold and corresponding binary A
-        An exponent of 0 results in a linear distribution, otherwise the exp distribution is sampled from e^(exp_float)*2e - e^(exp_float)*e
-        """
-        return hc.node_weighted_condense(A=self.A[timestep], num_thresholds=num_thresholds, exp_threshold_distribution=exp_threshold_distribution)
-
-    def average_hierarchy_coordinates(self, timestep=-1, num_thresholds=8, exp_threshold_distribution=None):
-        return hc.average_hierarchy_coordinates(A=self.A[timestep], num_thresholds=num_thresholds, exp_threshold_distribution=exp_threshold_distribution)
-
     # Run Functions: -------------------------------------------------------------------------------------------------
+
+    def E_routing(self, timestep=-1, reversed_directions=False, normalize=True):  # Routing Efficiency
+        return ef.E_rout(A=self.A[timestep], reversed_directions=reversed_directions, normalize=normalize)
+
+    def E_diff(self, timestep=-2, normalize=True):  # Diffusion Efficiency
+        return ef.E_diff(A=self.A[timestep], normalize=normalize)
+
     def simulate(self, num_runs, eff_dist_delta_param=1, constant_source_node=False, num_shifts_of_source_node=False,
                  seeding_sigma_coeff=False, seeding_power_law_exponent=False, beta=None, multiple_path=False,
                  equilibrium_distance=equilibrium_distance_val, update_interval=1, source_reward=source_reward_val,
@@ -908,11 +725,12 @@ class Graph:
                 # if np.all(np.array([np.allclose(self.A[-(ii+1)], self.A[-(equilibrium_distance+(ii+1))], rtol=1e-10) for ii in range(equilibrium_span)])):
                 if np.allclose(self.A[-1], self.A[-(equilibrium_distance + 1)], rtol=1e-15):
                     print(f'Equilibrium conditions met after {i} runs, run halted.')
-                    break  # Automatic break if equilibrium is reached. Lets run times be arb. large for MC delta search
+                    break  # Automatic break if equilibrium is reached. Lets run times be arbitrarily large for MC delta search
         self.A = np.delete(self.A, -1, axis=0)
         self.nodes = self.nodes[:-1]
-        self.linear_threshold_hierarchy_coordinates = np.array(self.average_hierarchy_coordinates(timestep=-1, exp_threshold_distribution=None))
-        self.exp_threshold_hierarchy_coordinates = np.array(self.average_hierarchy_coordinates(timestep=-1, exp_threshold_distribution=0.5))
+        self.linear_threshold_hierarchy_coordinates = np.array(hc.average_hierarchy_coordinates(A=self.A[-1], exp_threshold_distribution=None))
+        self.exp_threshold_hierarchy_coordinates = np.array(hc.average_hierarchy_coordinates(A=self.A[-1], exp_threshold_distribution=0.5))
+
         if verbose:
             print_run_methods()
 
@@ -951,7 +769,7 @@ class Graph:
                           source_reward=source_reward, constant_source_node=constant_source_node,
                           num_shifts_of_source_node=num_shifts_of_source_node, seeding_sigma_coeff=seeding_sigma_coeff,
                           seeding_power_law_exponent=seeding_power_law_exponent, beta=beta, multiple_path=multiple_path,
-                          equilibrium_distance=False, verbose=False)
+                          equilibrium_distance=equilibrium_distance, verbose=False)
             if i == 0:
                 A = self.A
                 eff_dist_history = self.eff_dist_history

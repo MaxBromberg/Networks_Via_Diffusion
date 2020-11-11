@@ -248,6 +248,7 @@ def average_hierarchy_coordinates(A, num_thresholds=8, exp_threshold_distributio
 
 ########################################################################################################################
 
+
 if __name__ == "__main__":
     # CHECK VERSIONS
     vers_python0 = '3.7.3'
