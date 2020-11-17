@@ -44,7 +44,9 @@ def node_weighted_condense(A, num_thresholds=8, exp_threshold_distribution=None)
     """
     # Establishing Thresholds
     if exp_threshold_distribution is None:
-        thresholds = list(np.round(np.arange(np.min(A), np.max(A), (np.max(A - np.min(A))) / num_thresholds), 4))
+        if np.isclose(np.max(A)-np.min(A), 0, 1e-2): print(f"Breadth of A: {np.max(A)-np.min(A)}")
+        try: thresholds = list(np.round(np.arange(np.min(A), np.max(A), (np.max(A - np.min(A))) / num_thresholds), 4))
+        except: thresholds = [np.max(A)]*num_thresholds
     else:
         thresholds = utility_funcs.exponentially_distribute(exponent=exp_threshold_distribution,
                                                             dist_max=np.max(A),

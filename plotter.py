@@ -101,7 +101,7 @@ def plot_eff_dist(graph, all_to_all=False, difference=False, fit=False, normaliz
         plt.savefig(f'{title}.png')
         plt.close(fig)
     if save_fig:
-        plt.savefig(f'Effective_Distance for edge_to_eff_dist_coupling of {graph.eff_dist_and_edge_coupling}.png')
+        plt.savefig(f'Effective_Distance for edge_to_eff_dist_coupling of {graph.edge_conservation_coefficient}.png')
         plt.close(fig)
 
 
@@ -123,7 +123,7 @@ def plot_node_values(graph, node='all', show=False, save_fig=False, title=None):
         plt.xlabel('Time step')
         plt.ylabel(f'{node}th node\'s values')  # reveals it generally gets all the information!
     if save_fig:
-        plt.savefig(f'{node} node_values with edge_to_eff_dist_coupling of {np.round(graph.eff_dist_and_edge_coupling, 2)} and {graph.nodes.shape[0]} runs.png')
+        plt.savefig(f'{node} node_values with edge_to_eff_dist_coupling of {np.round(graph.edge_conservation_coefficient, 2)} and {graph.nodes.shape[0]} runs.png')
     if title:
         plt.savefig(f'{title}.png')
         plt.close(fig)
@@ -580,7 +580,7 @@ def plot_nx_network(nx_graph, node_size_scaling=100, show=False, save_fig=False,
     plt.close(fig)
 
 
-def plot_single_network(graph, timestep, directed=True, node_size_scaling=None, source_weighting=False, position=None, show=False, save_fig=False, title=None):
+def plot_single_network(graph, timestep, directed=True, node_size_scaling=None, source_weighting=False, position=None, show=False, save_fig=False, seedless=False, title=None):
     """
     :param timestep: Point at which the network's structure is to be graphed.
     :param directed: As the Graph class considers only directed networks, this delta is not be to shifted unless considering undirected graphs.
@@ -610,7 +610,8 @@ def plot_single_network(graph, timestep, directed=True, node_size_scaling=None, 
     nx.draw_networkx_edges(nx_G, pos, nodelist=['0'], alpha=0.8, width=weights, arrowsize=4, edge_color='k',
                            connectionstyle='arc3, rad=0.2', edge_cmap='winter')
     node_colors = ['grey' for _ in nx_G]
-    node_colors[graph.source_node_history[timestep - 1]] = 'red'
+    if not seedless:
+        node_colors[graph.source_node_history[timestep - 1]] = 'red'
     # edge_colors = range(2, nx_G.number_of_edges() + 2)
     edge_colors = 'black'
 
@@ -649,7 +650,7 @@ def plot_single_network(graph, timestep, directed=True, node_size_scaling=None, 
         plt.close(fig)
 
 
-def plot_network(graph, directed=True, node_size_scaling=200, nodes_sized_by_eff_distance=False,
+def plot_network(graph, directed=True, node_size_scaling=200, nodes_sized_by_eff_distance=False, no_seeding=False,
                  show=False, save_fig=False, title=None):
     """
     Plots the graph at four equispaced points spanning the entire time to denote network evolution through time in a single figure.
@@ -681,7 +682,7 @@ def plot_network(graph, directed=True, node_size_scaling=200, nodes_sized_by_eff
         incoming_edge_sum = [(node_size_scaling * node / sum(incoming_edge_sum)) for node in incoming_edge_sum]
         edge_colors = 'black'
         node_colors = ['grey'] * graph.nodes.shape[1]
-        node_colors[graph.source_node_history[timestep]] = 'red'
+        if not no_seeding: node_colors[graph.source_node_history[timestep]] = 'red'
         nx.draw_networkx_edges(nx_G, pos, nodelist=['0'], alpha=0.8, width=weights, arrowsize=4, connectionstyle='arc3, rad=0.2')
         nx.draw_networkx_nodes(G=nx_G, pos=pos,
                                edgecolors=edge_colors,
@@ -704,7 +705,7 @@ def plot_network(graph, directed=True, node_size_scaling=200, nodes_sized_by_eff
         plt.savefig(f'{title}.png')
         plt.close(fig)
     if save_fig:
-        plt.savefig(f'Network Structure(s) for edge_to_eff_dist_coupling of {np.round(graph.eff_dist_and_edge_coupling, 2)}, {graph.nodes.shape[0]} runs.png')
+        plt.savefig(f'Network Structure(s) for edge_to_eff_dist_coupling of {np.round(graph.edge_conservation_coefficient, 2)}, {graph.nodes.shape[0]} runs.png')
         plt.close(fig)
 
 
@@ -775,7 +776,7 @@ def animate_network_evolution(graph, node_size_scaling=200, source_weighting=Fal
         print(f'\n gif and mp4 of network evolution created in {vid_path} \n Stills stored in {fig_path} \n')
 
 
-def parallellized_animate_network_evolution(graph, source_weighting=False, node_size_scaling=True, directory_name='network_animation',
+def parallelized_animate_network_evolution(graph, source_weighting=False, node_size_scaling=True, directory_name='network_animation',
                                             file_title='network_evolution', parent_directory=None, gif_duration_in_sec=5,
                                             num_runs_per_fig=None, changing_layout=False, verbose=False):
     """
@@ -830,7 +831,6 @@ def parallellized_animate_network_evolution(graph, source_weighting=False, node_
                     used_cores += 1
             else:
                 p = mp.Process(target=plot_single_network, args=(graph, index, node_size_scaling, None, source_weighting, initial_position, False, True, files))
-                print(f'index: {index}')
                 p.start()
                 processes.append(p)
                 used_cores += 1
@@ -1346,7 +1346,7 @@ def pool_twoD_grid_search_plots(data_directory, edge_conservation_range, selecti
         f"Time lapsed for plotting {num_nodes} nodes, {run_counter} parameter combinations: {utility_funcs.time_lapsed_h_m_s(time.time() - start_time)}")
 
 
-def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_range, num_nodes, source_reward=2.6, eff_dist=False, global_eff_dist=False, network_graphs=False, node_plots=False, ave_nbr=False, cluster_coeff=False, shortest_path=False, degree_dist=False, edge_dist=False, meta_plots=True,  efficiency_coords=True, output_dir=None):
+def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_range, num_nodes, source_reward=2.6, eff_dist=False, global_eff_dist=False, network_graphs=False, node_plots=False, ave_nbr=False, cluster_coeff=False, shortest_path=False, degree_dist=False, edge_dist=False, meta_plots=True,  efficiency_coords=True, null_sim=False, output_dir=None):
     """
     Runs grid-search, and then creates all plots for a given dataset (sub)directory, and puts the results in new appropriately named subdirectories.
     # Parallelization implementation ensures completion of all plots per dataset (or as many as supportable by the number of cpu cores) before continuing to the following set
@@ -1427,10 +1427,10 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
                         used_cores += 1
                     if network_graphs:
                         if num_nodes > 20:  # prints end graphs alone for larger node values.
-                            p_2 = mp.Process(target=plot_single_network, args=(G, -1, True, 200, False, None, False, False, Path(graph_path, f'{run_counter:03}_graph_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
+                            p_2 = mp.Process(target=plot_single_network, args=(G, -1, True, 200, False, None, False, False, null_sim, Path(graph_path, f'{run_counter:03}_graph_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
                             p_2.start()
                         else:
-                            p_2 = mp.Process(target=plot_network, args=(G, True, 200, False, False, False, Path(graph_path, f'{run_counter:03}_graph_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
+                            p_2 = mp.Process(target=plot_network, args=(G, True, 200, False, null_sim, False, False, Path(graph_path, f'{run_counter:03}_graph_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
                             p_2.start()
                         processes.append(p_2)
                         used_cores += 1
@@ -1484,15 +1484,14 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
                     selectivity_vals_per_full_cpu += 1
 
                     if meta_plots:
+                        if not null_sim:
+                            eff_dist_diffs_flattened.append(G.eff_dist_diff(MPED=False, overall_average=False, source_reward=source_reward))  # Compares first and last eff_dist values
+                            mean_eff_dist_diffs_flattened.append(G.eff_dist_diff(MPED=False, overall_average=True, source_reward=source_reward))  # Averages all eff_dist_history
                         last_ave_nbr_deg = list(nx.average_neighbor_degree(G.convert_to_nx_graph(timestep=-1), source='in', target='in', weight='weight').values())
-                        eff_dist_diffs_flattened.append(G.eff_dist_diff(MPED=False, overall_average=False, source_reward=source_reward))  # Compares first and last eff_dist values
-                        mean_eff_dist_diffs_flattened.append(G.eff_dist_diff(MPED=False, overall_average=True, source_reward=source_reward))  # Averages all eff_dist_history
                         global_eff_dist_diffs_flattened.append(G.eff_dist_diff(all_to_all_eff_dist=True, MPED=False, source_reward=source_reward))  # Compares first and last all to all eff_dist values
                         ave_neighbor_diffs_flattened.append((lambda x: max(x) - min(x))(last_ave_nbr_deg))
                         ave_nbr_var_flattened.append(np.array(last_ave_nbr_deg).var())
                         log_degree_dist_var_flattened.append(np.var(G.degree_distribution(timestep=-1)))
-                        # hierarchy_coordinates.append(np.array(G.average_hierarchy_coordinates(timestep=-1)))
-                        # exp_threshold_hierarchy_coordinates.append(np.array(G.average_hierarchy_coordinates(timestep=-1, exp_threshold_distribution=True)))
                         linear_threshold_hierarchy_coordinates.append(G.linear_threshold_hierarchy_coordinates)
                         exp_threshold_hierarchy_coordinates.append(G.exp_threshold_hierarchy_coordinates)
                         if efficiency_coords: efficiency_coordinates.append(np.array([G.E_diff(timestep=-1), G.E_routing(timestep=-1)]))
@@ -1511,10 +1510,10 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
                         used_cores += 1
                     if network_graphs:
                         if num_nodes > 20:  # prints end graphs alone for larger node values.
-                            p_2 = mp.Process(target=plot_single_network, args=(G, -1, True, 200, False, None, False, False, Path(graph_path, f'{run_counter:03}_graph_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
+                            p_2 = mp.Process(target=plot_single_network, args=(G, -1, True, 200, False, None, False, False, null_sim, Path(graph_path, f'{run_counter:03}_graph_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
                             p_2.start()
                         else:
-                            p_2 = mp.Process(target=plot_network, args=(G, True, 200, False, False, False, Path(graph_path, f'{run_counter:03}_graph_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
+                            p_2 = mp.Process(target=plot_network, args=(G, True, 200, False, null_sim, False, False, Path(graph_path, f'{run_counter:03}_graph_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
                             p_2.start()
                         processes.append(p_2)
                         used_cores += 1
@@ -1522,29 +1521,6 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
                         p_3 = mp.Process(target=plot_node_values, args=(G, 'all', False, False, Path(node_path, f'{run_counter:03}_node_values_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
                         p_3.start()
                         processes.append(p_3)
-                        used_cores += 1
-                    if ave_nbr or cluster_coeff or shortest_path:
-                        nx_graphs = G.convert_history_to_list_of_nx_graphs()
-                    if ave_nbr:
-                        p_4 = mp.Process(target=plot_ave_neighbor_degree, args=(nx_graphs, 'in', 'in', False, False, False,
-                                                                          Path(neighbor_path,
-                                                                               f'{run_counter:03}_neighbor_plot_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
-                        p_4.start()
-                        processes.append(p_4)
-                        used_cores += 1
-                    if cluster_coeff:
-                        p_5 = mp.Process(target=plot_clustering_coefficients, args=(nx_graphs, False, False, False, False,
-                                                                              Path(cluster_coeff_path,
-                                                                                   f'{run_counter:03}_cluster_coeffs_plot_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
-                        p_5.start()
-                        processes.append(p_5)
-                        used_cores += 1
-                    if shortest_path:
-                        p_6 = mp.Process(target=plot_shortest_path_length, args=(nx_graphs, False, False,
-                                                                           Path(shortest_paths_path,
-                                                                                f'{run_counter:03}_shortest_path_plot_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
-                        p_6.start()
-                        processes.append(p_6)
                         used_cores += 1
                     if degree_dist:
                         p_7 = mp.Process(target=plot_degree_histogram, args=(G, False, -1, False, False,
@@ -1563,14 +1539,38 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
                         p_9.start()
                         processes.append(p_9)
                         used_cores += 1
+                    if ave_nbr or cluster_coeff or shortest_path:
+                        nx_graphs = G.convert_history_to_list_of_nx_graphs()
+                    if ave_nbr:
+                        p_4 = mp.Process(target=plot_ave_neighbor_degree, args=(nx_graphs, 'in', 'in', False, False, False,
+                                                                                Path(neighbor_path,
+                                                                                     f'{run_counter:03}_neighbor_plot_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
+                        p_4.start()
+                        processes.append(p_4)
+                        used_cores += 1
+                    if cluster_coeff:
+                        p_5 = mp.Process(target=plot_clustering_coefficients, args=(nx_graphs, False, False, False, False,
+                                                                                    Path(cluster_coeff_path,
+                                                                                         f'{run_counter:03}_cluster_coeffs_plot_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
+                        p_5.start()
+                        processes.append(p_5)
+                        used_cores += 1
+                    if shortest_path:
+                        p_6 = mp.Process(target=plot_shortest_path_length, args=(nx_graphs, False, False,
+                                                                                 Path(shortest_paths_path,
+                                                                                      f'{run_counter:03}_shortest_path_plot_for_edge_conservation_{np.round(edge_conservation_val, 2)}_selectivity_{np.round(selectivity_range[selectivity_val_index + selectivity_vals_per_full_cpu], 2)}')))
+                        p_6.start()
+                        processes.append(p_6)
+                        used_cores += 1
 
                     run_counter += 1  # Also serves as file index
                     selectivity_vals_per_full_cpu += 1
 
                     if meta_plots:
+                        if not null_sim:
+                            eff_dist_diffs_flattened.append(G.eff_dist_diff(MPED=False, overall_average=False, source_reward=source_reward))  # Compares first and last eff_dist values
+                            mean_eff_dist_diffs_flattened.append(G.eff_dist_diff(MPED=False, overall_average=True, source_reward=source_reward))  # Averages all eff_dist_history
                         last_ave_nbr_deg = list(nx.average_neighbor_degree(G.convert_to_nx_graph(timestep=-1), source='in', target='in', weight='weight').values())
-                        eff_dist_diffs_flattened.append(G.eff_dist_diff(MPED=False, overall_average=False, source_reward=source_reward))  # Compares first and last eff_dist values
-                        mean_eff_dist_diffs_flattened.append(G.eff_dist_diff(MPED=False, overall_average=True, source_reward=source_reward))  # Averages all eff_dist_history
                         global_eff_dist_diffs_flattened.append(G.eff_dist_diff(all_to_all_eff_dist=True, MPED=False, source_reward=source_reward))  # Compares first and last all to all eff_dist values
                         ave_neighbor_diffs_flattened.append((lambda x: max(x) - min(x))(last_ave_nbr_deg))
                         ave_nbr_var_flattened.append(np.array(last_ave_nbr_deg).var())
@@ -1628,9 +1628,9 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
             plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency", color=color_map, plot_limits=[[0, 2], [0, 2]], fig_title="Diffusion vs Routing Efficiency", title=Path(grid_search_plots_dir, 'Efficiency_Scores_Around_1'))
             plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency", color=color_map, fig_title="Diffusion vs Routing Efficiency", title=Path(grid_search_plots_dir, 'Efficiency_Scores'))
             #  Efficiency Coordinates color coded via edge conservation value (darker means higher edge conservation)
-            plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency", color=color_map, plot_limits=[x_eff_lim, y_eff_lim], fig_title="Diffusion vs Routing Efficiency", title=Path(grid_search_plots_dir, 'Efficiency_Scores_wo_outliers_[Colored_by_Edge_Conservation]'))
-            plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency", color=color_map, plot_limits=[[0, 2], [0, 2]], fig_title="Diffusion vs Routing Efficiency", title=Path(grid_search_plots_dir, 'Efficiency_Scores_Around_1_[Colored_by_Edge_Conservation]'))
-            plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency", color=color_map, fig_title="Diffusion vs Routing Efficiency", title=Path(grid_search_plots_dir, 'Efficiency_Scores_[Colored_by_Edge_Conservation]'))
+            plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency", color=edge_conservation_color_map, plot_limits=[x_eff_lim, y_eff_lim], fig_title="Diffusion vs Routing Efficiency", title=Path(grid_search_plots_dir, 'Efficiency_Scores_wo_outliers_[Colored_by_Edge_Conservation]'))
+            plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency", color=edge_conservation_color_map, plot_limits=[[0, 2], [0, 2]], fig_title="Diffusion vs Routing Efficiency", title=Path(grid_search_plots_dir, 'Efficiency_Scores_Around_1_[Colored_by_Edge_Conservation]'))
+            plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency", color=edge_conservation_color_map, fig_title="Diffusion vs Routing Efficiency", title=Path(grid_search_plots_dir, 'Efficiency_Scores_[Colored_by_Edge_Conservation]'))
             # Efficiency Heatmaps:
             diffusion_efficiencies, routing_efficiencies = np.array(efficiency_coordinates)[:, 0], np.array(efficiency_coordinates)[:, 1]
             plot_heatmap(np.array(diffusion_efficiencies).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'E_diff_heatmap'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='Diffusion Efficiency')
@@ -1638,12 +1638,17 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
             plot_heatmap(np.array(routing_efficiencies).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'E_rout_heatmap'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='Routing Efficiency')
             plot_heatmap(np.array(np.log(routing_efficiencies)).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'ln_E_rout_heatmap'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='Ln Routing Efficiency')
 
-        plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'eff_dist_diffs'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='Effective Distance Differences to Source')
-        plot_heatmap(np.array(mean_eff_dist_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'mean_eff_dist'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='Ave Effective Distance to Source')
         plot_heatmap(np.array(global_eff_dist_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'global_eff_dist'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='All-to-All Effective Distance Differences')
         plot_heatmap(np.array(log_degree_dist_var_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'log_degree_var'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='Final Degree Distribution Variance')
         plot_heatmap(np.log(ave_nbr_diffs), title=Path(grid_search_plots_dir, 'log_ave_neighbor_diff'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='log_ave_nbr_diffs')
         plot_heatmap(np.log(ave_nbr_vars), title=Path(grid_search_plots_dir, 'log_ave_neighbor_var'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='log_ave_nbr_var')
+        if not null_sim:
+            plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size),
+                         title=Path(grid_search_plots_dir, f'eff_dist_diffs'), x_range=selectivity_range,
+                         y_range=edge_conservation_range, normalize=False, fig_title='Effective Distance Differences to Source')
+            plot_heatmap(np.array(mean_eff_dist_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size),
+                         title=Path(grid_search_plots_dir, f'mean_eff_dist'), x_range=selectivity_range,
+                         y_range=edge_conservation_range, normalize=False, fig_title='Ave Effective Distance to Source')
     print(f"Time lapsed for plotting {num_nodes} nodes, {run_counter} parameter combinations: {utility_funcs.time_lapsed_h_m_s(time.time()-start_time)}")
 
 
@@ -1875,8 +1880,8 @@ def plot_hierarchy_evolution(graph, time_between_sampling, morphospace_limits=Tr
     color_map = [int(i * 255 / coordinates.shape[0]) for i in np.arange(coordinates.shape[0], 0, -1)]  # color scale by selectivity value reversed
     general_3d_data_plot(coordinates, xlabel='Treeness', ylabel='Feedforwardness', zlabel='Orderability', plot_limits=plot_limits, color=color_map, show=True)
 
-########################################################################################################################
 
+########################################################################################################################
 if __name__ == "__main__":
     # CHECK VERSIONS
     vers_python0 = '3.7.3'

@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import shutil
 import numpy as np
@@ -73,25 +74,26 @@ def simulate(param_list):
     n_a_o_e = bool(int(param_list[8]))
     i_e_c = bool(int(param_list[9]))
     undirected_run = bool(int(param_list[10]))
-    if str(param_list[11]).__contains__('.'):
-        edge_init = float(param_list[11])
-    elif str(param_list[11]) == "None" or str(param_list[11]) == "False":
+    null_simulate = bool(int(param_list[11]))
+    if str(param_list[12]).__contains__('.'):
+        edge_init = float(param_list[12])
+    elif str(param_list[12]) == "None" or str(param_list[12]) == "False":
         edge_init = None
     else:
-        edge_init = int(param_list[11])  # I don't see how to possibly pass a np.array through shell script, so that option's out
-    ensemble_size = int(param_list[12])
-    num_runs = int(param_list[13])
-    delta = float(param_list[14])
-    equilibrium_distance = int(param_list[15])
-    constant_source_node = int(param_list[16])
-    num_shifts_of_source_node = int(param_list[17])
-    seeding_sigma_coeff = float(param_list[18])
-    seeding_power_law_exponent = float(param_list[19])
-    beta = float(param_list[20])
-    multiple_path = bool(int(param_list[21]))
-    update_interval = int(param_list[22])
-    source_reward = float(param_list[23])
-    undirectify_init = bool(param_list[24])
+        edge_init = int(param_list[12])  # I don't see how to possibly pass a np.array through shell script, so that option's out
+    ensemble_size = int(param_list[13])
+    num_runs = int(param_list[14])
+    delta = float(param_list[15])
+    equilibrium_distance = int(param_list[16])
+    constant_source_node = int(param_list[17])
+    num_shifts_of_source_node = int(param_list[18])
+    seeding_sigma_coeff = float(param_list[19])
+    seeding_power_law_exponent = float(param_list[20])
+    beta = float(param_list[21])
+    multiple_path = bool(int(param_list[22]))
+    update_interval = int(param_list[23])
+    source_reward = float(param_list[24])
+    undirectify_init = bool(param_list[25])
 
     graph_start_time = time.time()
     G = graph.Graph(num_nodes=num_nodes, edge_conservation_coefficient=edge_conservation_val, selectivity=selectivity_val,
@@ -101,16 +103,20 @@ def simulate(param_list):
 
     if not ensemble_size:
         G.edge_initialization_conditional(edge_init=edge_init, undirectify=undirectify_init)
-        G.simulate(num_runs=num_runs, eff_dist_delta_param=delta, constant_source_node=constant_source_node,
-                   num_shifts_of_source_node=num_shifts_of_source_node, seeding_sigma_coeff=seeding_sigma_coeff,
-                   seeding_power_law_exponent=seeding_power_law_exponent, beta=beta, multiple_path=multiple_path,
-                   equilibrium_distance=equilibrium_distance, update_interval=update_interval, source_reward=source_reward)
+        if not null_simulate:
+            G.simulate(num_runs=num_runs, eff_dist_delta_param=delta, constant_source_node=constant_source_node,
+                       num_shifts_of_source_node=num_shifts_of_source_node, seeding_sigma_coeff=seeding_sigma_coeff,
+                       seeding_power_law_exponent=seeding_power_law_exponent, beta=beta, multiple_path=multiple_path,
+                       equilibrium_distance=equilibrium_distance, update_interval=update_interval, source_reward=source_reward)
+        else:
+            G.null_simulate(num_runs=num_runs, equilibrium_distance=equilibrium_distance)
     else:
         G.simulate_ensemble(num_simulations=ensemble_size, num_runs_per_sim=num_runs, eff_dist_delta_param=delta, edge_init=edge_init,
                             constant_source_node=constant_source_node, num_shifts_of_source_node=num_shifts_of_source_node,
                             equilibrium_distance=equilibrium_distance, seeding_sigma_coeff=seeding_sigma_coeff,
                             seeding_power_law_exponent=seeding_power_law_exponent, beta=beta, multiple_path=multiple_path,
-                            update_interval=update_interval, source_reward=source_reward, undirectify=undirectify_init, verbose=False)
+                            update_interval=update_interval, source_reward=source_reward, undirectify=undirectify_init,
+                            null_simulate=null_simulate, verbose=False)
     plotter.save_object(G, Path(output_path, f'{run_index:04}_graph_obj.pkl'))
     print(f'Run {run_index}, [edge conservation: {edge_conservation_val}, selectivity: {selectivity_val}] complete. {G.get_num_errors()} errors, ({uf.time_lapsed_h_m_s(time.time()-graph_start_time)})')
 
@@ -202,6 +208,7 @@ def grid_search(param_dic, num_cores_used=mp.cpu_count(), remove_data_post_plott
                                    degree_dist=bool(param_dic['degree_dist']),
                                    edge_dist=bool(param_dic['edge_dist']),
                                    meta_plots=bool(param_dic['meta_plots']),
+                                   null_sim=bool(param_dic['null_simulate']),
                                    efficiency_coords=True,
                                    # output_dir=Path(data_directory, 'Plots'))
                                    output_dir=None)
@@ -263,8 +270,9 @@ directory = Path(str(Path.home()), 'data/')
 parameter_dictionary = {
     'data_directory': directory,
     'run_index': 1,
-    'num_nodes': 60,
-    'edge_conservation_range': '0_1.05_0.05',  # work with me here. (args to np.arange separated by _)
+    'num_nodes': 10,
+    # 'edge_conservation_range': '0_1.05_0.05',  # work with me here. (args to np.arange separated by _)
+    'edge_conservation_range': '0_0.9_0.05',  # work with me here. (args to np.arange separated by _)
     'selectivity_range': '0_1.05_0.05'
 }
 search_wide_dic = {
@@ -274,13 +282,14 @@ search_wide_dic = {
     'nodes_adapt_outgoing_edges': 0,  # Default = False (0)
     'incoming_edges_conserved': 1,  # Default = True (1)
     'undirected': 0,  # if true, averages reciprocal connections after every run, i.e. e_ji, e_ji --> (e_ij + e_ji)/2)
+    'null_simulate': 0,  # if true, simulates without reference to effective distance measures/seeding (pure mechanics)
 }
 edge_init = {
     'edge_init': 'None',  # None is uniform rnd, int is num_edges/node in sparse init, float is degree exp in scale free init.
 }
 ensemble_params = {
-    'ensemble_size': 0,  # num sims to average over. 0 if just one sim is desired (e.g. for graph pictures)
-    'num_runs': 25,  # num runs, could be cut off if reaches equilibrium condition first
+    'ensemble_size': 25,  # num sims to average over. 0 if just one sim is desired (e.g. for graph pictures)
+    'num_runs': 250,  # num runs, could be cut off if reaches equilibrium condition first
     'delta': 10,  # Delta parameter in (RW/MP)ED, recommended >= 1
     'equilibrium_distance': 200,
     'constant_source_node': 0,  # If no seeding mechanism is set, defaults to rnd. Activate below seeding by setting values != 0
@@ -294,12 +303,12 @@ ensemble_params = {
     'undirectify_init': 0  # Start edges with reciprocated (simple) edges? (Boolean)
 }
 plots = {
-    'network_graphs': 0,  # graphs the networks
+    'network_graphs': 1,  # graphs the networks
     'node_plots': 0,  # plots Evolution of node values over time
     'ave_nbr': 0,  # Plots average neighbor connections over time
     'cluster_coeff': 0,  # Plots evolution of cluster coefficient
     'eff_dist': 0,  # Plots evolution of average effective distance to source
-    'global_eff_dist': 1,  # Plots evolution of average effective distance from every node to every other
+    'global_eff_dist': 0,  # Plots evolution of average effective distance from every node to every other
     'shortest_path': 0,  # Plots the average shortest path over time. Very computationally expensive
     'degree_dist': 0,  # Yields the degree (total weight) distribution as a histogram
     'edge_dist': 0,  # Plots the edge distribution (individual edge counts) as a histogram
@@ -310,9 +319,14 @@ plots = {
 
 default_dict = {**parameter_dictionary, **search_wide_dic, **edge_init, **ensemble_params, **plots}
 # master_dict = list_of_dicts(default_dict, initializations_dic(directory), seeding_dic(directory), directionality_dic(directory))
-master_dict = list_of_dicts(default_dict, density_init_dic(directory), seeding_dic(directory))
+# master_dict = list_of_dicts(default_dict, density_init_dic(directory), seeding_dic(directory))
+null_default_dict = default_dict
+null_default_dict['null_simulate'] = 1
+null_master_dict = list_of_dicts(null_default_dict, density_init_dic(directory))
 
-# if __name__ == '__main__':
-    # run_grid_search(param_dic=master_dict[int(sys.argv[1])])
-    # for i in range(len(master_dict)):
-    #     run_grid_search(param_dic=master_dict[i])
+if __name__ == '__main__':
+    run_grid_search(param_dic=null_master_dict[int(sys.argv[1])])
+    # print(len(null_master_dict))
+    # for i in range(len(null_master_dict)):
+    #     print(null_master_dict[i])
+    #     run_grid_search(param_dic=null_master_dict[i])

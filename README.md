@@ -1,4 +1,4 @@
-### Networks Via Diffusion
+## Networks Via Diffusion
 
 This repository contains the working code relevant for Max Bromberg's physics master's thesis, the objective of which is to discover the dependence of network structure on the forms of (presumably information) diffusion. 
 
@@ -10,9 +10,9 @@ Supervised by [Dr. Philipp Lorenz-Spreen][1] of the Max Planck Institute for Hum
 [3]: https://www.physik.fu-berlin.de/en/einrichtungen/ag/ag-netz/mitarbeiter/Professors/netz_roland/index.html
 
 
-#### Hierarchy Coordinates
+### Hierarchy Coordinates
 
-Independent of the rest of this repository is an implementation of [Hierarchy Coordinates][0.1] for weighted graphs, which may be used in isolation. 
+Independent of the rest of this repository is an implementation of [Hierarchy Coordinates][0.2] for weighted graphs, which may be used in isolation. 
 Originally formulated exclusively for unweighted directed networks<sup id="a1">[0.1](#f1)</sup> by Corominas-Murta et al. (2013) in _On the Origins of Hierarchy in Complex Networks_, and subsequently implemented in Matlab v7, [hierarchy_coordinates.py][0.2] provides a python3 implementation which includes weighted networks. 
 ![An illustration of linear vs exponential threshold distributions (right) and the corresponding unweighted networks created from them (left). For details regarding the adaptation from unweighted to weighted networks, see the [associated thesis][0.5]](./readme_graphics/Threshold_Explainations.png)
 Calculation of hierarchy coordinates for weighted networks are performed simply by reducing weighted networks to a set of unweighted networks based on either exponentially or linearly distributed thresholds, and subsequently averaging their hierarchy coordinates as given by the original algorithm described in their [appendix][0.3].
@@ -35,12 +35,12 @@ Furthermore, for plotting of hierarchy coordinates with 2d planes printed below,
 [0.5]: reference_to_thesis_in_repo
 
 <!---- Footnotes: ---->
-<b id="f1">0.1</b> Supplementary material with detailed description of the hierarchy coordinates used to develop this repository's [hierarchy_coordinates.py][0.2] found at https://www.pnas.org/content/suppl/2013/07/25/1300832110.DCSupplemental [↩](#a1)
+<b id="f1">0.1</b> Supplementary material of [Corominas-Murta et al. (2013)][0.1] with detailed description of the hierarchy coordinates used to develop this repository's [hierarchy_coordinates.py][0.2] found [here][0.3]
 
 <b id="f2">0.2</b> Feedforwardness and treeness are calculated through recursive application of the same 'base' version of their respective functions _feedforwardnes_iteration_ and  _single_graph_treeness_. [↩](#a2)
 
-#### Efficiency Coordinates
-**Note: implementation pending further analysis, as normalization does not presently yield expected (0, 1)<sup>2</sup> range**
+### Efficiency Coordinates
+**Note: Implementation pending further analysis, as normalization does not presently yield expected (0, 1)<sup>2</sup> range**
 
 This repository also contains an implementation of the efficiency coordinates as explored in [Goñi et al. (2013)][1.1] *Exploring the morphospace of communication efficiency in complex networks*, and initially developed in [Latora et Marchiori (2001)][1.4], which considers both *global*, or *routing* efficiency (E<sub>rout</sub>) and diffusion efficiency (E<sub>diff</sub>). 
 Routing efficiencies consider the relative efficiency of intra-network communication via shortest possible path's (implying global knowledge, parallel processing) whereas diffusion efficiency<sup id="a1.0">[1.0](#f1.0)</sup> considers the comparable efficacy of information passing via pure diffusion. 
@@ -68,7 +68,7 @@ E_diff, E_rout = ef.E_diff(A), ef.E_rout(A)
 <!---- Footnotes: ---->
 <b id="f1.0">1.1</b> Diffusive efficiency makes use of the random walker effective distance (explored in [Iannelli et al. 2017][1.3]), which is a handy method whereby with maximal computational demands of matrix inversion **~O(n<sup>2.5</sup>)** yields the random walker probabilities between all nodes in a network. [↩](#a1.0)
 
-#### Using the Migrating Meme Model
+### Using the Migrating Meme Model
 
 Though [graph.py][4] encompasses the mechanics of the simulation itself, and its internal documentation is intended to clarify the purpose of its component functions, those wishing to simply run simulations with a given model configuration and parameter combination need not interact with the file directly.
 
