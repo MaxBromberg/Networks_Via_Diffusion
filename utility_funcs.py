@@ -30,8 +30,7 @@ def element_wise_array_average(list_of_np_arrays):
     """
     returns single array with every element the average of all input arrays respective element
     """
-    assert np.all(np.array([list_of_np_arrays[0].shape == [list_of_np_arrays[i].shape for i in range(len(list_of_np_arrays))][ii] for ii in
-         range(len(list_of_np_arrays))])), "Arrays to be averaged element-wise must be of equal dimension"
+    assert np.all(np.array([list_of_np_arrays[0].shape == [list_of_np_arrays[i].shape for i in range(len(list_of_np_arrays))][ii] for ii in range(len(list_of_np_arrays))])), "Arrays to be averaged element-wise must be of equal dimension"
     return np.mean(np.array(list_of_np_arrays), axis=0)
 
 

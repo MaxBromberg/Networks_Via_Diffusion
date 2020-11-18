@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib
 # Force matplotlib to not use any Xwindows backend.
-# matplotlib.use('Agg')
+matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 from matplotlib import gridspec
 from matplotlib import colors
@@ -468,6 +468,10 @@ def plot_degree_histogram(graph, num_bins=False, timestep=-1, show=False, save_f
         plt.hist(degree_dist, bins=num_bins)
     else:
         plt.hist(degree_dist)  # bins = auto, as per np.histogram
+
+    plt.xlabel("Total (outgoing) Edge Weight")
+    plt.xlabel("Node Count (w/ given edge weight)")
+
     if timestep == -1:
         plt.title(f"Degree histogram for all edges final timestep ")
     else:
@@ -805,7 +809,7 @@ def parallelized_animate_network_evolution(graph, source_weighting=False, node_s
         os.mkdir(vid_path), f'Created folder for network structure gif at {vid_path}'
         os.mkdir(fig_path), f'Created folder for figures at {fig_path}'
     except OSError:
-        print(f'{vid_path} already exists, adding or overwriting contents')
+        print(f'{vid_path}/{fig_path} already exists, adding or overwriting contents')
         pass
 
     nx_G = nx.to_directed(nx.from_numpy_matrix(np.array(graph.A[0]), create_using=nx.DiGraph))

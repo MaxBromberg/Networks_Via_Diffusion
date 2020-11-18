@@ -487,6 +487,14 @@ class Graph:
         :param timestep: int, timestep of effective distance calculation over A. Defaults to latest timestep.
         :param rounding: relevant only for MPED, cutoff in decimal digits for paths to be considered in MPED evaluation.
         """
+        if np.all(np.isclose(self.A[timestep], 0, rtol=1e-15)):  # This is for null normed results which may return 0 \in \mathbb{R}^{NxN}
+            if source is not None:
+                eff_dist = np.array([np.nan] * self.A[timestep].shape[0])
+            else:
+                eff_dist = np.empty((self.A[timestep].shape[0], self.A[timestep].shape[1]))
+                eff_dist[:] = np.nan
+            return eff_dist
+
         if multiple_path_eff_dist:
             """
             Rounding of A to ensure that when the matrix is converted to a nx graph, near zero (O(^rounding)) paths 
@@ -732,7 +740,7 @@ class Graph:
         if verbose:
             print_run_methods()
 
-    def null_simulate(self, num_runs, equilibrium_distance=equilibrium_distance_val):
+    def null_simulate(self, num_runs, equilibrium_distance=equilibrium_distance_val, hierarchy_coords=True):
         """
         Run function. Sequentially seeds source node, sets node values to effective distance evaluation, updates edges and corresponding history.
         :param num_runs: Constant natural number, number of runs.
@@ -751,6 +759,27 @@ class Graph:
                 if np.allclose(self.A[-1], self.A[-(equilibrium_distance + 1)], rtol=1e-15):
                     print(f'Equilibrium conditions met after {i} runs, run halted.')
                     break  # Automatic break if equilibrium is reached. Lets run times be arbitrarily large for MC delta search
+        if hierarchy_coords:
+            self.linear_threshold_hierarchy_coordinates = np.array(hc.average_hierarchy_coordinates(A=self.A[-1], exp_threshold_distribution=None))
+            self.exp_threshold_hierarchy_coordinates = np.array(hc.average_hierarchy_coordinates(A=self.A[-1], exp_threshold_distribution=0.5))
+
+    def null_normed_simulate(self, num_runs, eff_dist_delta_param=1, constant_source_node=False, num_shifts_of_source_node=False,
+                 seeding_sigma_coeff=False, seeding_power_law_exponent=False, beta=None, multiple_path=False,
+                 equilibrium_distance=equilibrium_distance_val, update_interval=1, source_reward=source_reward_val):
+        """
+        Run function which subtracts null A from resulting A
+        """
+        self.simulate(num_runs, eff_dist_delta_param=eff_dist_delta_param, constant_source_node=constant_source_node, num_shifts_of_source_node=num_shifts_of_source_node,
+                 seeding_sigma_coeff=seeding_sigma_coeff, seeding_power_law_exponent=seeding_power_law_exponent, beta=beta, multiple_path=multiple_path,
+                 equilibrium_distance=equilibrium_distance, update_interval=update_interval, source_reward=source_reward)
+
+        null_graph = Graph(num_nodes=self.num_nodes, edge_conservation_coefficient=self.edge_conservation_coefficient, selectivity=self.fraction_infoscore_redistributed, undirected=self.undirected)
+        null_graph.simulate_ensemble(num_simulations=1, num_runs_per_sim=num_runs, edge_init=self.A[0], equilibrium_distance=equilibrium_distance, null_simulate=True)
+        null_graph.A = np.delete(null_graph.A, -1, axis=0)
+        self.A[1:] = self.A[1:] - null_graph.A[1:]  # Subtracts null values of equivalent graphs simulations for all timesteps. Sliced to exclude initializations, which are identical
+        self.A = np.array([self.A[i] - np.min(self.A[i]) for i in range(self.A.shape[0])])
+        self.A = np.array([self.A[i] / np.max(self.A[i]) for i in range(self.A.shape[0])])
+
         self.linear_threshold_hierarchy_coordinates = np.array(hc.average_hierarchy_coordinates(A=self.A[-1], exp_threshold_distribution=None))
         self.exp_threshold_hierarchy_coordinates = np.array(hc.average_hierarchy_coordinates(A=self.A[-1], exp_threshold_distribution=0.5))
 
@@ -759,7 +788,7 @@ class Graph:
                           num_shifts_of_source_node=False, seeding_sigma_coeff=False, seeding_power_law_exponent=False,
                           beta=None,
                           multiple_path=False, equilibrium_distance=equilibrium_distance_val, update_interval=1,
-                          source_reward=source_reward_val, undirectify=False, null_simulate=False, verbose=False):
+                          source_reward=source_reward_val, undirectify=False, null_simulate=False, null_normalize=False, verbose=False):
         """
         Keeps a running average of A, and eff_dist_history over num_simulations, while extending source history.
         This leaves observables which are not dependent on an averaged A requiring special reprogramming.
@@ -780,6 +809,12 @@ class Graph:
         :return: Returns nothing, updates graph values. Use plotter library to evaluate and graph observables
         """
         source_node_history = []
+        if null_normalize:
+            null_graph = Graph(num_nodes=self.num_nodes,
+                               edge_conservation_coefficient=self.edge_conservation_coefficient,
+                               selectivity=self.fraction_infoscore_redistributed, undirected=self.undirected)
+            # TODO: add other init. variables (and effects on null) to allow for variation of binaries with null simulate
+
         for i in range(num_simulations):
             # TODO: Not sure if reseeding is required
             np.random.seed(i)
@@ -792,29 +827,49 @@ class Graph:
                               num_shifts_of_source_node=num_shifts_of_source_node, seeding_sigma_coeff=seeding_sigma_coeff,
                               seeding_power_law_exponent=seeding_power_law_exponent, beta=beta, multiple_path=multiple_path,
                               equilibrium_distance=equilibrium_distance, verbose=False)
-            else: self.null_simulate(num_runs=num_runs_per_sim, equilibrium_distance=equilibrium_distance, update_interval=update_interval)
+            else:
+                self.null_simulate(num_runs=num_runs_per_sim, equilibrium_distance=equilibrium_distance)
+            if null_normalize:
+                null_graph.edge_initialization_conditional(edge_init=self.A[0], undirectify=undirectify)
+                null_graph.null_simulate(num_runs=num_runs_per_sim, equilibrium_distance=equilibrium_distance, hierarchy_coords=False)
+
             if i == 0:
                 A = self.A
                 eff_dist_history = self.eff_dist_history
                 linear_hierarchy_coordinates = self.linear_threshold_hierarchy_coordinates
                 exp_hierarchy_coordinates = self.exp_threshold_hierarchy_coordinates
+                if null_normalize:
+                    null_A = null_graph.A
             else:
                 A = utility_funcs.element_wise_array_average([A, self.A])
+                if null_normalize:
+                    null_A = utility_funcs.element_wise_array_average([null_A, null_graph.A])
                 eff_dist_history = utility_funcs.element_wise_array_average([np.array(eff_dist_history), np.array(self.eff_dist_history)])
                 linear_hierarchy_coordinates = utility_funcs.element_wise_array_average([linear_hierarchy_coordinates, self.linear_threshold_hierarchy_coordinates])
                 exp_hierarchy_coordinates = utility_funcs.element_wise_array_average([exp_hierarchy_coordinates, self.exp_threshold_hierarchy_coordinates])
             if not null_simulate: source_node_history.append(self.source_node_history)
-            # A = self.A if i == 0 else A = utility_funcs.element_wise_array_average([A, self.A])
-            # eff_dist_history = self.eff_dist_history if i == 0 else eff_dist_history = utility_funcs.element_wise_array_average([np.array(eff_dist_history), np.array(self.eff_dist_history)])
 
             self.A = np.zeros((1, self.num_nodes, self.num_nodes))  # Re-initializing
+            if null_normalize:
+                null_graph.A = np.zeros((1, self.num_nodes, self.num_nodes))  # Re-initializing
             self.eff_dist_history = []
             self.source_node_history = []
             if verbose: utility_funcs.print_run_percentage(i, num_simulations)
 
         self.A = A
+        if null_normalize:
+            null_graph.A = null_A
         self.eff_dist_history = eff_dist_history
         self.source_node_history = source_node_history  # Makes final source node history 2d, with columns being the individual run histories.
+
+        if null_normalize:
+            null_graph.A = np.delete(null_graph.A, -1, axis=0)
+            self.A[1:] = self.A[1:] - null_graph.A[1:]  # Subtracts null values of equivalent graphs simulations for ALL timesteps. Sliced to exclude initializations, which are identical
+            self.A = np.array([self.A[i] - np.min(self.A[i]) for i in range(self.A.shape[0])])  # Renormalization
+            self.A = np.array([self.A[i] / np.max(self.A[i]) if np.max(self.A[i]) != 0 else self.A[i] for i in range(self.A.shape[0])])
+            # Effective distance history and hierarchy coordinates are not examined w.r.t. null values, as it doesn't make much sense.
+            # Nor does examining the difference in the entire time series, but most observables re concerned only with the final A anyway
+
         self.linear_threshold_hierarchy_coordinates = linear_hierarchy_coordinates
         self.exp_threshold_hierarchy_coordinates = exp_hierarchy_coordinates
 

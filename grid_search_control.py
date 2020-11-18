@@ -75,25 +75,26 @@ def simulate(param_list):
     i_e_c = bool(int(param_list[9]))
     undirected_run = bool(int(param_list[10]))
     null_simulate = bool(int(param_list[11]))
-    if str(param_list[12]).__contains__('.'):
-        edge_init = float(param_list[12])
-    elif str(param_list[12]) == "None" or str(param_list[12]) == "False":
+    null_normalize = bool(int(param_list[12]))
+    if str(param_list[13]).__contains__('.'):
+        edge_init = float(param_list[13])
+    elif str(param_list[13]) == "None" or str(param_list[13]) == "False":
         edge_init = None
     else:
-        edge_init = int(param_list[12])  # I don't see how to possibly pass a np.array through shell script, so that option's out
-    ensemble_size = int(param_list[13])
-    num_runs = int(param_list[14])
-    delta = float(param_list[15])
-    equilibrium_distance = int(param_list[16])
-    constant_source_node = int(param_list[17])
-    num_shifts_of_source_node = int(param_list[18])
-    seeding_sigma_coeff = float(param_list[19])
-    seeding_power_law_exponent = float(param_list[20])
-    beta = float(param_list[21])
-    multiple_path = bool(int(param_list[22]))
-    update_interval = int(param_list[23])
-    source_reward = float(param_list[24])
-    undirectify_init = bool(param_list[25])
+        edge_init = int(param_list[13])  # I don't see how to possibly pass a np.array through shell script, so that option's out
+    ensemble_size = int(param_list[14])
+    num_runs = int(param_list[15])
+    delta = float(param_list[16])
+    equilibrium_distance = int(param_list[17])
+    constant_source_node = int(param_list[18])
+    num_shifts_of_source_node = int(param_list[19])
+    seeding_sigma_coeff = float(param_list[20])
+    seeding_power_law_exponent = float(param_list[21])
+    beta = float(param_list[22])
+    multiple_path = bool(int(param_list[23]))
+    update_interval = int(param_list[24])
+    source_reward = float(param_list[25])
+    undirectify_init = bool(param_list[26])
 
     graph_start_time = time.time()
     G = graph.Graph(num_nodes=num_nodes, edge_conservation_coefficient=edge_conservation_val, selectivity=selectivity_val,
@@ -116,7 +117,7 @@ def simulate(param_list):
                             equilibrium_distance=equilibrium_distance, seeding_sigma_coeff=seeding_sigma_coeff,
                             seeding_power_law_exponent=seeding_power_law_exponent, beta=beta, multiple_path=multiple_path,
                             update_interval=update_interval, source_reward=source_reward, undirectify=undirectify_init,
-                            null_simulate=null_simulate, verbose=False)
+                            null_simulate=null_simulate, null_normalize=null_normalize, verbose=False)
     plotter.save_object(G, Path(output_path, f'{run_index:04}_graph_obj.pkl'))
     print(f'Run {run_index}, [edge conservation: {edge_conservation_val}, selectivity: {selectivity_val}] complete. {G.get_num_errors()} errors, ({uf.time_lapsed_h_m_s(time.time()-graph_start_time)})')
 
@@ -209,7 +210,7 @@ def grid_search(param_dic, num_cores_used=mp.cpu_count(), remove_data_post_plott
                                    edge_dist=bool(param_dic['edge_dist']),
                                    meta_plots=bool(param_dic['meta_plots']),
                                    null_sim=bool(param_dic['null_simulate']),
-                                   efficiency_coords=True,
+                                   efficiency_coords=False,
                                    # output_dir=Path(data_directory, 'Plots'))
                                    output_dir=None)
     if remove_data_post_plotting:
@@ -270,9 +271,9 @@ directory = Path(str(Path.home()), 'data/')
 parameter_dictionary = {
     'data_directory': directory,
     'run_index': 1,
-    'num_nodes': 10,
-    # 'edge_conservation_range': '0_1.05_0.05',  # work with me here. (args to np.arange separated by _)
-    'edge_conservation_range': '0_0.9_0.05',  # work with me here. (args to np.arange separated by _)
+    'num_nodes': 60,
+    'edge_conservation_range': '0_1.05_0.05',  # work with me here. (args to np.arange separated by _)
+    # 'edge_conservation_range': '0_0.9_0.05',  # work with me here. (args to np.arange separated by _)
     'selectivity_range': '0_1.05_0.05'
 }
 search_wide_dic = {
@@ -283,13 +284,15 @@ search_wide_dic = {
     'incoming_edges_conserved': 1,  # Default = True (1)
     'undirected': 0,  # if true, averages reciprocal connections after every run, i.e. e_ji, e_ji --> (e_ij + e_ji)/2)
     'null_simulate': 0,  # if true, simulates without reference to effective distance measures/seeding (pure mechanics)
+    'null_normalize': 0,  # if true, subtracts null ensemble from end results. Only affects A history, not hierarchy coordinates or eff. dist to source.
+    # Only compatible with ensemble, as otherwise random null results are statistically insignificant.
 }
 edge_init = {
     'edge_init': 'None',  # None is uniform rnd, int is num_edges/node in sparse init, float is degree exp in scale free init.
 }
 ensemble_params = {
     'ensemble_size': 25,  # num sims to average over. 0 if just one sim is desired (e.g. for graph pictures)
-    'num_runs': 250,  # num runs, could be cut off if reaches equilibrium condition first
+    'num_runs': 600,  # num runs, could be cut off if reaches equilibrium condition first
     'delta': 10,  # Delta parameter in (RW/MP)ED, recommended >= 1
     'equilibrium_distance': 200,
     'constant_source_node': 0,  # If no seeding mechanism is set, defaults to rnd. Activate below seeding by setting values != 0
@@ -303,7 +306,7 @@ ensemble_params = {
     'undirectify_init': 0  # Start edges with reciprocated (simple) edges? (Boolean)
 }
 plots = {
-    'network_graphs': 1,  # graphs the networks
+    'network_graphs': 0,  # graphs the networks
     'node_plots': 0,  # plots Evolution of node values over time
     'ave_nbr': 0,  # Plots average neighbor connections over time
     'cluster_coeff': 0,  # Plots evolution of cluster coefficient
@@ -320,13 +323,13 @@ plots = {
 default_dict = {**parameter_dictionary, **search_wide_dic, **edge_init, **ensemble_params, **plots}
 # master_dict = list_of_dicts(default_dict, initializations_dic(directory), seeding_dic(directory), directionality_dic(directory))
 # master_dict = list_of_dicts(default_dict, density_init_dic(directory), seeding_dic(directory))
-null_default_dict = default_dict
-null_default_dict['null_simulate'] = 1
-null_master_dict = list_of_dicts(null_default_dict, density_init_dic(directory))
+
+null_norm_mods = {'null_normalize': 1}
+null_norm_default_dict = {**default_dict, **null_norm_mods}
+null_master_dict = list_of_dicts(default_dict, density_init_dic(directory), seeding_dic(directory))
 
 if __name__ == '__main__':
     run_grid_search(param_dic=null_master_dict[int(sys.argv[1])])
-    # print(len(null_master_dict))
+    # run_grid_search(param_dic=null_master_dict[0])
     # for i in range(len(null_master_dict)):
-    #     print(null_master_dict[i])
     #     run_grid_search(param_dic=null_master_dict[i])

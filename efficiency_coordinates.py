@@ -44,9 +44,18 @@ def Random_Walker_Effective_Distance(A, source=None, target=None, parameter=1, v
             Counts the number of times there are 0s present the in fundamental matrix Z arising from the original A.
             If instances of 0s occur in Z, they are in practice replaced by 1e-100 ~ 0
     """
+    if np.all(np.isclose(A, 0, rtol=1e-15)) or np.all(np.isnan(A)):
+        if source is not None and target is not None:
+            RWED = np.nan
+        elif source is None and target is None:
+            RWED = np.empty((A.shape[0], A.shape[1]))
+            RWED[:] = np.nan
+        else:
+            RWED = np.array([np.nan]*A.shape[0])
+        return RWED
+
     assert (isinstance(parameter, float) or isinstance(parameter, int)) and parameter > 0
-    assert np.all(np.isclose(A.sum(axis=1), 1, rtol=1e-15)), f"The transition matrix has to be row normalized | A row sums: \n {A.sum(axis=1)}"
-    # assert np.all(np.isclose(P.sum(axis=1), 1, rtol=1e-15, equal_nan=True)), "If there are dim incompatibility issues, as nan == nan is false."
+    assert np.all(np.isclose(A.sum(axis=1), 1, rtol=1e-15)), f"The transition matrix has to be row normalized | A row sums: \n {A.sum(axis=1)} \n A: \n {A} \n (np.all(A = nan)): {(np.all(A = np.nan))}"
     _singular_fundamental_matrix_errors = 0
 
     if not via_numpy:
@@ -144,6 +153,7 @@ def E_rout(A, reversed_directions=False, normalize=True):
 
 
 def E_diff(A, normalize=True):  # Diffusion Efficiency
+
     Adj_Matrix, n = A, A.shape[0]
     row_sums = Adj_Matrix.sum(axis=1)
     normalized_A = np.array([Adj_Matrix[node, :] / row_sums[node] for node in range(Adj_Matrix.shape[0])])
