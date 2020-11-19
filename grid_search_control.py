@@ -273,7 +273,6 @@ parameter_dictionary = {
     'run_index': 1,
     'num_nodes': 60,
     'edge_conservation_range': '0_1.05_0.05',  # work with me here. (args to np.arange separated by _)
-    # 'edge_conservation_range': '0_0.9_0.05',  # work with me here. (args to np.arange separated by _)
     'selectivity_range': '0_1.05_0.05'
 }
 search_wide_dic = {
@@ -292,9 +291,9 @@ edge_init = {
 }
 ensemble_params = {
     'ensemble_size': 25,  # num sims to average over. 0 if just one sim is desired (e.g. for graph pictures)
-    'num_runs': 600,  # num runs, could be cut off if reaches equilibrium condition first
+    'num_runs': 250,  # num runs, could be cut off if reaches equilibrium condition first
     'delta': 10,  # Delta parameter in (RW/MP)ED, recommended >= 1
-    'equilibrium_distance': 200,
+    'equilibrium_distance': 250,
     'constant_source_node': 0,  # If no seeding mechanism is set, defaults to rnd. Activate below seeding by setting values != 0
     'num_shifts_of_source_node': 0,  # use 0 as False
     'seeding_sigma_coeff': 0,  # \in [0, \infty), the coefficient before the standard sigma to determine width of normal distribution
@@ -329,7 +328,7 @@ null_norm_default_dict = {**default_dict, **null_norm_mods}
 null_master_dict = list_of_dicts(default_dict, density_init_dic(directory), seeding_dic(directory))
 
 if __name__ == '__main__':
-    run_grid_search(param_dic=null_master_dict[int(sys.argv[1])])
-    # run_grid_search(param_dic=null_master_dict[0])
+    # run_grid_search(param_dic=null_master_dict[int(sys.argv[1])])
+    run_grid_search(param_dic=null_master_dict[0])
     # for i in range(len(null_master_dict)):
     #     run_grid_search(param_dic=null_master_dict[i])

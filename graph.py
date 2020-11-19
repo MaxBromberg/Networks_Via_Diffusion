@@ -787,7 +787,7 @@ class Graph:
                           constant_source_node=False,
                           num_shifts_of_source_node=False, seeding_sigma_coeff=False, seeding_power_law_exponent=False,
                           beta=None,
-                          multiple_path=False, equilibrium_distance=equilibrium_distance_val, update_interval=1,
+                          multiple_path=False, equilibrium_distance=0, update_interval=1,
                           source_reward=source_reward_val, undirectify=False, null_simulate=False, null_normalize=False, verbose=False):
         """
         Keeps a running average of A, and eff_dist_history over num_simulations, while extending source history.
@@ -826,9 +826,9 @@ class Graph:
                               source_reward=source_reward, constant_source_node=constant_source_node,
                               num_shifts_of_source_node=num_shifts_of_source_node, seeding_sigma_coeff=seeding_sigma_coeff,
                               seeding_power_law_exponent=seeding_power_law_exponent, beta=beta, multiple_path=multiple_path,
-                              equilibrium_distance=equilibrium_distance, verbose=False)
+                              equilibrium_distance=0, verbose=False)
             else:
-                self.null_simulate(num_runs=num_runs_per_sim, equilibrium_distance=equilibrium_distance)
+                self.null_simulate(num_runs=num_runs_per_sim, equilibrium_distance=0)
             if null_normalize:
                 null_graph.edge_initialization_conditional(edge_init=self.A[0], undirectify=undirectify)
                 null_graph.null_simulate(num_runs=num_runs_per_sim, equilibrium_distance=equilibrium_distance, hierarchy_coords=False)
