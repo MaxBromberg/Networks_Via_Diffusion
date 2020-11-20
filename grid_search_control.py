@@ -209,8 +209,9 @@ def grid_search(param_dic, num_cores_used=mp.cpu_count(), remove_data_post_plott
                                    degree_dist=bool(param_dic['degree_dist']),
                                    edge_dist=bool(param_dic['edge_dist']),
                                    meta_plots=bool(param_dic['meta_plots']),
+                                   efficiency_coords=bool(param_dic['efficiency_coords']),
                                    null_sim=bool(param_dic['null_simulate']),
-                                   efficiency_coords=False,
+                                   interpolate=param_dic['interpolation'],
                                    # output_dir=Path(data_directory, 'Plots'))
                                    output_dir=None)
     if remove_data_post_plotting:
@@ -271,7 +272,7 @@ directory = Path(str(Path.home()), 'data/')
 parameter_dictionary = {
     'data_directory': directory,
     'run_index': 1,
-    'num_nodes': 60,
+    'num_nodes': 12,
     'edge_conservation_range': '0_1.05_0.05',  # work with me here. (args to np.arange separated by _)
     'selectivity_range': '0_1.05_0.05'
 }
@@ -290,10 +291,10 @@ edge_init = {
     'edge_init': 'None',  # None is uniform rnd, int is num_edges/node in sparse init, float is degree exp in scale free init.
 }
 ensemble_params = {
-    'ensemble_size': 25,  # num sims to average over. 0 if just one sim is desired (e.g. for graph pictures)
-    'num_runs': 250,  # num runs, could be cut off if reaches equilibrium condition first
+    'ensemble_size': 0,  # num sims to average over. 0 if just one sim is desired (e.g. for graph pictures)
+    'num_runs': 25,  # num runs, could be cut off if reaches equilibrium condition first
     'delta': 10,  # Delta parameter in (RW/MP)ED, recommended >= 1
-    'equilibrium_distance': 250,
+    'equilibrium_distance': 0,
     'constant_source_node': 0,  # If no seeding mechanism is set, defaults to rnd. Activate below seeding by setting values != 0
     'num_shifts_of_source_node': 0,  # use 0 as False
     'seeding_sigma_coeff': 0,  # \in [0, \infty), the coefficient before the standard sigma to determine width of normal distribution
@@ -316,12 +317,16 @@ plots = {
     'edge_dist': 0,  # Plots the edge distribution (individual edge counts) as a histogram
     'meta_plots': 1,  # Plots all the meta-plots, specifically: last_ave_nbr_deg, ed diffs, mean ed, ave_neighbor diffs,
     # global ed diffs, ave_nbr variance, log_deg_dist variance, hierarchy coordinates (with exponential and linear thresholds) and efficiency coordinates
+    'efficiency_coords': 1,
+    'interpolation': 'None',
 }
 
 
 default_dict = {**parameter_dictionary, **search_wide_dic, **edge_init, **ensemble_params, **plots}
+mods = {'edge_conservation_range': '0_1.05_0.1', 'selectivity_range': '0_1.05_0.1'}
+modded_dict = {**default_dict, **mods}
 # master_dict = list_of_dicts(default_dict, initializations_dic(directory), seeding_dic(directory), directionality_dic(directory))
-# master_dict = list_of_dicts(default_dict, density_init_dic(directory), seeding_dic(directory))
+master_dict = list_of_dicts(modded_dict, density_init_dic(directory), seeding_dic(directory))
 
 null_norm_mods = {'null_normalize': 1}
 null_norm_default_dict = {**default_dict, **null_norm_mods}
@@ -329,6 +334,6 @@ null_master_dict = list_of_dicts(default_dict, density_init_dic(directory), seed
 
 if __name__ == '__main__':
     # run_grid_search(param_dic=null_master_dict[int(sys.argv[1])])
-    run_grid_search(param_dic=null_master_dict[0])
+    run_grid_search(param_dic=master_dict[0])
     # for i in range(len(null_master_dict)):
     #     run_grid_search(param_dic=null_master_dict[i])

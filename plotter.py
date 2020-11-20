@@ -381,7 +381,7 @@ def plot_all_to_all_eff_dists_as_heatmap(graph, timestep=-1, source_reward=2.6, 
         plt.show()
 
 
-def plot_heatmap(TwoD_data, x_range=None, y_range=None, normalize=False, tick_scale=2, title=None, fig_title=None, show=False):
+def plot_heatmap(TwoD_data, x_range=None, y_range=None, normalize=False, tick_scale=2, title=None, fig_title=None, interp_method=None, show=False):
     """
     Generalized heatmap plotter, used for post grid-search plots.
     :param TwoD_data: Requires data of the dimensionality of the resultant heatmap (thus 2d)
@@ -400,7 +400,7 @@ def plot_heatmap(TwoD_data, x_range=None, y_range=None, normalize=False, tick_sc
     if y_range.any(): plt.yticks(y_range)
     x_interval = (x_range[2]-x_range[1])
     y_interval = (y_range[2]-y_range[1])
-    plt.imshow(data, cmap='viridis', extent=[x_range[0], x_range[-1]+x_interval, y_range[0], y_range[-1]+y_interval], aspect='auto')
+    plt.imshow(data, cmap='viridis', extent=[x_range[0], x_range[-1]+x_interval, y_range[0], y_range[-1]+y_interval], aspect='auto', interpolation=interp_method)
     xticks = np.arange(x_range[0], x_range[-1], tick_scale*x_interval)
     yticks = np.arange(y_range[0], y_range[-1], tick_scale*y_interval)
     plt.xticks(xticks)
@@ -1350,7 +1350,7 @@ def pool_twoD_grid_search_plots(data_directory, edge_conservation_range, selecti
         f"Time lapsed for plotting {num_nodes} nodes, {run_counter} parameter combinations: {utility_funcs.time_lapsed_h_m_s(time.time() - start_time)}")
 
 
-def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_range, num_nodes, source_reward=2.6, eff_dist=False, global_eff_dist=False, network_graphs=False, node_plots=False, ave_nbr=False, cluster_coeff=False, shortest_path=False, degree_dist=False, edge_dist=False, meta_plots=True,  efficiency_coords=True, null_sim=False, output_dir=None):
+def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_range, num_nodes, source_reward=2.6, eff_dist=False, global_eff_dist=False, network_graphs=False, node_plots=False, ave_nbr=False, cluster_coeff=False, shortest_path=False, degree_dist=False, edge_dist=False, meta_plots=True, efficiency_coords=True, null_sim=False, interpolate=None, output_dir=None):
     """
     Runs grid-search, and then creates all plots for a given dataset (sub)directory, and puts the results in new appropriately named subdirectories.
     # Parallelization implementation ensures completion of all plots per dataset (or as many as supportable by the number of cpu cores) before continuing to the following set
@@ -1637,26 +1637,26 @@ def twoD_grid_search_plots(data_directory, edge_conservation_range, selectivity_
             plot_2d_data(np.array(efficiency_coordinates), xlabel="Diffusion Efficiency", ylabel="Routing Efficiency", color=edge_conservation_color_map, fig_title="Diffusion vs Routing Efficiency", title=Path(grid_search_plots_dir, 'Efficiency_Scores_[Colored_by_Edge_Conservation]'))
             # Efficiency Heatmaps:
             diffusion_efficiencies, routing_efficiencies = np.array(efficiency_coordinates)[:, 0], np.array(efficiency_coordinates)[:, 1]
-            plot_heatmap(np.array(diffusion_efficiencies).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'E_diff_heatmap'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='Diffusion Efficiency')
-            plot_heatmap(np.array(np.log(diffusion_efficiencies)).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'ln_E_diff_heatmap'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='Ln Diffusion Efficiency')
-            plot_heatmap(np.array(routing_efficiencies).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'E_rout_heatmap'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='Routing Efficiency')
-            plot_heatmap(np.array(np.log(routing_efficiencies)).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'ln_E_rout_heatmap'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='Ln Routing Efficiency')
+            plot_heatmap(np.array(diffusion_efficiencies).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'E_diff_heatmap'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, interp_method=interpolate, fig_title='Diffusion Efficiency')
+            plot_heatmap(np.array(np.log(diffusion_efficiencies)).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'ln_E_diff_heatmap'), x_range=selectivity_range, y_range=edge_conservation_range, interp_method=interpolate, normalize=False, fig_title='Ln Diffusion Efficiency')
+            plot_heatmap(np.array(routing_efficiencies).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'E_rout_heatmap'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, interp_method=interpolate, fig_title='Routing Efficiency')
+            plot_heatmap(np.array(np.log(routing_efficiencies)).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'ln_E_rout_heatmap'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, interp_method=interpolate, fig_title='Ln Routing Efficiency')
 
-        plot_heatmap(np.array(global_eff_dist_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'global_eff_dist'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='All-to-All Effective Distance Differences')
-        plot_heatmap(np.array(log_degree_dist_var_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'log_degree_var'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='Final Degree Distribution Variance')
-        plot_heatmap(np.log(ave_nbr_diffs), title=Path(grid_search_plots_dir, 'log_ave_neighbor_diff'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='log_ave_nbr_diffs')
-        plot_heatmap(np.log(ave_nbr_vars), title=Path(grid_search_plots_dir, 'log_ave_neighbor_var'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='log_ave_nbr_var')
+        plot_heatmap(np.array(global_eff_dist_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'global_eff_dist'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, interp_method=interpolate, fig_title='All-to-All Effective Distance Differences')
+        plot_heatmap(np.array(log_degree_dist_var_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(grid_search_plots_dir, f'log_degree_var'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, interp_method=interpolate, fig_title='Final Degree Distribution Variance')
+        plot_heatmap(np.log(ave_nbr_diffs), title=Path(grid_search_plots_dir, 'log_ave_neighbor_diff'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, interp_method=interpolate, fig_title='log_ave_nbr_diffs')
+        plot_heatmap(np.log(ave_nbr_vars), title=Path(grid_search_plots_dir, 'log_ave_neighbor_var'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, interp_method=interpolate, fig_title='log_ave_nbr_var')
         if not null_sim:
             plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size),
                          title=Path(grid_search_plots_dir, f'eff_dist_diffs'), x_range=selectivity_range,
-                         y_range=edge_conservation_range, normalize=False, fig_title='Effective Distance Differences to Source')
+                         y_range=edge_conservation_range, normalize=False, interp_method=interpolate, fig_title='Effective Distance Differences to Source')
             plot_heatmap(np.array(mean_eff_dist_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size),
                          title=Path(grid_search_plots_dir, f'mean_eff_dist'), x_range=selectivity_range,
-                         y_range=edge_conservation_range, normalize=False, fig_title='Ave Effective Distance to Source')
+                         y_range=edge_conservation_range, normalize=False, interp_method=interpolate, fig_title='Ave Effective Distance to Source')
     print(f"Time lapsed for plotting {num_nodes} nodes, {run_counter} parameter combinations: {utility_funcs.time_lapsed_h_m_s(time.time()-start_time)}")
 
 
-def twoD_grid_search_meta_plots(path_to_data_dir, edge_conservation_range, selectivity_range, source_reward=2.6, delta=10, efficiency_coords=True, output_dir=None, verbose=False):
+def twoD_grid_search_meta_plots(path_to_data_dir, edge_conservation_range, selectivity_range, source_reward=2.6, delta=10, efficiency_coords=True, output_dir=None, interpolate=None, verbose=False):
     """
     Creates meta plots for a given dataset (sub)directory, and puts the results in new appropriately named subdirectories.
     :param path_to_data_dir: string; Path obj, path to data directory
@@ -1774,21 +1774,21 @@ def twoD_grid_search_meta_plots(path_to_data_dir, edge_conservation_range, selec
             efficiency_coordinates)[:, 1]
         plot_heatmap(np.array(diffusion_efficiencies).reshape(edge_conservation_range.size, selectivity_range.size),
                      title=Path(meta_grid_search_plots_dir, f'E_diff_heatmap'), x_range=selectivity_range,
-                     y_range=edge_conservation_range, normalize=False, fig_title='Diffusion Efficiency')
+                     y_range=edge_conservation_range, normalize=False, interp_method=interpolate, fig_title='Diffusion Efficiency')
         plot_heatmap(np.array(np.log(diffusion_efficiencies)).reshape(edge_conservation_range.size, selectivity_range.size),
                      title=Path(meta_grid_search_plots_dir, f'ln_E_diff_heatmap'), x_range=selectivity_range,
-                     y_range=edge_conservation_range, normalize=False, fig_title='Ln Diffusion Efficiency')
+                     y_range=edge_conservation_range, normalize=False, interp_method=interpolate, fig_title='Ln Diffusion Efficiency')
         plot_heatmap(np.array(routing_efficiencies).reshape(edge_conservation_range.size, selectivity_range.size),
                      title=Path(meta_grid_search_plots_dir, f'E_rout_heatmap'), x_range=selectivity_range,
-                     y_range=edge_conservation_range, normalize=False, fig_title='Routing Efficiency')
+                     y_range=edge_conservation_range, normalize=False, interp_method=interpolate, fig_title='Routing Efficiency')
         plot_heatmap(np.array(np.log(routing_efficiencies)).reshape(edge_conservation_range.size, selectivity_range.size),
                      title=Path(meta_grid_search_plots_dir, f'ln_E_rout_heatmap'), x_range=selectivity_range,
-                     y_range=edge_conservation_range, normalize=False, fig_title='Ln Routing Efficiency')
+                     y_range=edge_conservation_range, normalize=False, interp_method=interpolate, fig_title='Ln Routing Efficiency')
 
-    plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(meta_grid_search_plots_dir, f'eff_dist_diff_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=True, fig_title='Effective Distance Difference to Source')
-    plot_heatmap(np.array(mean_eff_dist_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(meta_grid_search_plots_dir, f'mean_eff_dist_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=True, fig_title='Average Effective Distance to Source')
-    plot_heatmap(np.array(global_eff_dist_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(meta_grid_search_plots_dir, f'global_eff_dist_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=True, fig_title='All-to-All Effective Distance Differences')
-    plot_heatmap(np.array(degree_dist_var_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(meta_grid_search_plots_dir, f'degree_var_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=True, fig_title='Final Degree Distribution Variance')
+    plot_heatmap(np.array(eff_dist_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(meta_grid_search_plots_dir, f'eff_dist_diff_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=True, interp_method=interpolate, fig_title='Effective Distance Difference to Source')
+    plot_heatmap(np.array(mean_eff_dist_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(meta_grid_search_plots_dir, f'mean_eff_dist_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=True, interp_method=interpolate, fig_title='Average Effective Distance to Source')
+    plot_heatmap(np.array(global_eff_dist_diffs_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(meta_grid_search_plots_dir, f'global_eff_dist_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=True, interp_method=interpolate, fig_title='All-to-All Effective Distance Differences')
+    plot_heatmap(np.array(degree_dist_var_flattened).reshape(edge_conservation_range.size, selectivity_range.size), title=Path(meta_grid_search_plots_dir, f'degree_var_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=True, interp_method=interpolate, fig_title='Final Degree Distribution Variance')
     # plot_heatmap(np.log(ave_nbr_diffs), title=Path(meta_grid_search_plots_dir, f'log_ave_neighbor_diff_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='ln_Ave_Nbr_Differences')
     # plot_heatmap(np.log(ave_nbr_vars), title=Path(meta_grid_search_plots_dir, f'log_ave_neighbor_var_histogram'), x_range=selectivity_range, y_range=edge_conservation_range, normalize=False, fig_title='ln_Ave_Nbr_Variance')
     general_3d_data_plot(data=np.array(linear_threshold_hierarchy_coordinates), xlabel="Treeness", ylabel="Feedforwardness", zlabel="Orderability", plot_projections=True, fig_title='Hierarchy Coordinates (Linear Thresholds)', title=Path(meta_grid_search_plots_dir, 'Hierarchy_Coordinates'))
