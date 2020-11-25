@@ -62,66 +62,6 @@ def seeding_dic(data_directory):
     return seed_dic
 
 
-def simulate(param_list):
-    output_path = str(param_list[0])
-    run_index = int(param_list[1])
-    num_nodes = int(param_list[2])
-    edge_conservation_val = float(param_list[3])
-    selectivity_val = float(param_list[4])
-    r_i_s_c = bool(int(param_list[5]))
-    p_ed_and_r_c = bool(int(param_list[6]))
-    ed_to_s = bool(int(param_list[7]))
-    n_a_o_e = bool(int(param_list[8]))
-    i_e_c = bool(int(param_list[9]))
-    undirected_run = bool(int(param_list[10]))
-    null_simulate = bool(int(param_list[11]))
-    null_normalize = bool(int(param_list[12]))
-    if str(param_list[13]).__contains__('.'):
-        edge_init = float(param_list[13])
-    elif str(param_list[13]) == "None" or str(param_list[13]) == "False":
-        edge_init = None
-    else:
-        edge_init = int(param_list[13])  # I don't see how to possibly pass a np.array through shell script, so that option's out
-    ensemble_size = int(param_list[14])
-    num_runs = int(param_list[15])
-    delta = float(param_list[16])
-    equilibrium_distance = int(param_list[17])
-    constant_source_node = int(param_list[18])
-    num_shifts_of_source_node = int(param_list[19])
-    seeding_sigma_coeff = float(param_list[20])
-    seeding_power_law_exponent = float(param_list[21])
-    beta = float(param_list[22])
-    multiple_path = bool(int(param_list[23]))
-    update_interval = int(param_list[24])
-    source_reward = float(param_list[25])
-    undirectify_init = bool(param_list[26])
-
-    graph_start_time = time.time()
-    G = graph.Graph(num_nodes=num_nodes, edge_conservation_coefficient=edge_conservation_val, selectivity=selectivity_val,
-                    reinforcement_info_score_coupling=r_i_s_c, positive_eff_dist_and_reinforcement_correlation=p_ed_and_r_c,
-                    eff_dist_is_towards_source=ed_to_s, nodes_adapt_outgoing_edges=n_a_o_e, incoming_edges_conserved=i_e_c,
-                    undirected=undirected_run)
-
-    if not ensemble_size:
-        G.edge_initialization_conditional(edge_init=edge_init, undirectify=undirectify_init)
-        if not null_simulate:
-            G.simulate(num_runs=num_runs, eff_dist_delta_param=delta, constant_source_node=constant_source_node,
-                       num_shifts_of_source_node=num_shifts_of_source_node, seeding_sigma_coeff=seeding_sigma_coeff,
-                       seeding_power_law_exponent=seeding_power_law_exponent, beta=beta, multiple_path=multiple_path,
-                       equilibrium_distance=equilibrium_distance, update_interval=update_interval, source_reward=source_reward)
-        else:
-            G.null_simulate(num_runs=num_runs, equilibrium_distance=equilibrium_distance)
-    else:
-        G.simulate_ensemble(num_simulations=ensemble_size, num_runs_per_sim=num_runs, eff_dist_delta_param=delta, edge_init=edge_init,
-                            constant_source_node=constant_source_node, num_shifts_of_source_node=num_shifts_of_source_node,
-                            equilibrium_distance=equilibrium_distance, seeding_sigma_coeff=seeding_sigma_coeff,
-                            seeding_power_law_exponent=seeding_power_law_exponent, beta=beta, multiple_path=multiple_path,
-                            update_interval=update_interval, source_reward=source_reward, undirectify=undirectify_init,
-                            null_simulate=null_simulate, null_normalize=null_normalize, verbose=False)
-    plotter.save_object(G, Path(output_path, f'{run_index:04}_graph_obj.pkl'))
-    print(f'Run {run_index}, [edge conservation: {edge_conservation_val}, selectivity: {selectivity_val}] complete. {G.get_num_errors()} errors, ({uf.time_lapsed_h_m_s(time.time()-graph_start_time)})')
-
-
 def run_over_all_directionality_combos(mods, data_directory, via_pool=True):
     """
     Runs grid searches for every directionality combination
@@ -197,25 +137,87 @@ def grid_search(param_dic, num_cores_used=mp.cpu_count(), remove_data_post_plott
     network_graphs = bool(param_dic['network_graphs'])
     if param_dic['ensemble_size']:
         network_graphs = False
-    plotter.twoD_grid_search_plots(raw_data_directory, edge_conservation_range=edge_conservation_range, selectivity_range=selectivity_range,
-                                   num_nodes=num_nodes,
-                                   network_graphs=network_graphs,
-                                   node_plots=bool(param_dic['node_plots']),
-                                   ave_nbr=bool(param_dic['ave_nbr']),
-                                   cluster_coeff=bool(param_dic['cluster_coeff']),
-                                   eff_dist=bool(param_dic['eff_dist']),
-                                   global_eff_dist=bool(param_dic['global_eff_dist']),
-                                   shortest_path=bool(param_dic['shortest_path']),
-                                   degree_dist=bool(param_dic['degree_dist']),
-                                   edge_dist=bool(param_dic['edge_dist']),
-                                   meta_plots=bool(param_dic['meta_plots']),
-                                   efficiency_coords=bool(param_dic['efficiency_coords']),
-                                   null_sim=bool(param_dic['null_simulate']),
-                                   interpolate=param_dic['interpolation'],
-                                   # output_dir=Path(data_directory, 'Plots'))
-                                   output_dir=None)
+    plotter.grid_search_plots(raw_data_directory, edge_conservation_range=edge_conservation_range, selectivity_range=selectivity_range,
+                              num_nodes=num_nodes,
+                              network_graphs=network_graphs,
+                              node_plots=bool(param_dic['node_plots']),
+                              ave_nbr=bool(param_dic['ave_nbr']),
+                              cluster_coeff=bool(param_dic['cluster_coeff']),
+                              eff_dist=bool(param_dic['eff_dist']),
+                              global_eff_dist=bool(param_dic['global_eff_dist']),
+                              shortest_path=bool(param_dic['shortest_path']),
+                              degree_dist=bool(param_dic['degree_dist']),
+                              edge_dist=bool(param_dic['edge_dist']),
+                              meta_plots=bool(param_dic['meta_plots']),
+                              null_sim=bool(param_dic['null_simulate']),
+                              interpolate=param_dic['interpolation'],
+                              # output_dir=Path(data_directory, 'Plots'))
+                              output_dir=None)
     if remove_data_post_plotting:
         shutil.rmtree(raw_data_directory)
+
+
+def simulate(param_list):
+    output_path = str(param_list[0])
+    run_index = int(param_list[1])
+    num_nodes = int(param_list[2])
+    edge_conservation_val = float(param_list[3])
+    selectivity_val = float(param_list[4])
+    r_i_s_c = bool(int(param_list[5]))
+    p_ed_and_r_c = bool(int(param_list[6]))
+    ed_to_s = bool(int(param_list[7]))
+    n_a_o_e = bool(int(param_list[8]))
+    i_e_c = bool(int(param_list[9]))
+    undirected_run = bool(int(param_list[10]))
+    null_simulate = bool(int(param_list[11]))
+    null_normalize = bool(int(param_list[12]))
+    if str(param_list[13]).__contains__('.'):
+        edge_init = float(param_list[13])
+    elif str(param_list[13]) == "None" or str(param_list[13]) == "False":
+        edge_init = None
+    else:
+        edge_init = int(param_list[13])  # I don't see how to possibly pass a np.array through shell script, so that option's out
+    ensemble_size = int(param_list[14])
+    num_runs = int(param_list[15])
+    delta = float(param_list[16])
+    equilibrium_distance = int(param_list[17])
+    constant_source_node = int(param_list[18])
+    num_shifts_of_source_node = int(param_list[19])
+    seeding_sigma_coeff = float(param_list[20])
+    seeding_power_law_exponent = float(param_list[21])
+    beta = float(param_list[22])
+    multiple_path = bool(int(param_list[23]))
+    update_interval = int(param_list[24])
+    source_reward = float(param_list[25])
+    undirectify_init = bool(param_list[26])
+    meta_global_eff_dist, meta_eff_dist_diff, meta_mean_eff_dist, meta_ave_nbr, meta_cluster_coefficient, meta_shortest_path, meta_degree_dist, hierarchy_coords, efficiency_coords = [bool(x) for x in param_list[-9:]]
+
+    graph_start_time = time.time()
+    G = graph.Graph(num_nodes=num_nodes, edge_conservation_coefficient=edge_conservation_val, selectivity=selectivity_val,
+                    reinforcement_info_score_coupling=r_i_s_c, positive_eff_dist_and_reinforcement_correlation=p_ed_and_r_c,
+                    eff_dist_is_towards_source=ed_to_s, nodes_adapt_outgoing_edges=n_a_o_e, incoming_edges_conserved=i_e_c,
+                    undirected=undirected_run, global_eff_dist_diff=meta_global_eff_dist, eff_dist_diff=meta_eff_dist_diff,
+                    mean_eff_dist=meta_mean_eff_dist, ave_nbr=meta_ave_nbr, cluster_coeff=meta_cluster_coefficient, shortest_path=meta_shortest_path,
+                    degree_dist=meta_degree_dist, hierarchy_coordinates=hierarchy_coords, efficiency_coords=efficiency_coords)
+
+    if not ensemble_size:
+        G.edge_initialization_conditional(edge_init=edge_init, undirectify=undirectify_init)
+        if not null_simulate:
+            G.simulate(num_runs=num_runs, eff_dist_delta_param=delta, constant_source_node=constant_source_node,
+                       num_shifts_of_source_node=num_shifts_of_source_node, seeding_sigma_coeff=seeding_sigma_coeff,
+                       seeding_power_law_exponent=seeding_power_law_exponent, beta=beta, multiple_path=multiple_path,
+                       equilibrium_distance=equilibrium_distance, update_interval=update_interval, source_reward=source_reward)
+        else:
+            G.null_simulate(num_runs=num_runs, equilibrium_distance=equilibrium_distance, source_reward=source_reward)
+    else:
+        G.simulate_ensemble(num_simulations=ensemble_size, num_runs_per_sim=num_runs, eff_dist_delta_param=delta, edge_init=edge_init,
+                            constant_source_node=constant_source_node, num_shifts_of_source_node=num_shifts_of_source_node,
+                            equilibrium_distance=equilibrium_distance, seeding_sigma_coeff=seeding_sigma_coeff,
+                            seeding_power_law_exponent=seeding_power_law_exponent, beta=beta, multiple_path=multiple_path,
+                            update_interval=update_interval, source_reward=source_reward, undirectify=undirectify_init,
+                            null_simulate=null_simulate, null_normalize=null_normalize, verbose=False)
+    plotter.save_object(G, Path(output_path, f'{run_index:04}_graph_obj.pkl'))
+    print(f'Run {run_index}, [edge conservation: {edge_conservation_val}, selectivity: {selectivity_val}] complete. {G.get_num_errors()} errors, ({uf.time_lapsed_h_m_s(time.time()-graph_start_time)})')
 
 
 def run_grid_search(param_dic, via_pool=True):
@@ -272,7 +274,7 @@ directory = Path(str(Path.home()), 'data/')
 parameter_dictionary = {
     'data_directory': directory,
     'run_index': 1,
-    'num_nodes': 12,
+    'num_nodes': 20,
     'edge_conservation_range': '0_1.05_0.05',  # work with me here. (args to np.arange separated by _)
     'selectivity_range': '0_1.05_0.05'
 }
@@ -291,7 +293,7 @@ edge_init = {
     'edge_init': 'None',  # None is uniform rnd, int is num_edges/node in sparse init, float is degree exp in scale free init.
 }
 ensemble_params = {
-    'ensemble_size': 0,  # num sims to average over. 0 if just one sim is desired (e.g. for graph pictures)
+    'ensemble_size': 10,  # num sims to average over. 0 if just one sim is desired (e.g. for graph pictures)
     'num_runs': 25,  # num runs, could be cut off if reaches equilibrium condition first
     'delta': 10,  # Delta parameter in (RW/MP)ED, recommended >= 1
     'equilibrium_distance': 0,
@@ -317,8 +319,16 @@ plots = {
     'edge_dist': 0,  # Plots the edge distribution (individual edge counts) as a histogram
     'meta_plots': 1,  # Plots all the meta-plots, specifically: last_ave_nbr_deg, ed diffs, mean ed, ave_neighbor diffs,
     # global ed diffs, ave_nbr variance, log_deg_dist variance, hierarchy coordinates (with exponential and linear thresholds) and efficiency coordinates
+    'interpolation': 'bilinear',
+    'meta_global_eff_dist': 1,
+    'meta_eff_dist_diff': 1,
+    'meta_mean_eff_dist': 1,
+    'meta_ave_nbr': 1,
+    'meta_cluster_coefficient': 1,
+    'meta_shortest_path': 1,
+    'meta_degree_dist': 1,
+    'hierarchy_coords': 1,
     'efficiency_coords': 1,
-    'interpolation': 'None',
 }
 
 
@@ -329,11 +339,11 @@ modded_dict = {**default_dict, **mods}
 master_dict = list_of_dicts(modded_dict, density_init_dic(directory), seeding_dic(directory))
 
 null_norm_mods = {'null_normalize': 1}
-null_norm_default_dict = {**default_dict, **null_norm_mods}
-null_master_dict = list_of_dicts(default_dict, density_init_dic(directory), seeding_dic(directory))
+null_norm_default_dict = {**default_dict, **null_norm_mods, **mods}
+null_master_dict = list_of_dicts(null_norm_default_dict, density_init_dic(directory), seeding_dic(directory))
 
 if __name__ == '__main__':
     # run_grid_search(param_dic=null_master_dict[int(sys.argv[1])])
-    run_grid_search(param_dic=master_dict[0])
-    # for i in range(len(null_master_dict)):
-    #     run_grid_search(param_dic=null_master_dict[i])
+    # run_grid_search(param_dic=null_master_dict[0])
+    for i in range(len(null_master_dict)):
+        run_grid_search(param_dic=null_master_dict[i])

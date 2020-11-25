@@ -45,11 +45,11 @@ G.simulate(num_runs=num_runs, eff_dist_delta_param=delta, constant_source_node=c
            equilibrium_distance=equilibrium_distance, seeding_sigma_coeff=seeding_sigma_coeff,
            seeding_power_law_exponent=seeding_power_law_exponent, beta=beta, multiple_path=multiple_path, verbose=True)
 
-ensemble_A, ensemble_H, ensemble_global_eff_dist = ensemble_G.A[-1], ensemble_G.eff_dist_history, ensemble_G.evaluate_effective_distances(source_reward=source_reward, parameter=delta, multiple_path_eff_dist=False, timestep=-1)
-A, H, global_eff_dist = G.A[-1], G.eff_dist_history, G.evaluate_effective_distances(source_reward=source_reward,
-                                                                                    parameter=delta,
-                                                                                    multiple_path_eff_dist=False,
-                                                                                    timestep=-1)
+ensemble_A, ensemble_H, ensemble_global_eff_dist = ensemble_G.A[-1], ensemble_G.eff_dist_to_source_history, ensemble_G.evaluate_effective_distances(source_reward=source_reward, parameter=delta, multiple_path_eff_dist=False, timestep=-1)
+A, H, global_eff_dist = G.A[-1], G.eff_dist_to_source_history, G.evaluate_effective_distances(source_reward=source_reward,
+                                                                                              parameter=delta,
+                                                                                              multiple_path_eff_dist=False,
+                                                                                              timestep=-1)
 
 diff_A = ensemble_A - A
 diff_H = np.array(ensemble_H) - np.array(H)

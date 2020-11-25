@@ -31,7 +31,9 @@ class Graph:
                  reinforcement_info_score_coupling=True,
                  positive_eff_dist_and_reinforcement_correlation=False, eff_dist_is_towards_source=False,
                  nodes_adapt_outgoing_edges=False,
-                 incoming_edges_conserved=True, undirected=False):
+                 incoming_edges_conserved=True, undirected=False, global_eff_dist_diff=False, eff_dist_diff=False,
+                 mean_eff_dist=False, ave_nbr=False, cluster_coeff=False, shortest_path=False,
+                 degree_dist=False, hierarchy_coordinates=False, efficiency_coords=False):
         """
         Initialization; the 'extra' dimensionality (i.e. 1 for nodes, A) are there to dynamically store their history
         via use of vstack later on. To minimize variables, many features are activated by specifying their relevant
@@ -56,9 +58,32 @@ class Graph:
         self.nodes = np.zeros((1, num_nodes))  # node values (and history of via the first dimension)
         self.A = np.zeros((1, self.num_nodes, self.num_nodes))  # Adjacency matrix (and history of)
         self.source_node_history = []
-        self.eff_dist_history = []
-        self.linear_threshold_hierarchy_coordinates = []
-        self.exp_threshold_hierarchy_coordinates = []
+        self.eff_dist_to_source_history = []
+
+        # Observables:
+        self.observed_observables = {
+            'ave_nbr': bool(ave_nbr),
+            'global_eff_dist_diff': bool(global_eff_dist_diff),
+            'mean_eff_dist': bool(mean_eff_dist),
+            'eff_dist_diff': bool(eff_dist_diff),
+            'cluster_coeff': bool(cluster_coeff),
+            'shortest_path': bool(shortest_path),
+            'degree_dist': bool(degree_dist),
+            'efficiency_coordinates': bool(efficiency_coords),
+            'hierarchy_coordinates': bool(hierarchy_coordinates),
+        }
+        if ave_nbr: self.ave_nbr_var = True
+        if global_eff_dist_diff: self.global_eff_dist_diff = True
+        if mean_eff_dist: self.mean_eff_dist = True
+        if eff_dist_diff: self.source_eff_dist_diff = True
+        if cluster_coeff: self.ave_cluster_coeff = True
+        if shortest_path: self.ave_shortest_path = True
+        if degree_dist: self.degree_dist = True
+        if hierarchy_coordinates:
+            self.linear_threshold_hierarchy_coordinates = True
+            self.exp_threshold_hierarchy_coordinates = True
+        if efficiency_coords:
+            self.efficiency_coordinates = True
 
     # Edge Initialization: ------------------------------------------------------------------------------------------
     def sparse_random_edge_init(self, nonzero_edges_per_node=1, connected=True, even_distribution=True,
@@ -333,11 +358,10 @@ class Graph:
         elif num_shifts_of_source_node:
             # assert num_shifts_of_source_node <= self.num_nodes, "more changes to constant source node than number of nodes. Set constant_source_node to false to activate continues random seeding"
             if (index % int((num_runs / num_shifts_of_source_node))) == 0:
-                if num_shifts_of_source_node > self.num_nodes:
+                if num_shifts_of_source_node > self.num_nodes or list(set(range(len(self.nodes[-1]))) - set(self.source_node_history)) == []:
                     self.seed_info_random()
                 else:
-                    self.seed_info_constant_source(
-                        random.choice(list(set(range(len(self.nodes[-1]))) - set(self.source_node_history))))
+                    self.seed_info_constant_source(random.choice(list(set(range(len(self.nodes[-1]))) - set(self.source_node_history))))
             else:
                 self.source_node_history.append(self._source_node)
         elif sigma:
@@ -476,7 +500,7 @@ class Graph:
                                                                                                parameter=parameter)
 
     def evaluate_effective_distances(self, source_reward, parameter, multiple_path_eff_dist, source=None, timestep=-1,
-                                     rounding=3):
+                                     rounding=3, add_to_history=False):
         """
         Defaults to random walker effective distance metric unless given MPED=True
         returns array of effective distances to each node (from source) according to effective dist library´methods
@@ -531,7 +555,7 @@ class Graph:
             eff_dists = np.delete(eff_dists,
                                   source)  # awkward deletion/insertion to ensure min search of remaining eff_distances
             eff_dists = np.insert(eff_dists, source, min(eff_dists) / source_reward)
-            self.eff_dist_history.append(eff_dists)  # Must come before normalization otherwise sum will always be 1
+            if add_to_history: self.eff_dist_to_source_history.append(eff_dists)  # Must come before normalization otherwise sum will always be 1
             return eff_dists / np.sum(eff_dists)
 
     # Utility Functions: --------------------------------------------------------------------------------------------
@@ -612,10 +636,10 @@ class Graph:
                                                       multiple_path_eff_dist=MPED, source=None, timestep=-1)
             return np.mean(final - initial)
         if overall_average:
-            return np.mean(np.mean(self.eff_dist_history,
-                                   axis=1))  # of course same as simply np.mean(eff_dist_history), but written so for clarity
+            return np.mean(self.eff_dist_to_source_history)  # of course same as simply np.mean(eff_dist_history), but written so for clarity
         else:
-            return np.mean(self.eff_dist_history[0]) - np.mean(self.eff_dist_history[-1])
+            # return np.mean(self.eff_dist_to_source_history[0]) - np.mean(self.eff_dist_to_source_history[-1])
+            return np.mean(self.eff_dist_to_source_history[0]) - np.mean(self.eff_dist_to_source_history[-1])
 
     def degree_distribution(self, timestep=-1):
         """
@@ -656,13 +680,40 @@ class Graph:
                 SPD = sum_weighted_path(Adj, shortest_paths[source][target])
         return SPD
 
-    # Run Functions: -------------------------------------------------------------------------------------------------
-
     def E_routing(self, timestep=-1, reversed_directions=False, normalize=True):  # Routing Efficiency
         return ef.E_rout(A=self.A[timestep], reversed_directions=reversed_directions, normalize=normalize)
 
     def E_diff(self, timestep=-2, normalize=True):  # Diffusion Efficiency
         return ef.E_diff(A=self.A[timestep], normalize=normalize)
+
+    # Run Functions: -------------------------------------------------------------------------------------------------
+    def add_observables(self, null=False, source_reward=2.6):
+        # Stored Observables:  (redeclaration precludes necessity for re-initialization in ensemble run)
+        if not null:
+            # Source based observables
+            if self.observed_observables['eff_dist_diff']:  # Compares first and last eff_dist values
+                self.source_eff_dist_diff = float(self.eff_dist_diff(all_to_all_eff_dist=False, overall_average=False, source_reward=source_reward))
+            if self.observed_observables['mean_eff_dist']:  # Averages all eff_dist_history
+                self.mean_eff_dist = float(self.eff_dist_diff(all_to_all_eff_dist=False, overall_average=True, source_reward=source_reward))
+        if self.observed_observables['global_eff_dist_diff']:  # Compares first and last all to all eff_dist values
+            self.global_eff_dist_diff = float(self.eff_dist_diff(all_to_all_eff_dist=True, overall_average=False, source_reward=source_reward))
+        if self.observed_observables['degree_dist']:
+            self.degree_dist = np.var(self.degree_distribution(timestep=-1))
+        if self.observed_observables['efficiency_coordinates']:
+            self.efficiency_coordinates = np.array([ef.E_diff(A=self.A[-1], normalize=True), ef.E_rout(A=self.A[-1], normalize=True)])
+        if self.observed_observables['hierarchy_coordinates']:
+            self.linear_threshold_hierarchy_coordinates = np.array(hc.average_hierarchy_coordinates(A=self.A[-1], exp_threshold_distribution=None))
+            self.exp_threshold_hierarchy_coordinates = np.array(hc.average_hierarchy_coordinates(A=self.A[-1], exp_threshold_distribution=0.5))
+        # nx graph based observables:
+        if self.observed_observables['ave_nbr'] or self.observed_observables['cluster_coeff'] or self.observed_observables['shortest_path']:
+            nx_final_graph = self.convert_to_nx_graph(timestep=-1)
+        if self.observed_observables['ave_nbr']:
+            last_ave_nbr_deg = list(nx.average_neighbor_degree(nx_final_graph, source='in', target='in', weight='weight').values())
+            self.ave_nbr_var = np.array(last_ave_nbr_deg).var()  # Variance of average neighbor degree over time
+        if self.observed_observables['cluster_coeff']:
+            self.ave_cluster_coeff = nx.average_clustering(nx_final_graph, weight='weight')
+        if self.observed_observables['shortest_path']:
+            self.ave_shortest_path = float(nx.average_shortest_path_length(nx_final_graph, weight='weight'))
 
     def simulate(self, num_runs, eff_dist_delta_param=1, constant_source_node=False, num_shifts_of_source_node=False,
                  seeding_sigma_coeff=False, seeding_power_law_exponent=False, beta=None, multiple_path=False,
@@ -719,7 +770,7 @@ class Graph:
                                        sigma=seeding_sigma_coeff, power_law_exponent=seeding_power_law_exponent,
                                        beta=beta, index=i)
             self.nodes[-1] += np.array(self.evaluate_effective_distances(source_reward, eff_dist_delta_param, multiple_path,
-                                                  source=self._source_node))
+                                                  source=self._source_node, add_to_history=True))
             if i % update_interval == 0:
                 self.update_edges()
                 # so the next values may be overwritten, we start each run with 0 node values.
@@ -734,13 +785,12 @@ class Graph:
                     break  # Automatic break if equilibrium is reached. Lets run times be arbitrarily large for MC delta search
         self.A = np.delete(self.A, -1, axis=0)
         self.nodes = self.nodes[:-1]
-        self.linear_threshold_hierarchy_coordinates = np.array(hc.average_hierarchy_coordinates(A=self.A[-1], exp_threshold_distribution=None))
-        self.exp_threshold_hierarchy_coordinates = np.array(hc.average_hierarchy_coordinates(A=self.A[-1], exp_threshold_distribution=0.5))
+        self.add_observables(null=False, source_reward=source_reward)
 
         if verbose:
             print_run_methods()
 
-    def null_simulate(self, num_runs, equilibrium_distance=equilibrium_distance_val, hierarchy_coords=True):
+    def null_simulate(self, num_runs, equilibrium_distance=equilibrium_distance_val, source_reward=source_reward_val):
         """
         Run function. Sequentially seeds source node, sets node values to effective distance evaluation, updates edges and corresponding history.
         :param num_runs: Constant natural number, number of runs.
@@ -759,29 +809,9 @@ class Graph:
                 if np.allclose(self.A[-1], self.A[-(equilibrium_distance + 1)], rtol=1e-15):
                     print(f'Equilibrium conditions met after {i} runs, run halted.')
                     break  # Automatic break if equilibrium is reached. Lets run times be arbitrarily large for MC delta search
-        if hierarchy_coords:
-            self.linear_threshold_hierarchy_coordinates = np.array(hc.average_hierarchy_coordinates(A=self.A[-1], exp_threshold_distribution=None))
-            self.exp_threshold_hierarchy_coordinates = np.array(hc.average_hierarchy_coordinates(A=self.A[-1], exp_threshold_distribution=0.5))
 
-    def null_normed_simulate(self, num_runs, eff_dist_delta_param=1, constant_source_node=False, num_shifts_of_source_node=False,
-                 seeding_sigma_coeff=False, seeding_power_law_exponent=False, beta=None, multiple_path=False,
-                 equilibrium_distance=equilibrium_distance_val, update_interval=1, source_reward=source_reward_val):
-        """
-        Run function which subtracts null A from resulting A
-        """
-        self.simulate(num_runs, eff_dist_delta_param=eff_dist_delta_param, constant_source_node=constant_source_node, num_shifts_of_source_node=num_shifts_of_source_node,
-                 seeding_sigma_coeff=seeding_sigma_coeff, seeding_power_law_exponent=seeding_power_law_exponent, beta=beta, multiple_path=multiple_path,
-                 equilibrium_distance=equilibrium_distance, update_interval=update_interval, source_reward=source_reward)
-
-        null_graph = Graph(num_nodes=self.num_nodes, edge_conservation_coefficient=self.edge_conservation_coefficient, selectivity=self.fraction_infoscore_redistributed, undirected=self.undirected)
-        null_graph.simulate_ensemble(num_simulations=1, num_runs_per_sim=num_runs, edge_init=self.A[0], equilibrium_distance=equilibrium_distance, null_simulate=True)
-        null_graph.A = np.delete(null_graph.A, -1, axis=0)
-        self.A[1:] = self.A[1:] - null_graph.A[1:]  # Subtracts null values of equivalent graphs simulations for all timesteps. Sliced to exclude initializations, which are identical
-        self.A = np.array([self.A[i] - np.min(self.A[i]) for i in range(self.A.shape[0])])
-        self.A = np.array([self.A[i] / np.max(self.A[i]) for i in range(self.A.shape[0])])
-
-        self.linear_threshold_hierarchy_coordinates = np.array(hc.average_hierarchy_coordinates(A=self.A[-1], exp_threshold_distribution=None))
-        self.exp_threshold_hierarchy_coordinates = np.array(hc.average_hierarchy_coordinates(A=self.A[-1], exp_threshold_distribution=0.5))
+        # Stored Observables:
+        self.add_observables(null=True, source_reward=source_reward)
 
     def simulate_ensemble(self, num_simulations, num_runs_per_sim, eff_dist_delta_param=1, edge_init=None,
                           constant_source_node=False,
@@ -808,15 +838,26 @@ class Graph:
         :param verbose: if True, details approximate completion percentage and run parameters, methods.
         :return: Returns nothing, updates graph values. Use plotter library to evaluate and graph observables
         """
+        # Observable initialization:
         source_node_history = []
-        if null_normalize:
-            null_graph = Graph(num_nodes=self.num_nodes,
-                               edge_conservation_coefficient=self.edge_conservation_coefficient,
-                               selectivity=self.fraction_infoscore_redistributed, undirected=self.undirected)
-            # TODO: add other init. variables (and effects on null) to allow for variation of binaries with null simulate
+        eff_dist_history = [0]*num_runs_per_sim  # relies on consistent run distance (equilibrium val == 0 / > runtime)
+        A, null_A = np.zeros((1, self.A.shape[1], self.A.shape[2])), np.zeros((1, self.A.shape[1], self.A.shape[2]))
+        global_eff_dist_diff, eff_dist_to_source_diff, mean_eff_dist, degree_dist, ave_nbr_var, ave_cluster_coeff, ave_shortest_path = 0, 0, 0, 0, 0, 0, 0
+        efficiency_coordinates = np.zeros(2)
+        linear_threshold_hierarchy_coordinates, exp_threshold_hierarchy_coordinates = np.zeros(3), np.zeros(3)
+        # Initial null Observable declaration
+        null_global_eff_dist_diff, null_degree_dist, null_ave_nbr_var, null_ave_cluster_coeff, null_ave_shortest_path = 0, 0, 0, 0, 0
+        null_efficiency_coordinates = np.zeros(2)
+        null_linear_threshold_hierarchy_coordinates, null_exp_threshold_hierarchy_coordinates = np.zeros(3), np.zeros(3)
 
+        if null_normalize:
+            null_graph = Graph(num_nodes=self.nodes.shape[1], edge_conservation_coefficient=self.edge_conservation_coefficient,
+                               selectivity=self.fraction_infoscore_redistributed, undirected=self.undirected,
+                               global_eff_dist_diff=bool(self.global_eff_dist_diff), eff_dist_diff=bool(self.eff_dist_diff),
+                               mean_eff_dist=bool(self.mean_eff_dist), ave_nbr=bool(self.ave_nbr_var), cluster_coeff=bool(self.ave_cluster_coeff), shortest_path=bool(self.shortest_path),
+                               degree_dist=bool(self.degree_dist), hierarchy_coordinates=bool(self.linear_threshold_hierarchy_coordinates), efficiency_coords=bool(self.efficiency_coordinates))
+            # There's nearly certainly a better way of initializing a class via another
         for i in range(num_simulations):
-            # TODO: Not sure if reseeding is required
             np.random.seed(i)
             random.seed(i)
             self.edge_initialization_conditional(edge_init=edge_init, undirectify=undirectify)
@@ -826,53 +867,125 @@ class Graph:
                               source_reward=source_reward, constant_source_node=constant_source_node,
                               num_shifts_of_source_node=num_shifts_of_source_node, seeding_sigma_coeff=seeding_sigma_coeff,
                               seeding_power_law_exponent=seeding_power_law_exponent, beta=beta, multiple_path=multiple_path,
-                              equilibrium_distance=0, verbose=False)
+                              equilibrium_distance=False, verbose=False)
             else:
                 self.null_simulate(num_runs=num_runs_per_sim, equilibrium_distance=0)
             if null_normalize:
                 null_graph.edge_initialization_conditional(edge_init=self.A[0], undirectify=undirectify)
-                null_graph.null_simulate(num_runs=num_runs_per_sim, equilibrium_distance=equilibrium_distance, hierarchy_coords=False)
+                null_graph.null_simulate(num_runs=num_runs_per_sim, equilibrium_distance=equilibrium_distance)
 
-            if i == 0:
-                A = self.A
-                eff_dist_history = self.eff_dist_history
-                linear_hierarchy_coordinates = self.linear_threshold_hierarchy_coordinates
-                exp_hierarchy_coordinates = self.exp_threshold_hierarchy_coordinates
-                if null_normalize:
-                    null_A = null_graph.A
-            else:
-                A = utility_funcs.element_wise_array_average([A, self.A])
-                if null_normalize:
-                    null_A = utility_funcs.element_wise_array_average([null_A, null_graph.A])
-                eff_dist_history = utility_funcs.element_wise_array_average([np.array(eff_dist_history), np.array(self.eff_dist_history)])
-                linear_hierarchy_coordinates = utility_funcs.element_wise_array_average([linear_hierarchy_coordinates, self.linear_threshold_hierarchy_coordinates])
-                exp_hierarchy_coordinates = utility_funcs.element_wise_array_average([exp_hierarchy_coordinates, self.exp_threshold_hierarchy_coordinates])
-            if not null_simulate: source_node_history.append(self.source_node_history)
+            eff_dist_history += np.mean(self.eff_dist_to_source_history, axis=1)
+            # Running Sum of Observable calculations for future sum:
+            A += self.A[-1]
+            if self.observed_observables['eff_dist_diff']:  # Compares first and last eff_dist values
+                eff_dist_to_source_diff += self.source_eff_dist_diff
+            if self.observed_observables['mean_eff_dist']:  # Averages all eff_dist_history
+                mean_eff_dist += self.mean_eff_dist
+            if self.observed_observables['global_eff_dist_diff']:  # Compares first and last all to all eff_dist values
+                global_eff_dist_diff += self.global_eff_dist_diff
+            if self.observed_observables['degree_dist']:
+                degree_dist += self.degree_dist
+            if self.observed_observables['ave_nbr']:
+                ave_nbr_var += self.ave_nbr_var
+            if self.observed_observables['cluster_coeff']:
+                ave_cluster_coeff += self.ave_cluster_coeff
+            if self.observed_observables['shortest_path']:
+                ave_shortest_path += self.ave_shortest_path
+            if self.observed_observables['efficiency_coordinates']:
+                efficiency_coordinates += self.efficiency_coordinates
+            if self.observed_observables['hierarchy_coordinates']:
+                linear_threshold_hierarchy_coordinates += self.linear_threshold_hierarchy_coordinates
+                exp_threshold_hierarchy_coordinates += self.exp_threshold_hierarchy_coordinates
+            if not null_simulate:
+                source_node_history.append(self.source_node_history)
 
-            self.A = np.zeros((1, self.num_nodes, self.num_nodes))  # Re-initializing
+            # Running (Norm) Sum of Observable calculations for future sum:
             if null_normalize:
-                null_graph.A = np.zeros((1, self.num_nodes, self.num_nodes))  # Re-initializing
-            self.eff_dist_history = []
+                null_A += null_graph.A[-1]
+                if null_graph.observed_observables['global_eff_dist_diff']:  # Compares first and last all to all eff_dist values
+                    null_global_eff_dist_diff += null_graph.global_eff_dist_diff
+                if null_graph.observed_observables['degree_dist']:
+                    null_degree_dist += null_graph.degree_dist
+                if null_graph.observed_observables['global_eff_dist_diff']:  # Compares first and last all to all eff_dist values
+                    null_ave_nbr_var += float(null_graph.ave_nbr_var)
+                if null_graph.observed_observables['cluster_coeff']:
+                    null_ave_cluster_coeff += null_graph.ave_cluster_coeff
+                if null_graph.observed_observables['ave_nbr']:
+                    null_ave_shortest_path += null_graph.ave_shortest_path
+                if null_graph.observed_observables['efficiency_coordinates']:
+                    null_efficiency_coordinates += null_graph.efficiency_coordinates
+                if null_graph.observed_observables['hierarchy_coordinates']:
+                    null_linear_threshold_hierarchy_coordinates += null_graph.linear_threshold_hierarchy_coordinates
+                    null_exp_threshold_hierarchy_coordinates += null_graph.exp_threshold_hierarchy_coordinates
+
+            # Re-initialization:
+            if null_normalize:
+                null_graph.A = np.zeros((1, self.num_nodes, self.num_nodes))
+            self.A = np.zeros((1, self.num_nodes, self.num_nodes))  # Re-initializing
+            self.eff_dist_to_source_history = []
             self.source_node_history = []
             if verbose: utility_funcs.print_run_percentage(i, num_simulations)
 
-        self.A = A
-        if null_normalize:
-            null_graph.A = null_A
-        self.eff_dist_history = eff_dist_history
+        # Setting class variable to ensemble average:
+        self.A = A / float(num_simulations)
+        self.eff_dist_to_source_history = np.array(eff_dist_history) / float(num_simulations)
         self.source_node_history = source_node_history  # Makes final source node history 2d, with columns being the individual run histories.
+        if self.observed_observables['global_eff_dist_diff']:     self.global_eff_dist_diff = global_eff_dist_diff / float(num_simulations)
+        if self.observed_observables['eff_dist_diff']:            self.source_eff_dist_diff = eff_dist_to_source_diff / float(num_simulations)
+        if self.observed_observables['mean_eff_dist']:            self.mean_eff_dist = mean_eff_dist / float(num_simulations)
+        if self.observed_observables['degree_dist']:              self.degree_dist = degree_dist / float(num_simulations)
+        if self.observed_observables['ave_nbr']:                  self.ave_nbr_var = ave_nbr_var / float(num_simulations)
+        if self.observed_observables['cluster_coeff']:            self.ave_cluster_coeff = ave_cluster_coeff / float(num_simulations)
+        if self.observed_observables['shortest_path']:            self.ave_shortest_path = ave_shortest_path / float(num_simulations)
+        if self.observed_observables['efficiency_coordinates']:   self.efficiency_coordinates = efficiency_coordinates / float(num_simulations)
+        if self.observed_observables['hierarchy_coordinates']:
+            self.linear_threshold_hierarchy_coordinates = linear_threshold_hierarchy_coordinates / float(num_simulations)
+            self.exp_threshold_hierarchy_coordinates = exp_threshold_hierarchy_coordinates / float(num_simulations)
 
         if null_normalize:
+            null_graph.A = null_A / float(num_simulations)
             null_graph.A = np.delete(null_graph.A, -1, axis=0)
             self.A[1:] = self.A[1:] - null_graph.A[1:]  # Subtracts null values of equivalent graphs simulations for ALL timesteps. Sliced to exclude initializations, which are identical
             self.A = np.array([self.A[i] - np.min(self.A[i]) for i in range(self.A.shape[0])])  # Renormalization
             self.A = np.array([self.A[i] / np.max(self.A[i]) if np.max(self.A[i]) != 0 else self.A[i] for i in range(self.A.shape[0])])
             # Effective distance history and hierarchy coordinates are not examined w.r.t. null values, as it doesn't make much sense.
             # Nor does examining the difference in the entire time series, but most observables re concerned only with the final A anyway
+            if null_graph.observed_observables['global_eff_dist_diff']:     null_graph.global_eff_dist_diff = null_global_eff_dist_diff / float(num_simulations)
+            if null_graph.observed_observables['degree_dist']:              null_graph.degree_dist = null_degree_dist / float(num_simulations)
+            if null_graph.observed_observables['ave_nbr']:                  null_graph.ave_nbr_var = null_ave_nbr_var / float(num_simulations)
+            if null_graph.observed_observables['cluster_coeff']:            null_graph.ave_cluster_coeff = null_ave_cluster_coeff / float(num_simulations)
+            if null_graph.observed_observables['shortest_path']:            null_graph.ave_shortest_path = null_ave_shortest_path / float(num_simulations)
+            if null_graph.observed_observables['efficiency_coordinates']:   null_graph.efficiency_coordinates = null_efficiency_coordinates / float(num_simulations)
+            if null_graph.observed_observables['hierarchy_coordinates']:
+                null_graph.linear_threshold_hierarchy_coordinates = null_linear_threshold_hierarchy_coordinates / float(num_simulations)
+                null_graph.exp_threshold_hierarchy_coordinates = null_exp_threshold_hierarchy_coordinates / float(num_simulations)
 
-        self.linear_threshold_hierarchy_coordinates = linear_hierarchy_coordinates
-        self.exp_threshold_hierarchy_coordinates = exp_hierarchy_coordinates
+            if self.observed_observables['global_eff_dist_diff']:       self.global_eff_dist_diff -= null_graph.global_eff_dist_diff
+            if self.observed_observables['degree_dist']:                self.degree_dist -= null_graph.degree_dist
+            if self.observed_observables['ave_nbr']:                    self.ave_nbr_var -= null_graph.ave_nbr_var
+            if self.observed_observables['cluster_coeff']:              self.ave_cluster_coeff -= null_graph.ave_cluster_coeff
+            if self.observed_observables['shortest_path']:              self.ave_shortest_path -= null_graph.ave_shortest_path
+            if self.observed_observables['efficiency_coordinates']:     self.efficiency_coordinates -= null_graph.efficiency_coordinates
+            if self.observed_observables['hierarchy_coordinates']:
+                self.linear_threshold_hierarchy_coordinates -= null_graph.linear_threshold_hierarchy_coordinates
+                self.exp_threshold_hierarchy_coordinates -= null_graph.exp_threshold_hierarchy_coordinates
+                # self.linear_threshold_hierarchy_coordinates += np.min(linear_threshold_hierarchy_coordinates)
+                # self.exp_threshold_hierarchy_coordinates += np.min(exp_threshold_hierarchy_coordinates)
 
+        # Debug:
+        # if self.edge_conservation_coefficient == 1.0 and self.fraction_infoscore_redistributed == 1.0:
+        #     print(f'eff_dist_to_source_history              :{self.eff_dist_to_source_history}')
+        #     print(f'len(eff_dist_to_source_history)         :{len(self.eff_dist_to_source_history)}')
+        #     print(f'global_eff_dist_diff                    :{self.global_eff_dist_diff}')
+        #     print(f'source_eff_dist_diff                    :{self.source_eff_dist_diff}')
+        #     print(f'mean_eff_dist                           :{self.mean_eff_dist}')
+        #     print(f'degree_dist                             :{self.degree_dist}')
+        #     print(f'ave_nbr_var                             :{self.ave_nbr_var}')
+        #     print(f'ave_cluster_coeff                       :{self.ave_cluster_coeff}')
+        #     print(f'shortest_path                           :{self.shortest_path}')
+        #     print(f'efficiency_coordinates                  :{self.efficiency_coordinates}')
+        #     print(f'linear_threshold_hierarchy_coordinates  :{self.linear_threshold_hierarchy_coordinates}')
+        #     print(f'exp_threshold_hierarchy_coordinates     :{self.exp_threshold_hierarchy_coordinates}')
 
 ########################################################################################################################
 
