@@ -820,8 +820,8 @@ class Graph:
                           multiple_path=False, equilibrium_distance=0, update_interval=1,
                           source_reward=source_reward_val, undirectify=False, null_simulate=False, null_normalize=False, verbose=False):
         """
-        Keeps a running average of A, and eff_dist_history over num_simulations, while extending source history.
-        This leaves observables which are not dependent on an averaged A requiring special reprogramming.
+        Evaluates requested observables (as per observed observables in init) independently for null and normal sims in ensembles,
+        then averages and returns their differences.
         :param num_simulations: number of simulations over which the end result will be averaged
         :param num_runs_per_sim: Constant natural number, number of runs.
         :param update_interval: Number of seed steps per run (times information is seeded and diffused before reweighing edges)
@@ -868,13 +868,13 @@ class Graph:
                               num_shifts_of_source_node=num_shifts_of_source_node, seeding_sigma_coeff=seeding_sigma_coeff,
                               seeding_power_law_exponent=seeding_power_law_exponent, beta=beta, multiple_path=multiple_path,
                               equilibrium_distance=False, verbose=False)
+                eff_dist_history += np.mean(self.eff_dist_to_source_history, axis=1)
             else:
                 self.null_simulate(num_runs=num_runs_per_sim, equilibrium_distance=0)
             if null_normalize:
                 null_graph.edge_initialization_conditional(edge_init=self.A[0], undirectify=undirectify)
                 null_graph.null_simulate(num_runs=num_runs_per_sim, equilibrium_distance=equilibrium_distance)
 
-            eff_dist_history += np.mean(self.eff_dist_to_source_history, axis=1)
             # Running Sum of Observable calculations for future sum:
             A += self.A[-1]
             if self.observed_observables['eff_dist_diff']:  # Compares first and last eff_dist values
@@ -902,8 +902,6 @@ class Graph:
             # Running (Norm) Sum of Observable calculations for future sum:
             if null_normalize:
                 null_A += null_graph.A[-1]
-                if null_graph.observed_observables['global_eff_dist_diff']:  # Compares first and last all to all eff_dist values
-                    null_global_eff_dist_diff += null_graph.global_eff_dist_diff
                 if null_graph.observed_observables['degree_dist']:
                     null_degree_dist += null_graph.degree_dist
                 if null_graph.observed_observables['global_eff_dist_diff']:  # Compares first and last all to all eff_dist values
@@ -928,7 +926,7 @@ class Graph:
 
         # Setting class variable to ensemble average:
         self.A = A / float(num_simulations)
-        self.eff_dist_to_source_history = np.array(eff_dist_history) / float(num_simulations)
+        if not null_simulate: self.eff_dist_to_source_history = np.array(eff_dist_history) / float(num_simulations)
         self.source_node_history = source_node_history  # Makes final source node history 2d, with columns being the individual run histories.
         if self.observed_observables['global_eff_dist_diff']:     self.global_eff_dist_diff = global_eff_dist_diff / float(num_simulations)
         if self.observed_observables['eff_dist_diff']:            self.source_eff_dist_diff = eff_dist_to_source_diff / float(num_simulations)

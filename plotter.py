@@ -808,8 +808,8 @@ def parallelized_animate_network_evolution(graph, source_weighting=False, node_s
     vid_path = Path(source_directory, directory_name)
     fig_path = Path(vid_path, 'figures')
     try:
-        os.mkdir(vid_path), f'Created folder for network structure gif at {vid_path}'
-        os.mkdir(fig_path), f'Created folder for figures at {fig_path}'
+        os.makedirs(vid_path), f'Created folder for network structure gif at {vid_path}'
+        os.makedirs(fig_path), f'Created folder for figures at {fig_path}'
     except OSError:
         print(f'{vid_path}/{fig_path} already exists, adding or overwriting contents')
         pass
@@ -831,12 +831,12 @@ def parallelized_animate_network_evolution(graph, source_weighting=False, node_s
             files = Path(fig_path, f'{index:04}')
             if num_runs_per_fig:
                 if index % num_runs_per_fig == 0 or index < 10:  # As the first few are generally the most important
-                    p = mp.Process(target=plot_single_network, args=(graph, index, node_size_scaling, None, source_weighting, initial_position, False, True, files))
+                    p = mp.Process(target=plot_single_network, args=(graph, index, True, node_size_scaling, source_weighting, initial_position, False, True, False, files))
                     p.start()
                     processes.append(p)
                     used_cores += 1
             else:
-                p = mp.Process(target=plot_single_network, args=(graph, index, node_size_scaling, None, source_weighting, initial_position, False, True, files))
+                p = mp.Process(target=plot_single_network, args=(graph, index, True, node_size_scaling, source_weighting, initial_position, False, True, False, files))
                 p.start()
                 processes.append(p)
                 used_cores += 1
@@ -864,7 +864,7 @@ def parallelized_animate_network_evolution(graph, source_weighting=False, node_s
 
     if verbose:
         print(f'\n gif and mp4 of network evolution created in {vid_path} \n Stills stored in {fig_path} \n')
-        print(f"Time lapsed {int((time.time()-start_time) / 60)} minutes, {np.round((time.time()-start_time) % 60, 2)} seconds")
+        print(f"Time to animate: {int((time.time()-start_time) / 60)} minutes, {np.round((time.time()-start_time) % 60, 2)} seconds")
 
 # def animate_grid_search_results(graph, by_edge_conservation=True, data_directory=None, subdata_directory=None, gif_duration_in_sec=5, num_runs_per_fig=None, verbose=False):
     """

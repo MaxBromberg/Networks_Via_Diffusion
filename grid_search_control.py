@@ -274,7 +274,7 @@ directory = Path(str(Path.home()), 'data/')
 parameter_dictionary = {
     'data_directory': directory,
     'run_index': 1,
-    'num_nodes': 20,
+    'num_nodes': 60,
     'edge_conservation_range': '0_1.05_0.05',  # work with me here. (args to np.arange separated by _)
     'selectivity_range': '0_1.05_0.05'
 }
@@ -293,7 +293,7 @@ edge_init = {
     'edge_init': 'None',  # None is uniform rnd, int is num_edges/node in sparse init, float is degree exp in scale free init.
 }
 ensemble_params = {
-    'ensemble_size': 10,  # num sims to average over. 0 if just one sim is desired (e.g. for graph pictures)
+    'ensemble_size': 0,  # num sims to average over. 0 if just one sim is desired (e.g. for graph pictures)
     'num_runs': 25,  # num runs, could be cut off if reaches equilibrium condition first
     'delta': 10,  # Delta parameter in (RW/MP)ED, recommended >= 1
     'equilibrium_distance': 0,
@@ -308,14 +308,14 @@ ensemble_params = {
     'undirectify_init': 0  # Start edges with reciprocated (simple) edges? (Boolean)
 }
 plots = {
-    'network_graphs': 0,  # graphs the networks
+    'network_graphs': 1,  # graphs the networks
     'node_plots': 0,  # plots Evolution of node values over time
     'ave_nbr': 0,  # Plots average neighbor connections over time
     'cluster_coeff': 0,  # Plots evolution of cluster coefficient
     'eff_dist': 0,  # Plots evolution of average effective distance to source
     'global_eff_dist': 0,  # Plots evolution of average effective distance from every node to every other
     'shortest_path': 0,  # Plots the average shortest path over time. Very computationally expensive
-    'degree_dist': 0,  # Yields the degree (total weight) distribution as a histogram
+    'degree_dist': 1,  # Yields the degree (total weight) distribution as a histogram
     'edge_dist': 0,  # Plots the edge distribution (individual edge counts) as a histogram
     'meta_plots': 1,  # Plots all the meta-plots, specifically: last_ave_nbr_deg, ed diffs, mean ed, ave_neighbor diffs,
     # global ed diffs, ave_nbr variance, log_deg_dist variance, hierarchy coordinates (with exponential and linear thresholds) and efficiency coordinates
@@ -333,17 +333,10 @@ plots = {
 
 
 default_dict = {**parameter_dictionary, **search_wide_dic, **edge_init, **ensemble_params, **plots}
-mods = {'edge_conservation_range': '0_1.05_0.1', 'selectivity_range': '0_1.05_0.1'}
-modded_dict = {**default_dict, **mods}
+# mods = {'edge_conservation_range': '0_1.05_0.1', 'selectivity_range': '0_1.05_0.1'}
+# modded_dict = {**default_dict, **mods}
+master_dict = list_of_dicts(default_dict, density_init_dic(directory), seeding_dic(directory))
 # master_dict = list_of_dicts(default_dict, initializations_dic(directory), seeding_dic(directory), directionality_dic(directory))
-master_dict = list_of_dicts(modded_dict, density_init_dic(directory), seeding_dic(directory))
-
-null_norm_mods = {'null_normalize': 1}
-null_norm_default_dict = {**default_dict, **null_norm_mods, **mods}
-null_master_dict = list_of_dicts(null_norm_default_dict, density_init_dic(directory), seeding_dic(directory))
 
 if __name__ == '__main__':
-    # run_grid_search(param_dic=null_master_dict[int(sys.argv[1])])
-    # run_grid_search(param_dic=null_master_dict[0])
-    for i in range(len(null_master_dict)):
-        run_grid_search(param_dic=null_master_dict[i])
+    run_grid_search(param_dic=master_dict[0])
