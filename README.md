@@ -32,7 +32,7 @@ Furthermore, for plotting of hierarchy coordinates with 2d planes printed below,
 [0.1]: https://arxiv.org/abs/1303.2503
 [0.2]: hierarchy_coordinates.py
 [0.3]: https://www.pnas.org/content/suppl/2013/07/25/1300832110.DCSupplemental
-[0.5]: reference_to_thesis_in_repo
+[0.5]: Emergence%20of%20Hierarchy%20via%20Local%20Adaptation%20to%20Diffusion.pdf
 
 <!---- Footnotes: ---->
 <b id="f1">0.1</b> Supplementary material of [Corominas-Murta et al. (2013)][0.1] with detailed description of the hierarchy coordinates used to develop this repository's [hierarchy_coordinates.py][0.2] found [here][0.3]
